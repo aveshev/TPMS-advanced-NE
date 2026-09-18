@@ -29,12 +29,9 @@ internal fun TyreDisplaySettings(
     modifier: Modifier = Modifier,
     viewModel: TyreDisplaySettingsViewModel = viewModel { TyreDisplaySettingsViewModel() },
 ) {
-    val showTimestamp by viewModel.showTimestamp.collectAsState()
     val showSensorId by viewModel.showSensorId.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
     TyreDisplaySettings(
-        showTimestamp = showTimestamp,
-        onShowTimestamp = { viewModel.showTimestamp.value = it },
         showSensorId = showSensorId,
         onShowSensorId = { viewModel.showSensorId.value = it },
         showTimeSinceUpdate = showTimeSinceUpdate,
@@ -45,8 +42,6 @@ internal fun TyreDisplaySettings(
 
 @Composable
 private fun TyreDisplaySettings(
-    showTimestamp: Boolean,
-    onShowTimestamp: (Boolean) -> Unit,
     showSensorId: Boolean,
     onShowSensorId: (Boolean) -> Unit,
     showTimeSinceUpdate: Boolean,
@@ -58,12 +53,6 @@ private fun TyreDisplaySettings(
         checked = showTimeSinceUpdate,
         onCheckedChange = onShowTimeSinceUpdate,
         modifier = Modifier.testTag(TyreDisplaySettingsTags.showTimeSinceUpdate),
-    )
-    CheckboxRow(
-        text = "Show timestamp",
-        checked = showTimestamp,
-        onCheckedChange = onShowTimestamp,
-        modifier = Modifier.testTag(TyreDisplaySettingsTags.showTimestamp),
     )
     CheckboxRow(
         text = "Show ID",
@@ -92,8 +81,6 @@ private fun CheckboxRow(
 @Composable
 internal fun TyreDisplaySettingsPreview() {
     TyreDisplaySettings(
-        showTimestamp = true,
-        onShowTimestamp = {},
         showSensorId = true,
         onShowSensorId = {},
         showTimeSinceUpdate = true,
@@ -103,7 +90,6 @@ internal fun TyreDisplaySettingsPreview() {
 
 @Suppress("ConstPropertyName")
 internal object TyreDisplaySettingsTags {
-    const val showTimestamp = "TyreDisplaySettingsTags_showTimestamp"
     const val showSensorId = "TyreDisplaySettingsTags_showSensorId"
     const val showTimeSinceUpdate = "TyreDisplaySettingsTags_showTimeSinceUpdate"
 }

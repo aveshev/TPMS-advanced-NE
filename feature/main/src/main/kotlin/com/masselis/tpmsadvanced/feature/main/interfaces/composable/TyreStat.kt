@@ -14,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
@@ -39,8 +38,6 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import java.text.SimpleDateFormat
-import java.util.Date
 
 @Composable
 internal fun TyreStat(
@@ -52,10 +49,9 @@ internal fun TyreStat(
         .let { viewModel(it.keyed()) { it.TyreStatsViewModel() } },
 ) {
     val state by viewModel.stateFlow.collectAsState()
-    val showTimestamp by viewModel.showTimestamp.collectAsState()
     val showSensorId by viewModel.showSensorId.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
-    TyreStat(location, state, showTimestamp, showSensorId, showTimeSinceUpdate, modifier)
+    TyreStat(location, state, showSensorId, showTimeSinceUpdate, modifier)
 }
 
 @Suppress("NAME_SHADOWING", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
@@ -63,7 +59,6 @@ internal fun TyreStat(
 private fun TyreStat(
     location: Location,
     state: State,
-    showTimestamp: Boolean = false,
     showSensorId: Boolean = false,
     showTimeSinceUpdate: Boolean = true,
     modifier: Modifier = Modifier,
@@ -155,29 +150,19 @@ private fun TyreStat(
             )
         }
 
-        if (sensorId != null && timestamp != null && (showSensorId || showTimestamp)) {
-            val displaySensorId = if (showSensorId) {
-                if ((sensorId ushr 24) == 0) {
-                    "%02X%02X%02X".format(
-                        sensorId and 0xFF,
-                        (sensorId shr 8) and 0xFF,
-                        (sensorId shr 16) and 0xFF,
-                    )
-                } else {
-                    "0x%08X".format(sensorId)
-                }
-            } else null
-
-            val lastReceived = if (showTimestamp) {
-                val locale = LocalLocale.current.platformLocale
-                SimpleDateFormat("dd/MM/yyyy h:mma", locale)
-                    .format(Date((timestamp * 1000).toLong()))
-                    .lowercase(locale)
-                    .let { "Last: $it" }
-            } else null
+        if (sensorId != null && showSensorId) {
+            val displaySensorId = if ((sensorId ushr 24) == 0) {
+                "%02X%02X%02X".format(
+                    sensorId and 0xFF,
+                    (sensorId shr 8) and 0xFF,
+                    (sensorId shr 16) and 0xFF,
+                )
+            } else {
+                "0x%08X".format(sensorId)
+            }
 
             Text(
-                text = listOfNotNull(displaySensorId, lastReceived).joinToString("  "),
+                text = displaySensorId,
                 fontSize = 9.sp,
                 maxLines = 1,
                 color = onSurfaceColor,
