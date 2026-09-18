@@ -206,7 +206,7 @@ private fun elapsedLabel(timestamp: Double, now: Double): String {
     return when {
         totalMinutes == 0L -> "<1 min"
         totalMinutes < HOUR_TIER_START_MINUTES -> "$totalMinutes min"
-        totalHours < DAY_TIER_START_HOURS -> "$totalHours hour"
+        totalHours < DAY_TIER_START_HOURS -> "$totalHours hours"
         else -> "${totalHours / HOURS_PER_DAY} days"
     }
 }
