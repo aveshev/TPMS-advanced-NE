@@ -84,7 +84,16 @@ internal class VehicleTemplateTest {
     fun alertingTyreShowsItsLocationAndFormattedPressureWithTemperature() {
         singleTyreGridItem(
             TyreIconStateFlow.State.Alerting,
-            TyreStatsStateFlow.State.Alerting(0.0, 0, 3.2f.bar, BAR, 60f.celsius, CELSIUS),
+            TyreStatsStateFlow.State.Alerting(
+                0.0,
+                0,
+                3.2f.bar,
+                BAR,
+                60f.celsius,
+                CELSIUS,
+                isPressureAlert = true,
+                isTemperatureAlert = false,
+            ),
         ).also { item ->
             assertEquals("Front left", item.title.toString())
             assertEquals("3.2b  60°C", item.text.toString())
