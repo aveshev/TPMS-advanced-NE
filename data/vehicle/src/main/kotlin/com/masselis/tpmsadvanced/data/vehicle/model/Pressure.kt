@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.KILO_PASCAL
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.PSI
+import java.text.DecimalFormatSymbols
 
 /* Cannot use @Parcelize here: https://issuetracker.google.com/issues/177856519 */
 @Suppress("MagicNumber")
@@ -26,6 +27,12 @@ public value class Pressure(public val kpa: Float) : Parcelable, Comparable<Pres
         KILO_PASCAL -> (if (compact) "%.0fk" else "%.0f kpa").format(kpa)
         BAR -> (if (compact) "%.1fb" else "%.2f bar").format(asBar())
         PSI -> (if (compact) "%.0fp" else "%.1f psi").format(asPsi())
+    }
+
+    public fun numberString(unit: PressureUnit): String = when (unit) {
+        KILO_PASCAL -> "%.0f".format(kpa)
+        BAR -> "%.2f".format(asBar()).trimTrailingZeroDecimal()
+        PSI -> "%.1f".format(asPsi()).trimTrailingZeroDecimal()
     }
 
     public fun hasPressure(): Boolean = kpa > 0f
@@ -58,6 +65,12 @@ public value class Pressure(public val kpa: Float) : Parcelable, Comparable<Pres
 
         public val Float.psi: Pressure get() = Pressure(this * 6.895f)
 
+        public fun Float.toPressure(unit: PressureUnit): Pressure = when (unit) {
+            KILO_PASCAL -> kpa
+            BAR -> bar
+            PSI -> psi
+        }
+
         override fun createFromParcel(parcel: Parcel): Pressure {
             return Pressure(parcel)
         }
@@ -66,4 +79,9 @@ public value class Pressure(public val kpa: Float) : Parcelable, Comparable<Pres
             return arrayOfNulls(size)
         }
     }
+}
+
+private fun String.trimTrailingZeroDecimal(): String {
+    val separator = DecimalFormatSymbols.getInstance().decimalSeparator
+    return if (contains(separator)) trimEnd('0').trimEnd(separator) else this
 }

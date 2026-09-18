@@ -26,6 +26,11 @@ public value class Temperature(public val celsius: Float) : Parcelable, Comparab
         FAHRENHEIT -> "%.0f°F".format(asFahrenheit())
     }
 
+    public fun numberString(unit: TemperatureUnit): String = when (unit) {
+        CELSIUS -> "%.0f".format(celsius)
+        FAHRENHEIT -> "%.0f".format(asFahrenheit())
+    }
+
     override operator fun compareTo(other: Temperature): Int = celsius.compareTo(other.celsius)
 
     public operator fun rangeTo(other: Temperature): ClosedFloatingPointRange<Temperature> =
@@ -52,6 +57,11 @@ public value class Temperature(public val celsius: Float) : Parcelable, Comparab
         public val Float.celsius: Temperature get() = Temperature(this)
 
         public val Float.fahrenheit: Temperature get() = Temperature((this - 32f) * (5f / 9f))
+
+        public fun Float.toTemperature(unit: TemperatureUnit): Temperature = when (unit) {
+            CELSIUS -> celsius
+            FAHRENHEIT -> fahrenheit
+        }
 
         override fun createFromParcel(parcel: Parcel): Temperature {
             return Temperature(parcel)

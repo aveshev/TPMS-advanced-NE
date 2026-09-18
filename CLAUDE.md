@@ -25,6 +25,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew build verifyPaparazzi pixel2api34DemoDebugAndroidTest
 ```
 
+## Workflow
+
+For UI/UX changes, build and deploy to a physical device (`./gradlew :app:phone:installNormalDebug`) and get the user's explicit sign-off on the change before touching CI or Paparazzi golden screenshots (`recordPaparazzi`, `verifyPaparazzi`). Don't record/update golden screenshots until the user has confirmed the UI looks right.
+
 ## Architecture
 
 Multi-module Android app (Kotlin, Jetpack Compose, API 27–36) organized into three layers:

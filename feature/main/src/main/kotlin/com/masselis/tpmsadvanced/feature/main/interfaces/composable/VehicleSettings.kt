@@ -13,13 +13,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import com.masselis.tpmsadvanced.core.common.Fraction
 import com.masselis.tpmsadvanced.core.ui.Separator
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.psi
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
@@ -65,12 +66,13 @@ internal fun VehicleSettings(
                 { lowPressure.value = it },
                 { highPressure.value = it },
                 title = if (rearLowPressureValue != null)
-                    "Front tyres expected pressure range: "
+                    "Front tyres expected pressure range:"
                 else
-                    "Expected pressure range: ",
+                    "Expected pressure range:",
             )
             if (hasFrontRearAxles) {
                 val rearHighPressureValue = rearHighPressure.collectAsState().value
+                Separator()
                 RearPressureToggle(
                     checked = rearLowPressureValue != null,
                     onCheckedChange = { setRearOverrideEnabled(it) },
@@ -82,14 +84,15 @@ internal fun VehicleSettings(
                         pressureUnit,
                         { rearLowPressure.value = it },
                         { rearHighPressure.value = it },
-                        title = "Rear tyres expected pressure range: ",
+                        title = "Rear tyres expected pressure range:",
                     )
             }
         }
         Separator()
-        HighTemp(highTemp, normalTemp, tempUnit, { viewModel.highTemp.value = it })
-        NormalTemp(lowTemp, normalTemp, highTemp, tempUnit, { viewModel.normalTemp.value = it })
-        LowTemp(lowTemp, normalTemp, tempUnit, { viewModel.lowTemp.value = it })
+        Text("Temperature", fontWeight = FontWeight.Medium)
+        MinTemp(lowTemp, normalTemp, tempUnit, { viewModel.lowTemp.value = it })
+        NormTemp(lowTemp, normalTemp, highTemp, tempUnit, { viewModel.normalTemp.value = it })
+        MaxTemp(highTemp, normalTemp, tempUnit, { viewModel.highTemp.value = it })
         if (backgroundSettings !== backgroundSettingsPlaceholder) {
             Separator()
             backgroundSettings(component)
@@ -109,11 +112,11 @@ private fun PressureRange(
     onLowPressure: (Pressure) -> Unit,
     onHighPressure: (Pressure) -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "Expected pressure range: ",
+    title: String = "Expected pressure range:",
 ) {
     var showLowPressureDialog by remember { mutableStateOf(false) }
-    PressureRangeSlider(
-        minMaxRange = 0.5f.bar..5f.bar,
+    PressureRangeField(
+        minMaxRange = 0f.psi..150f.psi,
         values = lowPressure..highPressure,
         onValue = {
             onLowPressure(it.start)
@@ -148,33 +151,33 @@ private fun RearPressureToggle(
 }
 
 @Composable
-private fun HighTemp(
-    highTemp: Temperature,
+private fun MinTemp(
+    lowTemp: Temperature,
     normalTemp: Temperature,
     unit: TemperatureUnit,
-    onHighTemp: (Temperature) -> Unit,
+    onLowTemp: (Temperature) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showHighTempDialog by remember { mutableStateOf(false) }
-    TemperatureSlider(
-        openInfo = { showHighTempDialog = true },
-        title = "Max temperature:",
-        value = highTemp,
+    var showLowTempDialog by remember { mutableStateOf(false) }
+    TemperatureField(
+        label = "Cold",
+        openInfo = { showLowTempDialog = true },
+        value = lowTemp,
         unit = unit,
-        onValue = onHighTemp,
-        minMaxRange = normalTemp..(150f.celsius),
+        onValue = onLowTemp,
+        minMaxRange = 5f.celsius..normalTemp,
         modifier = modifier
     )
-    if (showHighTempDialog) TemperatureInfo(
-        text = "When the temperature is equals or superior to %s, the tyre starts to blink in red to alert you",
-        state = State.Alerting,
-        temperature = highTemp,
+    if (showLowTempDialog) TemperatureInfo(
+        text = "When the temperature is close to %s, the tyre is colored in blue",
+        state = State.Normal.BlueToGreen(Fraction(0f)),
+        temperature = lowTemp,
         unit = unit,
-    ) { showHighTempDialog = false }
+    ) { showLowTempDialog = false }
 }
 
 @Composable
-private fun NormalTemp(
+private fun NormTemp(
     lowTemp: Temperature,
     normalTemp: Temperature,
     highTemp: Temperature,
@@ -183,9 +186,9 @@ private fun NormalTemp(
     modifier: Modifier = Modifier
 ) {
     var showNormalTempDialog by remember { mutableStateOf(false) }
-    TemperatureSlider(
+    TemperatureField(
+        label = "Normal",
         openInfo = { showNormalTempDialog = true },
-        title = "Normal temperature:",
         value = normalTemp,
         unit = unit,
         onValue = onNormalTemp,
@@ -201,29 +204,29 @@ private fun NormalTemp(
 }
 
 @Composable
-private fun LowTemp(
-    lowTemp: Temperature,
+private fun MaxTemp(
+    highTemp: Temperature,
     normalTemp: Temperature,
     unit: TemperatureUnit,
-    onLowTemp: (Temperature) -> Unit,
+    onHighTemp: (Temperature) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showLowTempDialog by remember { mutableStateOf(false) }
-    TemperatureSlider(
-        openInfo = { showLowTempDialog = true },
-        title = "Low temperature:",
-        value = lowTemp,
+    var showHighTempDialog by remember { mutableStateOf(false) }
+    TemperatureField(
+        label = "Hot",
+        openInfo = { showHighTempDialog = true },
+        value = highTemp,
         unit = unit,
-        onValue = onLowTemp,
-        minMaxRange = 5f.celsius..normalTemp,
+        onValue = onHighTemp,
+        minMaxRange = normalTemp..(150f.celsius),
         modifier = modifier
     )
-    if (showLowTempDialog) TemperatureInfo(
-        text = "When the temperature is close to %s, the tyre is colored in blue",
-        state = State.Normal.BlueToGreen(Fraction(0f)),
-        temperature = lowTemp,
+    if (showHighTempDialog) TemperatureInfo(
+        text = "When the temperature is equals or superior to %s, the tyre starts to blink in red to alert you",
+        state = State.Alerting,
+        temperature = highTemp,
         unit = unit,
-    ) { showLowTempDialog = false }
+    ) { showHighTempDialog = false }
 }
 
 private val backgroundSettingsPlaceholder: @Composable (VehicleComponent) -> Unit = {}
