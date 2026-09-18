@@ -62,12 +62,16 @@ Room is not used. SQLDelight generates type-safe Kotlin from `.sq` files. Migrat
 
 ### Build Flavors
 Two flavors: `demo` (for Play Store screenshots/testing) and `normal` (production).
+Use normal by default when compiling for deployment to physical device
 
 ### Convention Plugins
 Reusable Gradle config lives in `buildSrc/src/main/kotlin/` as convention plugins (`android-app`, `android-lib`, `compose`, `detekt`, `gitflow`, `monitor-resource`). Apply these to new modules rather than duplicating config.
 
 ### Versioning
 A custom `GitflowPlugin` (git-cli backed, no JGit) manages semantic versioning automatically from the git-flow branch structure and validates the branch model (release must fork from `develop`, hotfix from `main`, no duplicate tags/branches, no foreign commits). Releases are cut via `./gradlew createRelease -Pgitflow.bump=major|minor|patch` on `develop` (`./gradlew createHotfix` from `main`, always patch), followed by `./gradlew pushGitflowBranch` — or via the `Gitflow` GitHub Actions `workflow_dispatch`, which runs the same tasks. A push to `main` also auto-opens a merge-commit back-merge PR into `develop`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full flow.
+
+### Remotes
+This checkout has two remotes: `origin` (the user's fork, `aveshev/TPMS-advanced-NE`) and `upstream` (`VincentMasselis/TPMS-advanced`, the original project). Nothing from this project — branches, pushes, PRs — should go to `upstream` unless specifically asked to do so. Default to `origin` for pushes and PRs (`gh repo set-default aveshev/TPMS-advanced-NE` keeps `gh pr create` from guessing wrong).
 
 ## Code Style
 
