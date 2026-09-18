@@ -3,15 +3,15 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import app.cash.paparazzi.Paparazzi
 import com.masselis.tpmsadvanced.core.test.MainDispatcherRule
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.PressureRangeSliderPreview
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TemperatureSliderPreview
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.PressureRangeFieldPreview
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TemperatureFieldPreview
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import java.util.Locale
 import java.util.TimeZone
 
-internal class AlertSliderTest {
+internal class AlertFieldTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -31,16 +31,16 @@ internal class AlertSliderTest {
     }
 
     @Test
-    fun pressureRangeSlider() {
+    fun pressureRangeField() {
         paparazzi.snapshot {
-            PressureRangeSliderPreview()
+            PressureRangeFieldPreview()
         }
     }
 
     @Test
-    fun temperatureSlider() {
+    fun temperatureField() {
         paparazzi.snapshot {
-            TemperatureSliderPreview()
+            TemperatureFieldPreview()
         }
     }
 }
