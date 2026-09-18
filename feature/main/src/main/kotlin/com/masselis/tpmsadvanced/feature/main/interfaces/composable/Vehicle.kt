@@ -128,9 +128,9 @@ private fun Car(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(frontLeft.top)
+                    start.linkTo(parent.start, 8.dp)
                     end.linkTo(frontLeft.start, 8.dp)
-                    // If not, the word "bar" for "1,50 bar" is not displayed 🤷
-                    width = Dimension.value(100.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -157,6 +157,8 @@ private fun Car(
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(frontRight.top)
                     start.linkTo(frontRight.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -182,8 +184,9 @@ private fun Car(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     bottom.linkTo(rearLeft.bottom)
+                    start.linkTo(parent.start, 8.dp)
                     end.linkTo(rearLeft.start, 8.dp)
-                    width = Dimension.value(100.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -210,6 +213,8 @@ private fun Car(
                 modifier = Modifier.constrainAs(rearRightStats) {
                     bottom.linkTo(rearRight.bottom)
                     start.linkTo(rearRight.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -271,8 +276,9 @@ private fun SingleAxleTrailer(
                 modifier = Modifier.constrainAs(leftStats) {
                     top.linkTo(tyreLeft.top)
                     bottom.linkTo(tyreLeft.bottom)
+                    start.linkTo(parent.start, 8.dp)
                     end.linkTo(tyreLeft.start, 8.dp)
-                    width = Dimension.value(100.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -303,6 +309,8 @@ private fun SingleAxleTrailer(
                     top.linkTo(tyreRight.top)
                     bottom.linkTo(tyreRight.bottom)
                     start.linkTo(tyreRight.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -355,8 +363,9 @@ private fun Motorcycle(
                 }
         )
         with(Location.Axle(FRONT)) {
+            val location = this
             Tyre(
-                location = this,
+                location = location,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier
                     .constrainAs(tyreFront) {
@@ -367,15 +376,21 @@ private fun Motorcycle(
                         height = Dimension.value(100.dp)
                     }
             )
-            TyreStat(
-                location = this,
+            Box(
                 modifier = Modifier.constrainAs(frontStats) {
                     centerHorizontallyTo(tyreFront)
+                    top.linkTo(parent.top, 8.dp)
                     bottom.linkTo(vehicleImage.top, 8.dp)
+                    height = Dimension.fillToConstraints
                 }
-            )
+            ) {
+                TyreStat(
+                    location = location,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
             BindSensorButton(
-                location = this,
+                location = location,
                 modifier = Modifier.constrainAs(frontBinding) {
                     top.linkTo(tyreFront.top)
                     bottom.linkTo(tyreFront.bottom)
@@ -384,8 +399,9 @@ private fun Motorcycle(
             )
         }
         with(Location.Axle(REAR)) {
+            val location = this
             Tyre(
-                location = this,
+                location = location,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier
                     .constrainAs(tyreRear) {
@@ -396,15 +412,21 @@ private fun Motorcycle(
                         height = Dimension.value(100.dp)
                     }
             )
-            TyreStat(
-                location = this,
+            Box(
                 modifier = Modifier.constrainAs(rearStats) {
                     centerHorizontallyTo(tyreRear)
                     top.linkTo(vehicleImage.bottom, 8.dp)
+                    bottom.linkTo(parent.bottom, 8.dp)
+                    height = Dimension.fillToConstraints
                 }
-            )
+            ) {
+                TyreStat(
+                    location = location,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
             BindSensorButton(
-                location = this,
+                location = location,
                 modifier = Modifier
                     .constrainAs(rearBinding) {
                         top.linkTo(tyreRear.top)
@@ -464,9 +486,9 @@ private fun TadpoleThreadWheeler(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(frontLeft.top)
+                    start.linkTo(parent.start, 8.dp)
                     end.linkTo(frontLeft.start, 8.dp)
-                    // If not, the word "bar" for "1,50 bar" is not displayed 🤷
-                    width = Dimension.value(100.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -493,6 +515,8 @@ private fun TadpoleThreadWheeler(
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(frontRight.top)
                     start.linkTo(frontRight.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -522,6 +546,8 @@ private fun TadpoleThreadWheeler(
                     top.linkTo(tyreRear.top)
                     bottom.linkTo(tyreRear.bottom)
                     start.linkTo(tyreRear.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -589,6 +615,8 @@ private fun DeltaThreeWheeler(
                     top.linkTo(tyreFront.top)
                     bottom.linkTo(tyreFront.bottom)
                     start.linkTo(tyreFront.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -615,8 +643,9 @@ private fun DeltaThreeWheeler(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     bottom.linkTo(rearLeft.bottom)
+                    start.linkTo(parent.start, 8.dp)
                     end.linkTo(rearLeft.start, 8.dp)
-                    width = Dimension.value(100.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(
@@ -643,6 +672,8 @@ private fun DeltaThreeWheeler(
                 modifier = Modifier.constrainAs(rearRightStats) {
                     bottom.linkTo(rearRight.bottom)
                     start.linkTo(rearRight.end, 8.dp)
+                    end.linkTo(parent.end, 8.dp)
+                    width = Dimension.fillToConstraints
                 }
             )
             BindSensorButton(

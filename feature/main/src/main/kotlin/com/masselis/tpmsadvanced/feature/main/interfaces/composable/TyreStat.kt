@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.common.now
@@ -176,13 +177,26 @@ private fun TyreStat(
                     .let { "Last: $it" }
             } else null
 
-            Text(
-                text = listOfNotNull(displaySensorId, lastReceived).joinToString("  "),
-                fontSize = 9.sp,
-                maxLines = 1,
-                color = onSurfaceColor,
-                modifier = Modifier.align(alignment),
-            )
+            displaySensorId?.also {
+                Text(
+                    text = it,
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = onSurfaceColor,
+                    modifier = Modifier.align(alignment),
+                )
+            }
+            lastReceived?.also {
+                Text(
+                    text = it,
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = onSurfaceColor,
+                    modifier = Modifier.align(alignment),
+                )
+            }
         }
     }
 }
