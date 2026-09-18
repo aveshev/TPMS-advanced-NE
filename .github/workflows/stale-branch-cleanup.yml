@@ -1,0 +1,49 @@
+name: Weekly stale branch cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Delete merged branches older than 14 days
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Only deletes branches already fully merged into develop, so this can never lose work -
+      # at worst it's a day early/late relative to STALE_DAYS. main/develop/beta and the
+      # git-flow release/*/hotfix/* branches are excluded: those are managed by GitflowPlugin,
+      # which validates the branch model itself and would fail loudly on an unexpected deletion.
+      - name: Delete stale merged branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STALE_DAYS: 14
+        run: |
+          set -euo pipefail
+
+          protected_regex='^(main|develop|beta|release/|hotfix/)'
+          cutoff=$(date -d "-${STALE_DAYS} days" +%s)
+
+          git fetch origin --prune
+
+          for branch in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin | sed 's#^origin/##'); do
+            [[ "$branch" == "HEAD" ]] && continue
+            [[ "$branch" =~ $protected_regex ]] && continue
+
+            git merge-base --is-ancestor "origin/$branch" origin/develop || continue
+
+            last_commit=$(git log -1 --format=%ct "origin/$branch")
+            (( last_commit > cutoff )) && continue
+
+            echo "Deleting stale merged branch: $branch"
+            git push origin --delete "$branch"
+          done
