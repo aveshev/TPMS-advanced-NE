@@ -9,7 +9,6 @@ internal class TyreStatsViewModelImpl(
     override val stateFlow: TyreStatsStateFlow,
     appPreferences: AppPreferences,
 ) : ViewModel(), TyreStatsViewModel {
-    override val showTimestamp = appPreferences.showTimestamp
     override val showSensorId = appPreferences.showSensorId
     override val showTimeSinceUpdate = appPreferences.showTimeSinceUpdate
 }

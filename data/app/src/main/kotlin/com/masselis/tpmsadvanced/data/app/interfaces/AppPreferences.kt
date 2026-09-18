@@ -17,12 +17,6 @@ public class AppPreferences internal constructor(
         Context.MODE_PRIVATE
     )
 
-    public val showTimestamp: MutableStateFlow<Boolean> = observableStateFlow(
-        sharedPreferences.getBoolean("SHOW_TIMESTAMP", false)
-    ) { _, newValue ->
-        sharedPreferences.edit { putBoolean("SHOW_TIMESTAMP", newValue) }
-    }
-
     public val showSensorId: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SHOW_SENSOR_ID", false)
     ) { _, newValue ->
