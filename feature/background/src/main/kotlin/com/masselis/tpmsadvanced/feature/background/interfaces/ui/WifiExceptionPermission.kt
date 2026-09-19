@@ -44,16 +44,19 @@ internal class WifiExceptionPermission(
  *
  * Refusing the system dialog shows a rationale. Cancelling that rationale, or coming back from
  * Settings without the permission, ends the journey: [onDenied] must turn the option off, and a
- * dialog tells the user that it was.
+ * dialog tells the user that it was, unless [isSettingsOnScreen]: the user then sees the toggle
+ * turn off.
  */
 @Suppress("CyclomaticComplexMethod")
 @Composable
 internal fun rememberWifiExceptionPermission(
     permissions: List<String>,
+    isSettingsOnScreen: () -> Boolean,
     onDenied: () -> Unit,
 ): WifiExceptionPermission {
     val activity = LocalActivity.current
     val currentOnDenied by rememberUpdatedState(onDenied)
+    val currentIsSettingsOnScreen by rememberUpdatedState(isSettingsOnScreen)
     var inProgress by remember { mutableStateOf(false) }
     var showRationale by remember { mutableStateOf(false) }
     var waitingForSettings by remember { mutableStateOf(false) }
@@ -66,7 +69,8 @@ internal fun rememberWifiExceptionPermission(
         inProgress = false
         waitingForSettings = false
         showRationale = false
-        showDisabledInfo = true
+        // On the settings screen the toggle turning itself off is explanation enough
+        showDisabledInfo = currentIsSettingsOnScreen().not()
         currentOnDenied()
     }
 

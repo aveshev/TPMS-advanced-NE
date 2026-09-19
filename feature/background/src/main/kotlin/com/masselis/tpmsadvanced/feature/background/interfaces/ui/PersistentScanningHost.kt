@@ -2,13 +2,22 @@ package com.masselis.tpmsadvanced.feature.background.interfaces.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
 import com.masselis.tpmsadvanced.feature.background.ioc.Bindings
+
+/** Set by the settings screen while it is composed, so that the host knows the user is looking at it */
+internal val LocalSettingsOnScreen = compositionLocalOf<MutableState<Boolean>> {
+    error("No PersistentScanningHost above this composable")
+}
 
 /**
  * Must wrap every [MonitoringButton]. It owns the one permission journey (and its dialogs) that the
@@ -44,8 +53,10 @@ internal fun PersistentScanningHost(
     // The WiFi exception needs the location permission: it is asked for every time the app is
     // opened while the settings in place need it, not only when the settings screen is visible.
     val wifiExceptionActive by viewModel.wifiExceptionActive.collectAsState(initial = false)
+    val settingsOnScreen = remember { mutableStateOf(false) }
     val wifiPermission = rememberWifiExceptionPermission(
         permissions = viewModel.requiredWifiPermissions(),
+        isSettingsOnScreen = { settingsOnScreen.value },
         onDenied = viewModel::disableWifiException,
     )
     val currentWifiPermission by rememberUpdatedState(wifiPermission)
@@ -63,5 +74,9 @@ internal fun PersistentScanningHost(
         }
         onStopOrDispose { }
     }
-    CompositionLocalProvider(LocalMonitoringPermissions provides permissions, content = content)
+    CompositionLocalProvider(
+        LocalMonitoringPermissions provides permissions,
+        LocalSettingsOnScreen provides settingsOnScreen,
+        content = content,
+    )
 }
