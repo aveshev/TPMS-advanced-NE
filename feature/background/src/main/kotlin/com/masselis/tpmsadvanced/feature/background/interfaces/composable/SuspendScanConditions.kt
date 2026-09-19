@@ -31,7 +31,7 @@ internal fun SuspendScanConditions(
     val suspendOnWifi by viewModel.suspendScanningOnWifi.collectAsState()
     val exceptionEnabled by viewModel.wifiExceptionEnabled.collectAsState()
     val exceptedSsids by viewModel.exceptedWifiSsids.collectAsState()
-    val permissionState = rememberMultiplePermissionsState(viewModel.missingWifiPermission())
+    val permissionState = rememberMultiplePermissionsState(viewModel.requiredWifiPermissions())
     // Keyed on the grant flag: WifiConnectionUseCase's NetworkCallback delivers redacted data
     // (null SSID) while ungranted, and Android doesn't re-deliver capabilities just because
     // permission was newly granted — restarting the collection forces a fresh registration, which
@@ -70,7 +70,7 @@ internal fun SuspendScanConditions(
         if (suspendOnWifi && exceptionEnabled) {
             if (permissionState.allPermissionsGranted.not()) {
                 Text(
-                    "Location permission required",
+                    "Location permission \"Allow all the time\" required",
                     modifier = Modifier.padding(start = 24.dp),
                 )
             } else {

@@ -4,8 +4,6 @@ import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.provider.Settings
 import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,12 +40,12 @@ internal class WifiExceptionPermission(
  * Also emits the dialogs of the journey, so it must be called from a place that stays in the
  * composition for as long as the journey can run.
  *
- * Refusing the system dialog shows a rationale. Cancelling that rationale, or coming back from
- * Settings without the permission, ends the journey: [onDenied] must turn the option off, and a
- * dialog tells the user that it was, unless [isSettingsOnScreen]: the user then sees the toggle
- * turn off.
+ * There is no system permission popup: the permission the exception needs ("Allow all the time")
+ * cannot be granted from one, so the journey starts with a rationale that sends the user to the
+ * app's Settings. Cancelling that rationale, or coming back from Settings without the permission,
+ * ends the journey: [onDenied] must turn the option off, and a dialog tells the user that it was,
+ * unless [isSettingsOnScreen]: the user then sees the toggle turn off.
  */
-@Suppress("CyclomaticComplexMethod")
 @Composable
 internal fun rememberWifiExceptionPermission(
     permissions: List<String>,
@@ -72,15 +70,6 @@ internal fun rememberWifiExceptionPermission(
         // On the settings screen the toggle turning itself off is explanation enough
         showDisabledInfo = currentIsSettingsOnScreen().not()
         currentOnDenied()
-    }
-
-    // Requesting via our own launcher gives a completion callback, which also fires when the
-    // permission was permanently denied and the system shows nothing
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        if (results.isNotEmpty() && results.values.all { it }) inProgress = false
-        else showRationale = true
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -121,7 +110,7 @@ internal fun rememberWifiExceptionPermission(
                 inProgress = false
             } else {
                 inProgress = true
-                permissionLauncher.launch(permissions.toTypedArray())
+                showRationale = true
             }
         },
         inProgress = { inProgress },
@@ -137,8 +126,11 @@ private fun LocationPermissionAlert(
         text = {
             Text(
                 text = "Identifying which WiFi network you're connected to — so it can be" +
-                        " excepted from the WiFi suspend setting — needs the \"Precise" +
-                        " location\" permission. Please enable it to use this feature."
+                        " excepted from the WiFi suspend setting — needs the location permission." +
+                        " In the app's settings, open Permissions → Location, then select" +
+                        " \"Allow all the time\" and turn on \"Use precise location\". This is the" +
+                        " only way the current WiFi name can be read while the app is in the" +
+                        " background."
             )
         },
         onDismissRequest = onDismissRequest,
@@ -160,9 +152,10 @@ private fun WifiExceptionDisabledAlert(onDismissRequest: () -> Unit) {
     AlertDialog(
         text = {
             Text(
-                text = "The exception for certain WiFis has been turned off, because the \"Precise" +
-                        " location\" permission it needs was not granted. You can turn it on again" +
-                        " in App settings, under Background scanning."
+                text = "The exception for certain WiFis has been turned off, because the location" +
+                        " permission it needs (\"Allow all the time\", with \"Use precise location\")" +
+                        " was not granted. You can turn it on again in App settings, under" +
+                        " Background scanning."
             )
         },
         onDismissRequest = onDismissRequest,

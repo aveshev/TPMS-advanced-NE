@@ -25,7 +25,7 @@ internal class PersistentScanningSettingsViewModel(
 
     val wifiConnectionState = wifiConnectionUseCase.state
 
-    fun missingWifiPermission(): List<String> = wifiConnectionUseCase.missingPermission()
+    fun requiredWifiPermissions(): List<String> = wifiConnectionUseCase.requiredPermissions()
 
     fun toggleExceptedSsid(ssid: String) {
         exceptedWifiSsids.value = exceptedWifiSsids.value.let {

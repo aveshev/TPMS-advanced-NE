@@ -1,7 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
+import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
-import android.Manifest.permission.NEARBY_WIFI_DEVICES
 import android.annotation.SuppressLint
 import android.net.ConnectivityManager
 import android.net.ConnectivityManager.NetworkCallback
@@ -13,10 +13,8 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager.UNKNOWN_SSID
 import android.os.Build.VERSION.SDK_INT
+import android.os.Build.VERSION_CODES.Q
 import android.os.Build.VERSION_CODES.S
-import android.os.Build.VERSION_CODES.TIRAMISU
-import androidx.core.content.ContextCompat.checkSelfPermission
-import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.core.content.getSystemService
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
@@ -100,15 +98,13 @@ internal class WifiConnectionUseCase {
         ?.removeSurrounding("\"")
         ?.takeUnless { it == UNKNOWN_SSID }
 
-    // ACCESS_FINE_LOCATION is what actually unredacts the SSID on every API level (confirmed
-    // on-device: NEARBY_WIFI_DEVICES alone was NOT sufficient on API 33+, contrary to what its
-    // introduction suggested it would replace). NEARBY_WIFI_DEVICES is requested alongside it on
-    // API 33+ since that's still the officially documented permission for this capability there.
+    // ACCESS_FINE_LOCATION is what unredacts the SSID on every API level (confirmed on-device:
+    // NEARBY_WIFI_DEVICES alone was NOT sufficient on API 33+). It only does so while the app is
+    // visible though: reading the name from the service, in the background or right after a boot,
+    // needs ACCESS_BACKGROUND_LOCATION too (confirmed on-device, "while using the app" is not
+    // enough). Below API 29 there is no separate background permission.
     fun requiredPermissions(): List<String> = when {
-        SDK_INT >= TIRAMISU -> listOf(ACCESS_FINE_LOCATION, NEARBY_WIFI_DEVICES)
+        SDK_INT >= Q -> listOf(ACCESS_FINE_LOCATION, ACCESS_BACKGROUND_LOCATION)
         else -> listOf(ACCESS_FINE_LOCATION)
     }
-
-    fun missingPermission(): List<String> = requiredPermissions()
-        .filter { checkSelfPermission(appContext, it) != PERMISSION_GRANTED }
 }
