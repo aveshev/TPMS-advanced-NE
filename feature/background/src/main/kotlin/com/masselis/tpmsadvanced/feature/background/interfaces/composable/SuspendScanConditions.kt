@@ -1,36 +1,20 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces.composable
 
-import android.content.Intent
-import android.content.Intent.CATEGORY_DEFAULT
-import android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-import android.content.Intent.FLAG_ACTIVITY_NO_HISTORY
-import android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
@@ -56,15 +40,6 @@ internal fun SuspendScanConditions(
         initialValue = WifiConnectionUseCase.State.Disconnected,
         key1 = permissionState.allPermissionsGranted,
     ) { viewModel.wifiConnectionState.collect { value = it } }
-    var showLocationPermissionAlert by remember { mutableStateOf(false) }
-    val activity = LocalActivity.current
-
-    // Requesting via our own launcher (rather than permissionState.launchMultiplePermissionRequest())
-    // gives us a completion callback, so refusal — including a silent one, when the permission was
-    // already permanently denied — reliably surfaces the rationale popup below.
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results -> if (results.values.all { it }.not()) showLocationPermissionAlert = true }
 
     Column(modifier) {
         ToggleRow(
@@ -90,11 +65,6 @@ internal fun SuspendScanConditions(
         )
         if (suspendOnWifi && exceptionEnabled) {
             if (permissionState.allPermissionsGranted.not()) {
-                LaunchedEffect(Unit) {
-                    permissionLauncher.launch(
-                        permissionState.permissions.map { it.permission }.toTypedArray()
-                    )
-                }
                 Text(
                     "Location permission required",
                     modifier = Modifier.padding(start = 24.dp),
@@ -110,48 +80,6 @@ internal fun SuspendScanConditions(
             }
         }
     }
-    if (showLocationPermissionAlert) {
-        LocationPermissionAlert(
-            onDismissRequest = { showLocationPermissionAlert = false },
-            onConfirm = {
-                showLocationPermissionAlert = false
-                Intent(ACTION_APPLICATION_DETAILS_SETTINGS)
-                    .apply { addCategory(CATEGORY_DEFAULT) }
-                    .apply { data = "package:${activity!!.packageName}".toUri() }
-                    .apply { addFlags(FLAG_ACTIVITY_NEW_TASK) }
-                    .apply { addFlags(FLAG_ACTIVITY_NO_HISTORY) }
-                    .apply { addFlags(FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS) }
-                    .also { activity!!.startActivity(it) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun LocationPermissionAlert(
-    onDismissRequest: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    AlertDialog(
-        text = {
-            Text(
-                text = "Identifying which WiFi network you're connected to — so it can be" +
-                        " excepted from the WiFi suspend setting — needs the \"Precise" +
-                        " location\" permission. Please enable it to use this feature."
-            )
-        },
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(text = "Open settings")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = "Cancel")
-            }
-        }
-    )
 }
 
 @Composable

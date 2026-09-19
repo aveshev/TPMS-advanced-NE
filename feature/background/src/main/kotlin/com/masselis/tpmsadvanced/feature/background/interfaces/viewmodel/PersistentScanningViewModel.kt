@@ -6,11 +6,14 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 
 internal class PersistentScanningViewModel(
-    appPreferences: AppPreferences,
+    private val appPreferences: AppPreferences,
     scanPolicyUseCase: ScanPolicyUseCase,
+    private val wifiConnectionUseCase: WifiConnectionUseCase,
     private val controller: MonitoringController,
 ) : ViewModel() {
 
@@ -19,6 +22,19 @@ internal class PersistentScanningViewModel(
     val persistentScanning = appPreferences.persistentScanning
 
     val decision: Flow<ScanDecision> = scanPolicyUseCase.decision
+
+    /** Whether the settings in place need to read the connected WiFi's name, so the location permission */
+    val wifiExceptionActive: Flow<Boolean> = combine(
+        appPreferences.persistentScanning,
+        appPreferences.suspendScanningOnWifi,
+        appPreferences.wifiExceptionEnabled,
+    ) { persistent, suspendOnWifi, exception -> persistent && suspendOnWifi && exception }
+
+    fun requiredWifiPermissions(): List<String> = wifiConnectionUseCase.requiredPermissions()
+
+    fun disableWifiException() {
+        appPreferences.wifiExceptionEnabled.value = false
+    }
 
     /** Persistent scanning is on, so the service is expected to run whenever the app is opened */
     fun ensureRunning() {

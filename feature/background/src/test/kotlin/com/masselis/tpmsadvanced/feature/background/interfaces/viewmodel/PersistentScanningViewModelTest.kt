@@ -1,0 +1,71 @@
+package com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel
+
+import app.cash.turbine.test
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+
+internal class PersistentScanningViewModelTest {
+
+    private lateinit var persistentScanning: MutableStateFlow<Boolean>
+    private lateinit var suspendScanningOnWifi: MutableStateFlow<Boolean>
+    private lateinit var wifiExceptionEnabled: MutableStateFlow<Boolean>
+
+    private fun test() = PersistentScanningViewModel(
+        mockk<AppPreferences> {
+            every { persistentScanning } returns this@PersistentScanningViewModelTest.persistentScanning
+            every { suspendScanningOnWifi } returns this@PersistentScanningViewModelTest.suspendScanningOnWifi
+            every { wifiExceptionEnabled } returns this@PersistentScanningViewModelTest.wifiExceptionEnabled
+        },
+        mockk<ScanPolicyUseCase> { every { decision } returns MutableSharedFlow<ScanDecision>() },
+        mockk<WifiConnectionUseCase>(),
+        mockk<MonitoringController>(),
+    )
+
+    @Before
+    fun setup() {
+        persistentScanning = MutableStateFlow(true)
+        suspendScanningOnWifi = MutableStateFlow(true)
+        wifiExceptionEnabled = MutableStateFlow(true)
+    }
+
+    @Test
+    fun `the wifi exception is in use when persistent scanning, wifi suspension and the exception are on`() =
+        runTest {
+            test().wifiExceptionActive.test { assertEquals(true, awaitItem()) }
+        }
+
+    @Test
+    fun `turning off any of the three settings stops the wifi exception from being in use`() = runTest {
+        test().wifiExceptionActive.test {
+            assertEquals(true, awaitItem())
+            persistentScanning.value = false
+            assertEquals(false, awaitItem())
+            persistentScanning.value = true
+            assertEquals(true, awaitItem())
+            suspendScanningOnWifi.value = false
+            assertEquals(false, awaitItem())
+            suspendScanningOnWifi.value = true
+            assertEquals(true, awaitItem())
+            wifiExceptionEnabled.value = false
+            assertEquals(false, awaitItem())
+        }
+    }
+
+    @Test
+    fun `disabling the wifi exception turns the setting off`() {
+        test().disableWifiException()
+        assertFalse(wifiExceptionEnabled.value)
+    }
+}

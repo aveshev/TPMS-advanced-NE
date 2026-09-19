@@ -87,8 +87,11 @@ internal class WifiConnectionUseCase {
     // on-device: NEARBY_WIFI_DEVICES alone was NOT sufficient on API 33+, contrary to what its
     // introduction suggested it would replace). NEARBY_WIFI_DEVICES is requested alongside it on
     // API 33+ since that's still the officially documented permission for this capability there.
-    fun missingPermission(): List<String> = when {
+    fun requiredPermissions(): List<String> = when {
         SDK_INT >= TIRAMISU -> listOf(ACCESS_FINE_LOCATION, NEARBY_WIFI_DEVICES)
         else -> listOf(ACCESS_FINE_LOCATION)
-    }.filter { checkSelfPermission(appContext, it) != PERMISSION_GRANTED }
+    }
+
+    fun missingPermission(): List<String> = requiredPermissions()
+        .filter { checkSelfPermission(appContext, it) != PERMISSION_GRANTED }
 }

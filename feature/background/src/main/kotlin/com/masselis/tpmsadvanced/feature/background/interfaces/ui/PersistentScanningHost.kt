@@ -40,5 +40,28 @@ internal fun PersistentScanningHost(
         if (persistentScanning && currentPermissions.isInProgress().not()) currentPermissions.request()
         onStopOrDispose { }
     }
+
+    // The WiFi exception needs the location permission: it is asked for every time the app is
+    // opened while the settings in place need it, not only when the settings screen is visible.
+    val wifiExceptionActive by viewModel.wifiExceptionActive.collectAsState(initial = false)
+    val wifiPermission = rememberWifiExceptionPermission(
+        permissions = viewModel.requiredWifiPermissions(),
+        onDenied = viewModel::disableWifiException,
+    )
+    val currentWifiPermission by rememberUpdatedState(wifiPermission)
+    // Read here to key the effect: the location journey waits for the monitoring one to end
+    val monitoringJourneyRunning = permissions.isInProgress()
+    LifecycleStartEffect(wifiExceptionActive, monitoringJourneyRunning) {
+        // One system permission dialog at a time. Both journeys start together when the app opens,
+        // the monitoring one goes first (its effect is declared first) and its end runs this again.
+        if (
+            wifiExceptionActive &&
+            currentPermissions.isInProgress().not() &&
+            currentWifiPermission.isInProgress().not()
+        ) {
+            currentWifiPermission.request()
+        }
+        onStopOrDispose { }
+    }
     CompositionLocalProvider(LocalMonitoringPermissions provides permissions, content = content)
 }
