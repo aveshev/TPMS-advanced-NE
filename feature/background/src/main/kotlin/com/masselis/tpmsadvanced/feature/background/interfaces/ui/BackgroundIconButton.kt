@@ -20,13 +20,6 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Backgro
 import com.masselis.tpmsadvanced.feature.background.ioc.Bindings
 
 @Composable
-public fun BackgroundIconButton(modifier: Modifier = Modifier): Unit =
-    BackgroundIconButton(
-        modifier,
-        viewModel { Bindings.featureBackgroundInternal.backgroundViewModel() },
-    )
-
-@Composable
 internal fun BackgroundIconButton(
     modifier: Modifier = Modifier,
     viewModel: BackgroundViewModel = viewModel { Bindings.featureBackgroundInternal.backgroundViewModel() },

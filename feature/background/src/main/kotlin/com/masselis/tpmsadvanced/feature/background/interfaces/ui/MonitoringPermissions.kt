@@ -39,6 +39,7 @@ import com.masselis.tpmsadvanced.core.common.appContext
 internal class MonitoringPermissions(
     val status: Status,
     private val onRequest: () -> Unit,
+    private val inProgress: () -> Boolean,
 ) {
     enum class Status { Ok, NotificationsMissing, BatteryOptimizationMissing }
 
@@ -47,6 +48,12 @@ internal class MonitoringPermissions(
      * [rememberMonitoringPermissions]. The dialogs are shown by [rememberMonitoringPermissions].
      */
     fun request() = onRequest()
+
+    /**
+     * Whether a [request] is still walking the user through Settings or dialogs. Read live, so it
+     * stays correct when this instance was captured by a long-lived effect.
+     */
+    fun isInProgress() = inProgress()
 }
 
 /**
@@ -190,11 +197,15 @@ internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPer
         batteryOptimizationMissing -> MonitoringPermissions.Status.BatteryOptimizationMissing
         else -> MonitoringPermissions.Status.Ok
     }
-    return MonitoringPermissions(status) {
-        flowInProgress = true
-        remediationWasNeeded = false
-        proceedEnablingFlow()
-    }
+    return MonitoringPermissions(
+        status = status,
+        onRequest = {
+            flowInProgress = true
+            remediationWasNeeded = false
+            proceedEnablingFlow()
+        },
+        inProgress = { flowInProgress },
+    )
 }
 
 @Composable

@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
@@ -71,6 +72,17 @@ public interface Bindings {
     )
 
     @Provides
+    private fun persistentScanningViewModel(
+        appPreferences: AppPreferences,
+        scanPolicyUseCase: ScanPolicyUseCase,
+        controller: MonitoringController,
+    ): PersistentScanningViewModel = PersistentScanningViewModel(
+        appPreferences,
+        scanPolicyUseCase,
+        controller,
+    )
+
+    @Provides
     private fun persistentScanningSettingsViewModel(
         appPreferences: AppPreferences,
         wifiConnectionUseCase: WifiConnectionUseCase,
@@ -87,6 +99,7 @@ public interface Bindings {
     public class Internal internal constructor(
         internal val appPreferences: AppPreferences,
         internal val backgroundViewModel: () -> BackgroundViewModel,
+        internal val persistentScanningViewModel: () -> PersistentScanningViewModel,
         internal val persistentScanningSettingsViewModel: () -> PersistentScanningSettingsViewModel,
     )
 

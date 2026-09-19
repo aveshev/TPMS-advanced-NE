@@ -94,6 +94,23 @@ internal class ScanDecisionTest {
     }
 
     @Test
+    fun `the rationale reminds that the app scans by itself while opened unless already active`() {
+        val note = "(Scanning is still active while the app is opened!)"
+        assertEquals(
+            "Background scanning is active due to charging with a cable",
+            ScanDecision.Active(setOf(CABLE)).rationale()
+        )
+        assertEquals(
+            "Background scanning is suspended due to WiFi being connected. $note",
+            ScanDecision.Suspended(setOf(WIFI)).rationale()
+        )
+        assertEquals(
+            "Background scanning is idle: no activate condition is currently fulfilled. $note",
+            ScanDecision.Idle.rationale()
+        )
+    }
+
+    @Test
     fun `explanations name what caused the decision`() {
         assertEquals(
             "Background scanning is active due to charging with a cable, Android Auto being connected",

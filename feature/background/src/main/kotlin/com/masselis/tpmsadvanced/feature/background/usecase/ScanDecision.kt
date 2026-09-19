@@ -52,6 +52,14 @@ internal fun ScanDecision.explanation(): String = when (this) {
     ScanDecision.Idle -> "Background scanning is idle: no activate condition is currently fulfilled"
 }
 
+/** What the user reads when tapping the bell. */
+internal fun ScanDecision.rationale(): String = when (this) {
+    is ScanDecision.Active -> explanation()
+    // The foreground UI scans by itself, whatever the decision is
+    is ScanDecision.Suspended, ScanDecision.Idle ->
+        "${explanation()}. (Scanning is still active while the app is opened!)"
+}
+
 private val ScanDecision.ActivateCause.label
     get() = when (this) {
         ScanDecision.ActivateCause.MANUAL -> "monitoring being started manually"
