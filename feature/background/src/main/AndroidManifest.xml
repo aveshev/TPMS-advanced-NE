@@ -13,6 +13,20 @@
         android:usesPermissionFlags="neverForLocation"
         tools:ignore="UnusedAttribute" />
 
+    <!-- For the "suspend scanning on WiFi" setting: ConnectivityManager itself needs no runtime
+         prompt, but identifying the currently-connected SSID (for the per-network exception) does. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Unredacting the connected SSID (via WifiManager or NetworkCapabilities +
+         FLAG_INCLUDE_LOCATION_INFO alike) requires ACCESS_FINE_LOCATION specifically, on every
+         API level — NEARBY_WIFI_DEVICES alone does not unlock it, confirmed on-device on API 37,
+         so this is requested unconditionally rather than only below API 33. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Deliberately NOT declared with usesPermissionFlags="neverForLocation": the exception
+         feature needs the connected network's SSID, which is exactly the location-adjacent
+         capability that flag would opt out of. -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
+
     <application>
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.DisableMonitorBroadcastReceiver" />
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.RestartAppBroadcastReceiver" />

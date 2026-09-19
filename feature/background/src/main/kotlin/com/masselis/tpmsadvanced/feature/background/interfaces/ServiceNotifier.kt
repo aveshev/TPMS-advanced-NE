@@ -31,7 +31,10 @@ import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -44,6 +47,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -57,6 +61,7 @@ internal class ServiceNotifier(
     unitPreferences: UnitPreferences,
     service: Service,
     vehicleListUseCase: VehicleListUseCase,
+    scanSuspensionUseCase: ScanSuspensionUseCase,
 ) {
     private val notificationManager = NotificationManagerCompat.from(appContext)
 
@@ -74,25 +79,47 @@ internal class ServiceNotifier(
                 .build()
         )
 
-        combine(
-            vehicleListUseCase
-                .vehicleListFlow
-                // Editing a vehicle (ranges, name...) re-emits the list; only a change in the
-                // set of vehicles may rebuild the collectors, otherwise the BLE scan restarts.
-                .distinctUntilChanged { old, new -> old.map(Vehicle::uuid) == new.map(Vehicle::uuid) }
-                .flatMapLatest { vehicles ->
+        scanSuspensionUseCase
+            .suspensionReasons
+            .flatMapLatest { reasons ->
+                if (reasons.isNotEmpty()) {
+                    // Suspended: skip the scan entirely rather than emit nothing, since the
+                    // service must call startForeground() shortly after being started — a
+                    // silent flow here would starve that call if the app launches already
+                    // suspended (e.g. opened while already in Doze).
+                    flowOf(Suspended(reasons))
+                } else {
                     combine(
-                        vehicles.map { vehicle ->
-                            VehicleAlertUseCase(VehicleComponent(vehicle)).alert.map { vehicle to it }
-                        }
-                    ) { it.toList() }
-                },
-            vehicleListUseCase.vehicleListFlow,
-        ) { alerts, latestVehicles ->
-            // The collectors hold the snapshot they were built with, so names are refreshed here
-            val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
-            worst(alerts.map { (vehicle, alert) -> (latestByUuid[vehicle.uuid] ?: vehicle) to alert })
-        }
+                        vehicleListUseCase
+                            .vehicleListFlow
+                            // Editing a vehicle (ranges, name...) re-emits the list; only a change
+                            // in the set of vehicles may rebuild the collectors, otherwise the BLE
+                            // scan restarts.
+                            .distinctUntilChanged { old, new ->
+                                old.map(Vehicle::uuid) == new.map(Vehicle::uuid)
+                            }
+                            .flatMapLatest { vehicles ->
+                                combine(
+                                    vehicles.map { vehicle ->
+                                        VehicleAlertUseCase(VehicleComponent(vehicle))
+                                            .alert
+                                            .map { vehicle to it }
+                                    }
+                                ) { it.toList() }
+                            },
+                        vehicleListUseCase.vehicleListFlow,
+                    ) { alerts, latestVehicles ->
+                        // The collectors hold the snapshot they were built with, so names are
+                        // refreshed here
+                        val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
+                        worst(
+                            alerts.map { (vehicle, alert) ->
+                                (latestByUuid[vehicle.uuid] ?: vehicle) to alert
+                            }
+                        )
+                    }
+                }
+            }
             // The service must call startForeground() shortly after being started, before the
             // database had time to answer
             .onStart { emit(NoAlert) }
@@ -103,25 +130,25 @@ internal class ServiceNotifier(
                     .Builder(
                         appContext,
                         when (state) {
-                            NoAlert -> channelNameWhenOk
+                            NoAlert, is Suspended -> channelNameWhenOk
                             is PressureAlert, is TemperatureAlert, ScanFailure -> channelNameForAlerts
                         }
                     )
                     .setSmallIcon(
                         when (state) {
-                            NoAlert -> R.drawable.car_tire
+                            NoAlert, is Suspended -> R.drawable.car_tire
                             is PressureAlert, is TemperatureAlert, ScanFailure -> R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
-                            NoAlert -> PRIORITY_LOW
+                            NoAlert, is Suspended -> PRIORITY_LOW
                             is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
                         }
                     )
                     .setSubText(
                         when (state) {
-                            NoAlert -> null
+                            NoAlert, is Suspended -> null
                             is PressureAlert -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
                             ScanFailure -> null
@@ -140,12 +167,21 @@ internal class ServiceNotifier(
 
                             ScanFailure -> "The Android system reported an issue during the" +
                                     " bluetooth scan, TPMS Advanced must be restarted"
+
+                            is Suspended -> "Background scanning suspended (${
+                                state.reasons.joinToString(", ") {
+                                    when (it) {
+                                        Reason.DOZE -> "phone idle"
+                                        Reason.WIFI -> "on Wi-Fi"
+                                    }
+                                }
+                            })"
                         }
                     )
                     .apply {
                         when (state) {
                             // Opens the app on its current vehicle
-                            NoAlert -> appContext
+                            NoAlert, is Suspended -> appContext
                                 .packageManager
                                 .getLaunchIntentForPackage(appContext.packageName)
                                 ?.let { getActivity(appContext, requestCode, it, FLAG_IMMUTABLE) }
@@ -162,7 +198,7 @@ internal class ServiceNotifier(
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert ->
+                            NoAlert, is PressureAlert, is TemperatureAlert, is Suspended ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -235,6 +271,8 @@ internal class ServiceNotifier(
         ) : State
 
         data object ScanFailure : State
+
+        data class Suspended(val reasons: Set<Reason>) : State
     }
 
     @Suppress("ConstPropertyName")

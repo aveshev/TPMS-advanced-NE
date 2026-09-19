@@ -29,6 +29,30 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_TIME_SINCE_UPDATE", newValue) }
     }
 
+    public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_IN_DOZE", newValue) }
+    }
+
+    public val suspendScanningOnWifi: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_ON_WIFI", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_ON_WIFI", newValue) }
+    }
+
+    public val wifiExceptionEnabled: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("WIFI_EXCEPTION_ENABLED", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("WIFI_EXCEPTION_ENABLED", newValue) }
+    }
+
+    public val exceptedWifiSsids: MutableStateFlow<Set<String>> = observableStateFlow(
+        sharedPreferences.getStringSet("EXCEPTED_WIFI_SSIDS", emptySet())!!.toSet()
+    ) { _, newValue ->
+        sharedPreferences.edit { putStringSet("EXCEPTED_WIFI_SSIDS", newValue) }
+    }
+
     private val packageInfo
         get() = appContext
             .packageManager

@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- data:vehicle (BLE scan, API 29-30 only) caps this at maxSdkVersion 30, but
+         feature:background needs it on every API level (see its manifest) to read the connected
+         WiFi SSID; the unconditional declaration covers both needs, so it's made explicit here to
+         resolve the manifest merge conflict. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:node="replace" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
