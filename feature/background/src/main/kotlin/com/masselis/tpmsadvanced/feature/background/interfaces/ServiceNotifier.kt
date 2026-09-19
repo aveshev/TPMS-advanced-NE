@@ -21,6 +21,7 @@ import androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE
 import androidx.core.app.ServiceCompat.stopForeground
 import androidx.core.app.TaskStackBuilder
 import androidx.core.net.toUri
+import co.touchlab.kermit.Logger
 import com.google.firebase.Firebase
 import com.google.firebase.crashlytics.crashlytics
 import com.masselis.tpmsadvanced.core.common.appContext
@@ -66,6 +67,7 @@ internal class ServiceNotifier(
     vehicleListUseCase: VehicleListUseCase,
     scanPolicyUseCase: ScanPolicyUseCase,
 ) {
+    private val logger = Logger.withTag("ServiceNotifier")
     private val notificationManager = NotificationManagerCompat.from(appContext)
 
     init {
@@ -225,13 +227,22 @@ internal class ServiceNotifier(
                     .build()
             }
             .onEach {
-                ServiceCompat.startForeground(
-                    service,
-                    notificationId,
-                    it,
-                    // https://developer.android.com/about/versions/14/changes/fgs-types-required#connected-device
-                    if (SDK_INT >= Q) FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
-                )
+                try {
+                    ServiceCompat.startForeground(
+                        service,
+                        notificationId,
+                        it,
+                        // https://developer.android.com/about/versions/14/changes/fgs-types-required#connected-device
+                        if (SDK_INT >= Q) FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+                    )
+                } catch (e: SecurityException) {
+                    // The system refuses a connectedDevice foreground service when Bluetooth scan
+                    // was revoked. That kills the process, and a sticky service is restarted right
+                    // away: crashing here would loop. The next app opening walks the user through
+                    // the missing permissions and starts the service again.
+                    logger.w(e) { "The system refused the foreground service, stopping it" }
+                    service.stopSelf()
+                }
             }
             .launchIn(scope)
 
