@@ -1,11 +1,9 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces
 
 import android.content.Intent
-import androidx.core.content.IntentCompat.getParcelableExtra
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.masselis.tpmsadvanced.core.common.appContext
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.ioc.vehicle.ServiceComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,11 +22,7 @@ internal class MonitorService : LifecycleService() {
     ): Int {
         requireNotNull(intent)
         super.onStartCommand(intent, flags, startId)
-        component = ServiceComponent(
-            getParcelableExtra(intent, paramVehicle, Vehicle::class.java)!!,
-            this,
-            lifecycleScope,
-        )
+        component = ServiceComponent(this, lifecycleScope)
         return START_NOT_STICKY
     }
 
@@ -37,14 +31,10 @@ internal class MonitorService : LifecycleService() {
         isRunningMutableStateFlow.value = false
     }
 
-    @Suppress("ConstPropertyName")
     companion object {
         private val isRunningMutableStateFlow = MutableStateFlow(false)
         val isRunning = isRunningMutableStateFlow.asStateFlow()
 
-        private const val paramVehicle = "VEHICLE_PARAM"
-        fun intent(vehicle: Vehicle) = Intent(appContext, MonitorService::class.java)
-            .apply { putExtra(paramVehicle, vehicle) }
-
+        fun intent() = Intent(appContext, MonitorService::class.java)
     }
 }

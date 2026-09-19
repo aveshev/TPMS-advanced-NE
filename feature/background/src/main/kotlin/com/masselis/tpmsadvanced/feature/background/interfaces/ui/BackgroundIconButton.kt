@@ -34,39 +34,28 @@ import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle.Event.ON_RESUME
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel.Event
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel.State
-import com.masselis.tpmsadvanced.feature.background.ioc.BackgroundComponent
-import com.masselis.tpmsadvanced.feature.background.ioc.BackgroundComponent.Companion.BackgroundViewModel
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
-import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
-import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
+import com.masselis.tpmsadvanced.feature.background.ioc.Bindings
 
 @Composable
-public fun BackgroundIconButton(
-    modifier: Modifier = Modifier,
-    vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
-) {
+public fun BackgroundIconButton(modifier: Modifier = Modifier): Unit =
     BackgroundIconButton(
-        modifier = modifier,
-        keyed = vehicleComponent.key(),
-        component = BackgroundComponent(vehicleComponent),
+        modifier,
+        viewModel { Bindings.featureBackgroundInternal.backgroundViewModel() },
     )
-}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Suppress("CyclomaticComplexMethod", "LongMethod")
 @Composable
 internal fun BackgroundIconButton(
-    keyed: Map<String, String>,
-    component: BackgroundComponent,
     modifier: Modifier = Modifier,
-    viewModel: BackgroundViewModel = component.viewModel(keyed) { it.BackgroundViewModel() }
+    viewModel: BackgroundViewModel = viewModel { Bindings.featureBackgroundInternal.backgroundViewModel() },
 ) {
     val state by viewModel.stateFlow.collectAsState()
     val activity = LocalActivity.current
