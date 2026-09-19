@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.masselis.tpmsadvanced.core.common.appContext
+import com.masselis.tpmsadvanced.feature.background.ioc.Bindings
 import com.masselis.tpmsadvanced.feature.background.ioc.vehicle.ServiceComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,10 +21,15 @@ internal class MonitorService : LifecycleService() {
     override fun onStartCommand(
         intent: Intent?, flags: Int, startId: Int
     ): Int {
-        requireNotNull(intent)
         super.onStartCommand(intent, flags, startId)
-        component = ServiceComponent(this, lifecycleScope)
-        return START_NOT_STICKY
+        // The service is started again while it runs (the app being opened...), a second
+        // component would monitor everything twice. The intent is null after a sticky restart.
+        if (::component.isInitialized.not()) component = ServiceComponent(this, lifecycleScope)
+        return if (Bindings.featureBackgroundInternal.appPreferences.persistentScanning.value) {
+            START_STICKY
+        } else {
+            START_NOT_STICKY
+        }
     }
 
     override fun onDestroy() {

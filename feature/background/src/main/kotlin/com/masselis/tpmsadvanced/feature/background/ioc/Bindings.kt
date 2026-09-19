@@ -2,6 +2,7 @@ package com.masselis.tpmsadvanced.feature.background.ioc
 
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanSuspensionSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
@@ -24,7 +25,12 @@ import kotlinx.coroutines.plus
 public interface Bindings {
 
     @Provides
-    private fun backgroundViewModel(): BackgroundViewModel = BackgroundViewModel()
+    @SingleIn(AppScope::class)
+    private fun monitoringController(): MonitoringController = MonitoringController()
+
+    @Provides
+    private fun backgroundViewModel(controller: MonitoringController): BackgroundViewModel =
+        BackgroundViewModel(controller)
 
     @Provides
     @SingleIn(AppScope::class)
@@ -77,6 +83,7 @@ public interface Bindings {
 
     @Inject
     public class Internal internal constructor(
+        internal val appPreferences: AppPreferences,
         internal val backgroundViewModel: () -> BackgroundViewModel,
         internal val scanSuspensionSettingsViewModel: () -> ScanSuspensionSettingsViewModel,
     )

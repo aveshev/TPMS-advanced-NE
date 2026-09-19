@@ -6,13 +6,11 @@ import android.os.Build.VERSION.SDK_INT
 import android.os.Build.VERSION_CODES.TIRAMISU
 import android.os.Parcelable
 import androidx.core.content.ContextCompat.checkSelfPermission
-import androidx.core.content.ContextCompat.startForegroundService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.core.common.appContext
-import com.masselis.tpmsadvanced.feature.background.interfaces.MonitorService
+import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.flash
-import com.masselis.tpmsadvanced.feature.background.interfaces.MonitorService.Companion.intent
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.BUFFERED
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -24,7 +22,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 
-internal class BackgroundViewModel : ViewModel() {
+internal class BackgroundViewModel(
+    private val controller: MonitoringController,
+) : ViewModel() {
 
     sealed interface State : Parcelable {
         @Parcelize
@@ -38,16 +38,14 @@ internal class BackgroundViewModel : ViewModel() {
         data object FinishActivity : Event
     }
 
-    private val mutableStateFlow = MutableStateFlow(computeState(MonitorService.isRunning.value))
+    private val mutableStateFlow = MutableStateFlow(computeState(controller.isRunning.value))
     val stateFlow = mutableStateFlow.asStateFlow()
 
     private val channel = Channel<Event>(BUFFERED)
     val eventChannel = channel as ReceiveChannel<Event>
 
-    private val serviceIntent = intent()
-
     init {
-        MonitorService
+        controller
             .isRunning
             .map(::computeState)
             .onEach(mutableStateFlow::value::set)
@@ -59,15 +57,15 @@ internal class BackgroundViewModel : ViewModel() {
         if (SDK_INT >= TIRAMISU)
             require(checkSelfPermission(appContext, POST_NOTIFICATIONS) == PERMISSION_GRANTED)
         // Throws when the system refuses the start, so the flash is only reached on success
-        startForegroundService(appContext, serviceIntent)
+        controller.start()
         appContext.flash("Activated TPMS background monitoring")
         channel.send(Event.FinishActivity)
     }
 
     fun disableMonitoring() = viewModelScope.launch {
         require(stateFlow.value is State.Monitoring)
-        appContext
-            .stopService(serviceIntent)
+        controller
+            .stop()
             .takeIf { it }
             ?.also { appContext.flash("Disabled TPMS background monitoring") }
     }
