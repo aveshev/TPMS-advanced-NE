@@ -36,10 +36,14 @@ internal fun SuspendScanConditions(
     // (null SSID) while ungranted, and Android doesn't re-deliver capabilities just because
     // permission was newly granted — restarting the collection forces a fresh registration, which
     // reads correctly the moment the permission is actually held.
-    val wifiState by produceState<WifiConnectionUseCase.State>(
-        initialValue = WifiConnectionUseCase.State.Disconnected,
+    // null until the new registration reports, so that a stale answer isn't shown meanwhile
+    val wifiState by produceState<WifiConnectionUseCase.State?>(
+        initialValue = null,
         key1 = permissionState.allPermissionsGranted,
-    ) { viewModel.wifiConnectionState.collect { value = it } }
+    ) {
+        value = null
+        viewModel.wifiConnectionState.collect { value = it }
+    }
 
     Column(modifier) {
         ToggleRow(
@@ -72,7 +76,7 @@ internal fun SuspendScanConditions(
             } else {
                 val ssid = (wifiState as? WifiConnectionUseCase.State.Connected)?.ssid
                 CurrentWifiExceptionRow(
-                    ssid = ssid,
+                    wifiState = wifiState,
                     checked = ssid != null && ssid in exceptedSsids,
                     onCheckedChange = { ssid?.let(viewModel::toggleExceptedSsid) },
                     modifier = Modifier.padding(start = 24.dp),
@@ -84,23 +88,33 @@ internal fun SuspendScanConditions(
 
 @Composable
 private fun CurrentWifiExceptionRow(
-    ssid: String?,
+    wifiState: WifiConnectionUseCase.State?,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (ssid != null) {
-        CheckboxRow(
-            text = "Keep scanning when on current WiFi \"$ssid\"",
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = modifier.testTag(PersistentScanningSettingsTags.currentWifiException),
-        )
-    } else {
-        Text(
-            "Not connected to Wi-Fi",
-            modifier = modifier,
-        )
+    when (wifiState) {
+        // Still asking the system
+        null -> Unit
+
+        WifiConnectionUseCase.State.Disconnected -> Text("Not connected to Wi-Fi", modifier = modifier)
+
+        is WifiConnectionUseCase.State.Connected ->
+            if (wifiState.ssid != null) {
+                CheckboxRow(
+                    text = "Keep scanning when on current WiFi \"${wifiState.ssid}\"",
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    modifier = modifier.testTag(PersistentScanningSettingsTags.currentWifiException),
+                )
+            } else {
+                // Connected, but the system doesn't tell the name: permission granted, yet the
+                // Location switch of the phone is off
+                Text(
+                    "Connected to a WiFi, but its name cannot be read. Is Location turned on?",
+                    modifier = modifier,
+                )
+            }
     }
 }
 
@@ -141,7 +155,7 @@ internal fun SuspendScanConditionsPreview() {
             modifier = Modifier.padding(start = 24.dp),
         )
         CurrentWifiExceptionRow(
-            ssid = "HomeNetwork",
+            wifiState = WifiConnectionUseCase.State.Connected("HomeNetwork"),
             checked = false,
             onCheckedChange = {},
             modifier = Modifier.padding(start = 24.dp),
@@ -153,7 +167,7 @@ internal fun SuspendScanConditionsPreview() {
 @Composable
 internal fun SuspendScanConditionsDisconnectedPreview() {
     CurrentWifiExceptionRow(
-        ssid = null,
+        wifiState = WifiConnectionUseCase.State.Disconnected,
         checked = false,
         onCheckedChange = {},
     )

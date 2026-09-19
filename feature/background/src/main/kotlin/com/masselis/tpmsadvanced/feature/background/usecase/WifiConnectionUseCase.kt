@@ -18,6 +18,7 @@ import android.os.Build.VERSION_CODES.TIRAMISU
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.core.content.getSystemService
+import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 @SuppressLint("MissingPermission")
 internal class WifiConnectionUseCase {
+
+    private val logger = Logger.withTag("WifiConnectionUseCase")
 
     sealed interface State {
         data object Disconnected : State
@@ -36,14 +39,24 @@ internal class WifiConnectionUseCase {
     val state: Flow<State> = callbackFlow {
         val connectivityManager = appContext.getSystemService<ConnectivityManager>()!!
         val callback = networkCallback(
-            onCapabilitiesChanged = { trySend(State.Connected(it.wifiSsid())) },
-            onLost = { trySend(State.Disconnected) },
+            onCapabilitiesChanged = {
+                val ssid = it.wifiSsid()
+                logger.d { "Connected to a WiFi, its name is readable: ${ssid != null}" }
+                trySend(State.Connected(ssid))
+            },
+            onLost = {
+                logger.d { "Lost the WiFi" }
+                trySend(State.Disconnected)
+            },
         )
         connectivityManager.registerNetworkCallback(
             NetworkRequest.Builder().addTransportType(TRANSPORT_WIFI).build(),
             callback,
         )
-        send(State.Disconnected)
+        // The callback reports a network that already exists right after being registered, and
+        // reports nothing at all when there is none. Only that second case must be announced:
+        // saying "disconnected" first would be wrong for a moment on a connected phone.
+        if (connectivityManager.hasWifiNetwork().not()) send(State.Disconnected)
         awaitClose { connectivityManager.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
 
@@ -77,6 +90,10 @@ internal class WifiConnectionUseCase {
             override fun onLost(network: Network) = onLost()
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun ConnectivityManager.hasWifiNetwork() = allNetworks
+        .any { getNetworkCapabilities(it)?.hasTransport(TRANSPORT_WIFI) == true }
 
     private fun NetworkCapabilities.wifiSsid(): String? = (transportInfo as? WifiInfo)
         ?.ssid
