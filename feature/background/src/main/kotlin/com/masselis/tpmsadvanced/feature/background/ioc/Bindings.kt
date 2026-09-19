@@ -100,6 +100,7 @@ public interface Bindings {
     @Inject
     public class Internal internal constructor(
         internal val appPreferences: AppPreferences,
+        internal val controller: MonitoringController,
         internal val backgroundViewModel: () -> BackgroundViewModel,
         internal val persistentScanningViewModel: () -> PersistentScanningViewModel,
         internal val persistentScanningSettingsViewModel: () -> PersistentScanningSettingsViewModel,
