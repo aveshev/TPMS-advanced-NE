@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringControl
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
+import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
@@ -57,6 +58,10 @@ public interface Bindings {
     @SingleIn(AppScope::class)
     private fun chargingStateUseCase(): ChargingStateUseCase = ChargingStateUseCase()
 
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun androidAutoUseCase(): AndroidAutoUseCase = AndroidAutoUseCase()
+
     @OptIn(DelicateCoroutinesApi::class)
     @Provides
     @SingleIn(AppScope::class)
@@ -64,10 +69,12 @@ public interface Bindings {
         appPreferences: AppPreferences,
         scanSuspensionUseCase: ScanSuspensionUseCase,
         chargingStateUseCase: ChargingStateUseCase,
+        androidAutoUseCase: AndroidAutoUseCase,
     ): ScanPolicyUseCase = ScanPolicyUseCase(
         appPreferences,
         scanSuspensionUseCase,
         chargingStateUseCase,
+        androidAutoUseCase,
         GlobalScope + Dispatchers.Default,
     )
 

@@ -3,6 +3,7 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import app.cash.turbine.test
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase.State
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
@@ -23,8 +24,10 @@ internal class ScanPolicyUseCaseTest {
     private lateinit var justScan: MutableStateFlow<Boolean>
     private lateinit var activateOnCableCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnWirelessCharging: MutableStateFlow<Boolean>
+    private lateinit var activateOnAndroidAuto: MutableStateFlow<Boolean>
     private lateinit var suspensionReasons: MutableStateFlow<Set<Reason>>
     private lateinit var charging: MutableStateFlow<State>
+    private lateinit var androidAuto: MutableStateFlow<Boolean>
 
     context(scope: TestScope)
     private fun test() = ScanPolicyUseCase(
@@ -33,11 +36,13 @@ internal class ScanPolicyUseCaseTest {
             every { justScan } returns this@ScanPolicyUseCaseTest.justScan
             every { activateOnCableCharging } returns this@ScanPolicyUseCaseTest.activateOnCableCharging
             every { activateOnWirelessCharging } returns this@ScanPolicyUseCaseTest.activateOnWirelessCharging
+            every { activateOnAndroidAuto } returns this@ScanPolicyUseCaseTest.activateOnAndroidAuto
         },
         mockk<ScanSuspensionUseCase> {
             every { this@mockk.suspensionReasons } returns this@ScanPolicyUseCaseTest.suspensionReasons
         },
         mockk<ChargingStateUseCase> { every { state } returns charging },
+        mockk<AndroidAutoUseCase> { every { connected } returns androidAuto },
         scope.backgroundScope,
     )
 
@@ -47,8 +52,10 @@ internal class ScanPolicyUseCaseTest {
         justScan = MutableStateFlow(false)
         activateOnCableCharging = MutableStateFlow(true)
         activateOnWirelessCharging = MutableStateFlow(true)
+        activateOnAndroidAuto = MutableStateFlow(true)
         suspensionReasons = MutableStateFlow(emptySet())
         charging = MutableStateFlow(State(cable = false, wireless = false))
+        androidAuto = MutableStateFlow(false)
     }
 
     @Test
@@ -111,6 +118,44 @@ internal class ScanPolicyUseCaseTest {
         justScan.value = true
         test().decision.test {
             assertEquals(ScanDecision.Active(setOf(JUST_SCAN)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `connecting Android Auto activates scanning and disconnecting goes back to idle`() = runTest {
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+            androidAuto.value = true
+            assertEquals(ScanDecision.Active(setOf(ANDROID_AUTO)), awaitItem())
+            androidAuto.value = false
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a disabled Android Auto condition is ignored`() = runTest {
+        activateOnAndroidAuto.value = false
+        androidAuto.value = true
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `Android Auto and a cable are both reported as causes`() = runTest {
+        androidAuto.value = true
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE, ANDROID_AUTO)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `Android Auto is suspended by a suspend condition like any other`() = runTest {
+        androidAuto.value = true
+        suspensionReasons.value = setOf(Reason.DOZE)
+        test().decision.test {
+            assertEquals(ScanDecision.Suspended(setOf(Reason.DOZE)), awaitItem())
         }
     }
 }

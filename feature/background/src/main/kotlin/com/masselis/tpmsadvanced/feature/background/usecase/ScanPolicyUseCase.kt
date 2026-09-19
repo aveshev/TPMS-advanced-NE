@@ -2,6 +2,7 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
@@ -22,6 +23,7 @@ internal class ScanPolicyUseCase(
     private val appPreferences: AppPreferences,
     private val scanSuspensionUseCase: ScanSuspensionUseCase,
     private val chargingStateUseCase: ChargingStateUseCase,
+    private val androidAutoUseCase: AndroidAutoUseCase,
     scope: CoroutineScope,
 ) {
     /**
@@ -48,18 +50,21 @@ internal class ScanPolicyUseCase(
         appPreferences.justScan,
         appPreferences.activateOnCableCharging,
         appPreferences.activateOnWirelessCharging,
-    ) { justScan, cable, wireless ->
+        appPreferences.activateOnAndroidAuto,
+    ) { justScan, cable, wireless, androidAuto ->
         buildSet {
             if (justScan) add(JUST_SCAN)
             if (cable) add(CABLE)
             if (wireless) add(WIRELESS)
+            if (androidAuto) add(ANDROID_AUTO)
         }
     }
 
     private fun fulfilledCauses(enabled: Set<ActivateCause>): Flow<Set<ActivateCause>> {
         val sources = buildList {
             // No need to listen to anything when "Just scan" overrides every other condition
-            if (JUST_SCAN !in enabled && (CABLE in enabled || WIRELESS in enabled)) {
+            if (JUST_SCAN in enabled) return@buildList
+            if (CABLE in enabled || WIRELESS in enabled) {
                 add(
                     chargingStateUseCase.state.map { charging ->
                         buildSet {
@@ -68,6 +73,9 @@ internal class ScanPolicyUseCase(
                         }
                     }
                 )
+            }
+            if (ANDROID_AUTO in enabled) {
+                add(androidAutoUseCase.connected.map { if (it) setOf(ANDROID_AUTO) else emptySet() })
             }
         }
         return if (sources.isEmpty()) flowOf(emptySet())

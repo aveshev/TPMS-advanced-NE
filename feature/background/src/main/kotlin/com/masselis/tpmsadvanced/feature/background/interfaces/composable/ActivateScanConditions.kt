@@ -16,12 +16,15 @@ internal fun ActivateScanConditions(
 ) {
     val cable by viewModel.activateOnCableCharging.collectAsState()
     val wireless by viewModel.activateOnWirelessCharging.collectAsState()
+    val androidAuto by viewModel.activateOnAndroidAuto.collectAsState()
     val justScan by viewModel.justScan.collectAsState()
     ActivateScanConditions(
         cable = cable,
         onCable = { viewModel.activateOnCableCharging.value = it },
         wireless = wireless,
         onWireless = { viewModel.activateOnWirelessCharging.value = it },
+        androidAuto = androidAuto,
+        onAndroidAuto = { viewModel.activateOnAndroidAuto.value = it },
         justScan = justScan,
         onJustScan = { viewModel.justScan.value = it },
         modifier = modifier,
@@ -34,6 +37,8 @@ private fun ActivateScanConditions(
     onCable: (Boolean) -> Unit,
     wireless: Boolean,
     onWireless: (Boolean) -> Unit,
+    androidAuto: Boolean,
+    onAndroidAuto: (Boolean) -> Unit,
     justScan: Boolean,
     onJustScan: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -54,6 +59,13 @@ private fun ActivateScanConditions(
         modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnWireless),
     )
     ToggleRow(
+        text = "When Android Auto is connected",
+        checked = androidAuto,
+        enabled = justScan.not(),
+        onCheckedChange = onAndroidAuto,
+        modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnAndroidAuto),
+    )
+    ToggleRow(
         text = "Just scan! (drains battery)",
         checked = justScan,
         onCheckedChange = onJustScan,
@@ -69,6 +81,8 @@ internal fun ActivateScanConditionsPreview() {
         onCable = {},
         wireless = true,
         onWireless = {},
+        androidAuto = true,
+        onAndroidAuto = {},
         justScan = false,
         onJustScan = {},
     )
@@ -82,6 +96,8 @@ internal fun ActivateScanConditionsJustScanPreview() {
         onCable = {},
         wireless = true,
         onWireless = {},
+        androidAuto = true,
+        onAndroidAuto = {},
         justScan = true,
         onJustScan = {},
     )

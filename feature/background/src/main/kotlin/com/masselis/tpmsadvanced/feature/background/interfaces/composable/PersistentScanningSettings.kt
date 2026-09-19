@@ -73,5 +73,6 @@ internal object PersistentScanningSettingsTags {
     const val currentWifiException = "PersistentScanningSettingsTags_currentWifiException"
     const val activateOnCable = "PersistentScanningSettingsTags_activateOnCable"
     const val activateOnWireless = "PersistentScanningSettingsTags_activateOnWireless"
+    const val activateOnAndroidAuto = "PersistentScanningSettingsTags_activateOnAndroidAuto"
     const val justScan = "PersistentScanningSettingsTags_justScan"
 }

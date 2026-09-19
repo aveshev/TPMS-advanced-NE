@@ -21,6 +21,7 @@ internal class PersistentScanningSettingsViewModel(
 
     val activateOnCableCharging = appPreferences.activateOnCableCharging
     val activateOnWirelessCharging = appPreferences.activateOnWirelessCharging
+    val activateOnAndroidAuto = appPreferences.activateOnAndroidAuto
     val justScan = appPreferences.justScan
 
     val wifiConnectionState = wifiConnectionUseCase.state
