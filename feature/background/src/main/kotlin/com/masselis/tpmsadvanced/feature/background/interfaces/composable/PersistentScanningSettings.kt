@@ -74,5 +74,7 @@ internal object PersistentScanningSettingsTags {
     const val activateOnCable = "PersistentScanningSettingsTags_activateOnCable"
     const val activateOnWireless = "PersistentScanningSettingsTags_activateOnWireless"
     const val activateOnAndroidAuto = "PersistentScanningSettingsTags_activateOnAndroidAuto"
+    const val stayActive = "PersistentScanningSettingsTags_stayActive"
+    const val stayActiveMinutes = "PersistentScanningSettingsTags_stayActiveMinutes"
     const val justScan = "PersistentScanningSettingsTags_justScan"
 }

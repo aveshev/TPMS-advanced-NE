@@ -7,13 +7,17 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -25,6 +29,8 @@ internal class ScanPolicyUseCaseTest {
     private lateinit var activateOnCableCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnWirelessCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnAndroidAuto: MutableStateFlow<Boolean>
+    private lateinit var stayActive: MutableStateFlow<Boolean>
+    private lateinit var stayActiveMinutes: MutableStateFlow<Int>
     private lateinit var suspensionReasons: MutableStateFlow<Set<Reason>>
     private lateinit var charging: MutableStateFlow<State>
     private lateinit var androidAuto: MutableStateFlow<Boolean>
@@ -37,6 +43,8 @@ internal class ScanPolicyUseCaseTest {
             every { activateOnCableCharging } returns this@ScanPolicyUseCaseTest.activateOnCableCharging
             every { activateOnWirelessCharging } returns this@ScanPolicyUseCaseTest.activateOnWirelessCharging
             every { activateOnAndroidAuto } returns this@ScanPolicyUseCaseTest.activateOnAndroidAuto
+            every { stayActive } returns this@ScanPolicyUseCaseTest.stayActive
+            every { stayActiveMinutes } returns this@ScanPolicyUseCaseTest.stayActiveMinutes
         },
         mockk<ScanSuspensionUseCase> {
             every { this@mockk.suspensionReasons } returns this@ScanPolicyUseCaseTest.suspensionReasons
@@ -53,6 +61,8 @@ internal class ScanPolicyUseCaseTest {
         activateOnCableCharging = MutableStateFlow(true)
         activateOnWirelessCharging = MutableStateFlow(true)
         activateOnAndroidAuto = MutableStateFlow(true)
+        stayActive = MutableStateFlow(false)
+        stayActiveMinutes = MutableStateFlow(10)
         suspensionReasons = MutableStateFlow(emptySet())
         charging = MutableStateFlow(State(cable = false, wireless = false))
         androidAuto = MutableStateFlow(false)
@@ -156,6 +166,89 @@ internal class ScanPolicyUseCaseTest {
         suspensionReasons.value = setOf(Reason.DOZE)
         test().decision.test {
             assertEquals(ScanDecision.Suspended(setOf(Reason.DOZE)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `staying active keeps scanning for the configured time after the last condition ended`() = runTest {
+        stayActive.value = true
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            delay(10.minutes - 1.seconds)
+            expectNoEvents()
+            delay(2.seconds)
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a condition coming back ends the stay and a new one starts over when it ends again`() = runTest {
+        stayActive.value = true
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            delay(8.minutes)
+            charging.value = State(cable = true, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            // The 8 minutes of the first stay do not count any more
+            delay(9.minutes)
+            expectNoEvents()
+            delay(2.minutes)
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `there is nothing to stay active after when no condition was ever fulfilled`() = runTest {
+        stayActive.value = true
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+            delay(30.minutes)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `without the option the scan goes idle as soon as the last condition ends`() = runTest {
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a suspend condition suspends a stay like any other activation`() = runTest {
+        stayActive.value = true
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            suspensionReasons.value = setOf(Reason.WIFI)
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `the configured time can be changed`() = runTest {
+        stayActive.value = true
+        stayActiveMinutes.value = 2
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            delay(3.minutes)
+            assertEquals(ScanDecision.Idle, awaitItem())
         }
     }
 }

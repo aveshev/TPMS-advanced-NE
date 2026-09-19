@@ -53,6 +53,19 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("ACTIVATE_ON_ANDROID_AUTO", newValue) }
     }
 
+    /** Keeps scanning for [stayActiveMinutes] once every activate condition has ended */
+    public val stayActive: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("STAY_ACTIVE", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("STAY_ACTIVE", newValue) }
+    }
+
+    public val stayActiveMinutes: MutableStateFlow<Int> = observableStateFlow(
+        sharedPreferences.getInt("STAY_ACTIVE_MINUTES", DEFAULT_STAY_ACTIVE_MINUTES)
+    ) { _, newValue ->
+        sharedPreferences.edit { putInt("STAY_ACTIVE_MINUTES", newValue) }
+    }
+
     public val justScan: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("JUST_SCAN", false)
     ) { _, newValue ->
@@ -106,5 +119,9 @@ public class AppPreferences internal constructor(
     init {
         if (currentVersionCode != previousVersionCode)
             sharedPreferences.edit { putLong("VC", currentVersionCode) }
+    }
+
+    private companion object {
+        const val DEFAULT_STAY_ACTIVE_MINUTES = 10
     }
 }

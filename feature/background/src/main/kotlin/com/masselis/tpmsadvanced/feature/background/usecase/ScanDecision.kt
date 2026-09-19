@@ -5,7 +5,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCas
 
 internal sealed interface ScanDecision {
 
-    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, JUST_SCAN }
+    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, STAY_ACTIVE, JUST_SCAN }
 
     /** Background scanning is running, for at least one of [causes]. */
     data class Active(val causes: Set<ActivateCause>) : ScanDecision
@@ -66,5 +66,6 @@ private val ScanDecision.ActivateCause.label
         ScanDecision.ActivateCause.CABLE -> "charging with a cable"
         ScanDecision.ActivateCause.WIRELESS -> "charging wirelessly"
         ScanDecision.ActivateCause.ANDROID_AUTO -> "Android Auto being connected"
+        ScanDecision.ActivateCause.STAY_ACTIVE -> "staying active after the last activate condition ended"
         JUST_SCAN -> "Just scan being enabled"
     }
