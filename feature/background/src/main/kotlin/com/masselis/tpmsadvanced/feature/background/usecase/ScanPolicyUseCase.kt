@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class ScanPolicyUseCase(
@@ -33,6 +35,7 @@ internal class ScanPolicyUseCase(
     private val chargingStateUseCase: ChargingStateUseCase,
     private val androidAutoUseCase: AndroidAutoUseCase,
     scope: CoroutineScope,
+    private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     /**
      * What background scanning should do right now. Shared, so the service and the UI observe the
@@ -46,6 +49,8 @@ internal class ScanPolicyUseCase(
             // for as long as the service runs
             else flowOf(ScanDecision.Active(setOf(MANUAL)))
         }
+        // Several inputs can change without changing the outcome: nobody needs to hear it again
+        .distinctUntilChanged()
         .shareIn(scope, WhileSubscribed(), replay = 1)
 
     private fun automatic(): Flow<ScanDecision> = combine(
@@ -83,12 +88,7 @@ internal class ScanPolicyUseCase(
     ): Flow<Set<ActivateCause>> = when {
         // No need to listen to anything when "Just scan" overrides every other condition
         JUST_SCAN in enabled -> flowOf(emptySet())
-        STAY_ACTIVE in enabled -> directCauses(enabled).let { direct ->
-            val anyFulfilled = direct.map { (it intersect enabled).isNotEmpty() }
-            combine(direct, anyFulfilled.staysTrueFor(stayActiveFor)) { causes, staying ->
-                if (staying && (causes intersect enabled).isEmpty()) causes + STAY_ACTIVE else causes
-            }
-        }
+        STAY_ACTIVE in enabled -> directCauses(enabled).stayingActive(enabled, stayActiveFor)
 
         else -> directCauses(enabled)
     }
@@ -112,32 +112,44 @@ internal class ScanPolicyUseCase(
         return if (sources.isEmpty()) flowOf(emptySet())
         else combine(sources) { it.flatMap(Set<ActivateCause>::toList).toSet() }
     }
-}
 
-/**
- * Keeps saying true for [duration] after the source went from true to false, and starts over each
- * time it does. A source that begins false is not held: there is nothing to stay active after.
- */
-@OptIn(ExperimentalCoroutinesApi::class)
-private fun Flow<Boolean>.staysTrueFor(duration: Duration): Flow<Boolean> = flow {
-    var wasTrue = false
-    emitAll(
-        distinctUntilChanged().transformLatest { value ->
-            when {
-                value -> {
-                    wasTrue = true
-                    emit(true)
+    /**
+     * Once none of the [enabled] conditions is fulfilled any more, reports [STAY_ACTIVE] for
+     * [duration], unless scanning was suspended at that very moment: then there is nothing to stay
+     * active for. Starts over each time the conditions end, and nothing is held for conditions
+     * that were never fulfilled. A suspension that begins or ends during the stay does not move
+     * its end, it is a fixed point in time.
+     */
+    private fun Flow<Set<ActivateCause>>.stayingActive(
+        enabled: Set<ActivateCause>,
+        duration: Duration,
+    ): Flow<Set<ActivateCause>> = flow {
+        var wasFulfilled = false
+        var stayEnd: TimeMark? = null
+        emitAll(
+            combine(this@stayingActive, scanSuspensionUseCase.suspensionReasons) { causes, reasons ->
+                causes to reasons.isNotEmpty()
+            }.transformLatest { (causes, suspended) ->
+                if ((causes intersect enabled).isNotEmpty()) {
+                    wasFulfilled = true
+                    stayEnd = null
+                    emit(causes)
+                    return@transformLatest
                 }
-
-                wasTrue -> {
-                    emit(true)
-                    delay(duration)
-                    wasTrue = false
-                    emit(false)
+                if (wasFulfilled) {
+                    wasFulfilled = false
+                    stayEnd = if (suspended) null else timeSource.markNow() + duration
                 }
-
-                else -> emit(false)
+                val remaining = stayEnd?.let { -it.elapsedNow() }?.takeIf { it.isPositive() }
+                if (remaining == null) {
+                    emit(causes)
+                } else {
+                    emit(causes + STAY_ACTIVE)
+                    delay(remaining)
+                    stayEnd = null
+                    emit(causes)
+                }
             }
-        }
-    )
-}.distinctUntilChanged()
+        )
+    }
+}

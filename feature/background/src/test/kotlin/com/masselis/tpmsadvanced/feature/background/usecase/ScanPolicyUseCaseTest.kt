@@ -12,6 +12,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
@@ -22,6 +23,7 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class ScanPolicyUseCaseTest {
 
     private lateinit var persistentScanning: MutableStateFlow<Boolean>
@@ -52,6 +54,7 @@ internal class ScanPolicyUseCaseTest {
         mockk<ChargingStateUseCase> { every { state } returns charging },
         mockk<AndroidAutoUseCase> { every { connected } returns androidAuto },
         scope.backgroundScope,
+        scope.testScheduler.timeSource,
     )
 
     @Before
@@ -248,6 +251,42 @@ internal class ScanPolicyUseCaseTest {
             charging.value = State(cable = false, wireless = false)
             assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
             delay(3.minutes)
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `there is no stay when scanning was suspended the moment the last condition ended`() = runTest {
+        stayActive.value = true
+        charging.value = State(cable = true, wireless = false)
+        suspensionReasons.value = setOf(Reason.WIFI)
+        test().decision.test {
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Idle, awaitItem())
+            // Not resumed either when the suspension ends
+            suspensionReasons.value = emptySet()
+            delay(30.minutes)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a suspension during a stay does not move its end`() = runTest {
+        stayActive.value = true
+        charging.value = State(cable = true, wireless = false)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(CABLE)), awaitItem())
+            charging.value = State(cable = false, wireless = false)
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            delay(3.minutes)
+            suspensionReasons.value = setOf(Reason.WIFI)
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI)), awaitItem())
+            delay(3.minutes)
+            suspensionReasons.value = emptySet()
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            // 10 minutes after the condition ended, not after the suspension did
+            delay(4.minutes + 1.seconds)
             assertEquals(ScanDecision.Idle, awaitItem())
         }
     }
