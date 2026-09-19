@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitorService
+import com.masselis.tpmsadvanced.feature.background.interfaces.flash
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitorService.Companion.intent
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.BUFFERED
@@ -60,13 +61,18 @@ internal class BackgroundViewModel(
         require(stateFlow.value is State.Idle)
         if (SDK_INT >= TIRAMISU)
             require(checkSelfPermission(appContext, POST_NOTIFICATIONS) == PERMISSION_GRANTED)
+        // Throws when the system refuses the start, so the flash is only reached on success
         startForegroundService(appContext, serviceIntent)
+        appContext.flash("Activated TPMS background monitoring")
         channel.send(Event.FinishActivity)
     }
 
     fun disableMonitoring() = viewModelScope.launch {
         require(stateFlow.value is State.Monitoring)
-        appContext.stopService(serviceIntent)
+        appContext
+            .stopService(serviceIntent)
+            .takeIf { it }
+            ?.also { appContext.flash("Disabled TPMS background monitoring") }
     }
 
     private fun computeState(isServiceRunning: Boolean) =
