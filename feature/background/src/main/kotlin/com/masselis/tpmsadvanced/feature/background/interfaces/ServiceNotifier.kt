@@ -28,13 +28,16 @@ import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.R
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
+import com.masselis.tpmsadvanced.feature.background.usecase.explanation
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -61,7 +64,7 @@ internal class ServiceNotifier(
     unitPreferences: UnitPreferences,
     service: Service,
     vehicleListUseCase: VehicleListUseCase,
-    scanSuspensionUseCase: ScanSuspensionUseCase,
+    scanPolicyUseCase: ScanPolicyUseCase,
 ) {
     private val notificationManager = NotificationManagerCompat.from(appContext)
 
@@ -79,17 +82,17 @@ internal class ServiceNotifier(
                 .build()
         )
 
-        scanSuspensionUseCase
-            .suspensionReasons
-            .flatMapLatest { reasons ->
-                if (reasons.isNotEmpty()) {
-                    // Suspended: skip the scan entirely rather than emit nothing, since the
+        scanPolicyUseCase
+            .decision
+            .flatMapLatest { decision ->
+                when (decision) {
+                    // Not scanning: skip the scan entirely rather than emit nothing, since the
                     // service must call startForeground() shortly after being started — a
                     // silent flow here would starve that call if the app launches already
                     // suspended (e.g. opened while already in Doze).
-                    flowOf(Suspended(reasons))
-                } else {
-                    combine(
+                    is ScanDecision.Suspended -> flowOf(Suspended(decision.reasons))
+                    ScanDecision.Idle -> flowOf(Idle)
+                    is ScanDecision.Active -> combine(
                         vehicleListUseCase
                             .vehicleListFlow
                             // Editing a vehicle (ranges, name...) re-emits the list; only a change
@@ -130,25 +133,25 @@ internal class ServiceNotifier(
                     .Builder(
                         appContext,
                         when (state) {
-                            NoAlert, is Suspended -> channelNameWhenOk
+                            NoAlert, is Suspended, Idle -> channelNameWhenOk
                             is PressureAlert, is TemperatureAlert, ScanFailure -> channelNameForAlerts
                         }
                     )
                     .setSmallIcon(
                         when (state) {
-                            NoAlert, is Suspended -> R.drawable.car_tire
+                            NoAlert, is Suspended, Idle -> R.drawable.car_tire
                             is PressureAlert, is TemperatureAlert, ScanFailure -> R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
-                            NoAlert, is Suspended -> PRIORITY_LOW
+                            NoAlert, is Suspended, Idle -> PRIORITY_LOW
                             is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
                         }
                     )
                     .setSubText(
                         when (state) {
-                            NoAlert, is Suspended -> null
+                            NoAlert, is Suspended, Idle -> null
                             is PressureAlert -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
                             ScanFailure -> null
@@ -168,20 +171,14 @@ internal class ServiceNotifier(
                             ScanFailure -> "The Android system reported an issue during the" +
                                     " bluetooth scan, TPMS Advanced must be restarted"
 
-                            is Suspended -> "Background scanning suspended (${
-                                state.reasons.joinToString(", ") {
-                                    when (it) {
-                                        Reason.DOZE -> "phone idle"
-                                        Reason.WIFI -> "on Wi-Fi"
-                                    }
-                                }
-                            })"
+                            is Suspended -> ScanDecision.Suspended(state.reasons).explanation()
+                            Idle -> ScanDecision.Idle.explanation()
                         }
                     )
                     .apply {
                         when (state) {
                             // Opens the app on its current vehicle
-                            NoAlert, is Suspended -> appContext
+                            NoAlert, is Suspended, Idle -> appContext
                                 .packageManager
                                 .getLaunchIntentForPackage(appContext.packageName)
                                 ?.let { getActivity(appContext, requestCode, it, FLAG_IMMUTABLE) }
@@ -198,7 +195,7 @@ internal class ServiceNotifier(
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert, is Suspended ->
+                            NoAlert, is PressureAlert, is TemperatureAlert, is Suspended, Idle ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -273,6 +270,8 @@ internal class ServiceNotifier(
         data object ScanFailure : State
 
         data class Suspended(val reasons: Set<Reason>) : State
+
+        data object Idle : State
     }
 
     @Suppress("ConstPropertyName")

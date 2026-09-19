@@ -4,7 +4,7 @@ import android.app.Service
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
@@ -38,13 +38,13 @@ public interface ServiceComponent {
         unitPreferences: UnitPreferences,
         foregroundService: Service,
         vehicleListUseCase: VehicleListUseCase,
-        scanSuspensionUseCase: ScanSuspensionUseCase,
+        scanPolicyUseCase: ScanPolicyUseCase,
     ): ServiceNotifier = ServiceNotifier(
         scope,
         unitPreferences,
         foregroundService,
         vehicleListUseCase,
-        scanSuspensionUseCase,
+        scanPolicyUseCase,
     )
 
     public val internal: Internal

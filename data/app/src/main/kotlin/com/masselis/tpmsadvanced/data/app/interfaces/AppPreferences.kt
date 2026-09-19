@@ -29,6 +29,42 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_TIME_SINCE_UPDATE", newValue) }
     }
 
+    public val persistentScanning: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("PERSISTENT_SCANNING", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("PERSISTENT_SCANNING", newValue) }
+    }
+
+    public val activateOnCableCharging: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_CABLE_CHARGING", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_CABLE_CHARGING", newValue) }
+    }
+
+    public val activateOnWirelessCharging: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_WIRELESS_CHARGING", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_WIRELESS_CHARGING", newValue) }
+    }
+
+    public val activateOnAndroidAuto: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_ANDROID_AUTO", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_ANDROID_AUTO", newValue) }
+    }
+
+    public val smartPersistence: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SMART_PERSISTENCE", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SMART_PERSISTENCE", newValue) }
+    }
+
+    public val justScan: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("JUST_SCAN", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("JUST_SCAN", newValue) }
+    }
+
     public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", false)
     ) { _, newValue ->
