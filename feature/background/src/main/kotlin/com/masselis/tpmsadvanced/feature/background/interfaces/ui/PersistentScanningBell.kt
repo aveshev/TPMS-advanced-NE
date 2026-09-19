@@ -31,7 +31,7 @@ internal fun PersistentScanningBell(
     modifier: Modifier = Modifier,
 ) {
     val decision by viewModel.decision.collectAsState(initial = ScanDecision.Idle)
-    val permissions = rememberMonitoringPermissions(onGranted = viewModel::ensureRunning)
+    val permissions = LocalMonitoringPermissions.current
     var showRationale by remember { mutableStateOf(false) }
     val state = BellState.of(permissions.status == MonitoringPermissions.Status.Ok, decision)
 

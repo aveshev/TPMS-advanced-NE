@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,11 @@ internal class MonitoringPermissions(
      * stays correct when this instance was captured by a long-lived effect.
      */
     fun isInProgress() = inProgress()
+}
+
+/** Provided by [PersistentScanningHost], so that everything shares one journey and its dialogs. */
+internal val LocalMonitoringPermissions = compositionLocalOf<MonitoringPermissions> {
+    error("No PersistentScanningHost above this composable")
 }
 
 /**

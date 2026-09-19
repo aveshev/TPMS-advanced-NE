@@ -48,7 +48,7 @@ import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.Spotlight
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
-import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningAppOpenEffect
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
@@ -72,9 +72,11 @@ internal fun Home(
     }
 ) {
     val vehicleComponent by viewModel.vehicleComponentStateFlow.collectAsState()
-    VehicleHome(
-        vehicleComponent = vehicleComponent
-    )
+    PersistentScanningHost {
+        VehicleHome(
+            vehicleComponent = vehicleComponent
+        )
+    }
 }
 
 @Suppress("LongMethod")
@@ -84,7 +86,6 @@ internal fun VehicleHome(
     viewModel: VehicleHomeViewModel = viewModel { VehicleHomeViewModel() }
 ) {
     val navController = rememberNavController()
-    PersistentScanningAppOpenEffect()
     CompositionLocalProvider(
         LocalVehicleComponent provides vehicleComponent,
         LocalHomeNavController provides navController
