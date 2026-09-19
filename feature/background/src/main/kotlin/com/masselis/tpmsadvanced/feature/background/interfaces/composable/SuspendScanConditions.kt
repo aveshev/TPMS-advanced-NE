@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,26 +31,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanSuspensionSettingsViewModel
-import com.masselis.tpmsadvanced.feature.background.ioc.Bindings.Companion.ScanSuspensionSettingsViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
-
-@Composable
-public fun ScanSuspensionSettings(modifier: Modifier = Modifier): Unit =
-    ScanSuspensionSettings(
-        modifier,
-        viewModel { ScanSuspensionSettingsViewModel() },
-    )
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Suppress("LongMethod")
 @Composable
-internal fun ScanSuspensionSettings(
+internal fun SuspendScanConditions(
+    viewModel: PersistentScanningSettingsViewModel,
     modifier: Modifier = Modifier,
-    viewModel: ScanSuspensionSettingsViewModel = viewModel { ScanSuspensionSettingsViewModel() },
 ) {
     val suspendInDoze by viewModel.suspendScanningInDoze.collectAsState()
     val suspendOnWifi by viewModel.suspendScanningOnWifi.collectAsState()
@@ -81,13 +71,13 @@ internal fun ScanSuspensionSettings(
             text = "Suspend scanning while phone is idle (Doze)",
             checked = suspendInDoze,
             onCheckedChange = { viewModel.suspendScanningInDoze.value = it },
-            modifier = Modifier.testTag(ScanSuspensionSettingsTags.suspendInDoze),
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendInDoze),
         )
         ToggleRow(
             text = "Suspend scanning when connected to WiFi",
             checked = suspendOnWifi,
             onCheckedChange = { viewModel.suspendScanningOnWifi.value = it },
-            modifier = Modifier.testTag(ScanSuspensionSettingsTags.suspendOnWifi),
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendOnWifi),
         )
         ToggleRow(
             text = "Make exception for certain WiFis (requires permission)",
@@ -96,7 +86,7 @@ internal fun ScanSuspensionSettings(
             onCheckedChange = { viewModel.wifiExceptionEnabled.value = it },
             modifier = Modifier
                 .padding(start = 24.dp)
-                .testTag(ScanSuspensionSettingsTags.wifiExceptionEnabled),
+                .testTag(PersistentScanningSettingsTags.wifiExceptionEnabled),
         )
         if (suspendOnWifi && exceptionEnabled) {
             if (permissionState.allPermissionsGranted.not()) {
@@ -176,7 +166,7 @@ private fun CurrentWifiExceptionRow(
             text = "Keep scanning when on current WiFi \"$ssid\"",
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = modifier.testTag(ScanSuspensionSettingsTags.currentWifiException),
+            modifier = modifier.testTag(PersistentScanningSettingsTags.currentWifiException),
         )
     } else {
         Text(
@@ -202,24 +192,9 @@ private fun CheckboxRow(
     Text(text)
 }
 
-@Composable
-private fun ToggleRow(
-    text: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) = Row(
-    verticalAlignment = Alignment.CenterVertically,
-    modifier = modifier,
-) {
-    Text(text, modifier = Modifier.weight(1f))
-    Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
-}
-
 @Preview
 @Composable
-internal fun ScanSuspensionSettingsPreview() {
+internal fun SuspendScanConditionsPreview() {
     Column {
         ToggleRow(
             text = "Suspend scanning while phone is idle (Doze)",
@@ -248,18 +223,10 @@ internal fun ScanSuspensionSettingsPreview() {
 
 @Preview
 @Composable
-internal fun ScanSuspensionSettingsDisconnectedPreview() {
+internal fun SuspendScanConditionsDisconnectedPreview() {
     CurrentWifiExceptionRow(
         ssid = null,
         checked = false,
         onCheckedChange = {},
     )
-}
-
-@Suppress("ConstPropertyName")
-internal object ScanSuspensionSettingsTags {
-    const val suspendInDoze = "ScanSuspensionSettingsTags_suspendInDoze"
-    const val suspendOnWifi = "ScanSuspensionSettingsTags_suspendOnWifi"
-    const val wifiExceptionEnabled = "ScanSuspensionSettingsTags_wifiExceptionEnabled"
-    const val currentWifiException = "ScanSuspensionSettingsTags_currentWifiException"
 }

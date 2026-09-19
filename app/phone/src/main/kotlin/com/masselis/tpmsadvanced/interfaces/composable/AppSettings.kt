@@ -10,9 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ScanSuspensionSettings
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
-import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.scanSuspension
+import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
 
 @Composable
@@ -25,8 +25,8 @@ internal fun AppSettings(
 ) {
     SettingsSectionHeader("Display settings")
     TyreDisplaySettings(Modifier.testTag(tyreDisplay))
-    SettingsSectionHeader("Battery")
-    ScanSuspensionSettings(Modifier.testTag(scanSuspension))
+    SettingsSectionHeader("Background scanning")
+    PersistentScanningSettings(Modifier.testTag(persistentScanning))
 }
 
 @Composable
@@ -42,5 +42,5 @@ private fun SettingsSectionHeader(
 
 internal object AppSettingsTag {
     const val tyreDisplay = "AppSettingsTag_tyreDisplay"
-    const val scanSuspension = "AppSettingsTag_scanSuspension"
+    const val persistentScanning = "AppSettingsTag_persistentScanning"
 }
