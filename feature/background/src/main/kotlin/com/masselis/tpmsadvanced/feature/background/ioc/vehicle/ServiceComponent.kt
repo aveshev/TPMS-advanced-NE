@@ -3,14 +3,11 @@ package com.masselis.tpmsadvanced.feature.background.ioc.vehicle
 import android.app.Service
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier
-import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
-import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.GraphExtension
-import dev.zacsweers.metro.Includes
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
@@ -30,26 +27,21 @@ public interface ServiceComponent {
         public fun build(
             @Provides service: Service,
             @Provides scope: CoroutineScope,
-            @Includes vehicleComponent: VehicleComponent,
         ): ServiceComponent
     }
 
     @Provides
     @SingleIn(Scope::class)
     private fun serviceNotifier(
-        vehicle: Vehicle,
-        vehicleComponent: VehicleComponent,
         scope: CoroutineScope,
-        vehicleRangesUseCase: VehicleRangesUseCase,
         unitPreferences: UnitPreferences,
         foregroundService: Service,
+        vehicleListUseCase: VehicleListUseCase,
     ): ServiceNotifier = ServiceNotifier(
-        vehicle,
-        vehicleComponent,
         scope,
-        vehicleRangesUseCase,
         unitPreferences,
-        foregroundService
+        foregroundService,
+        vehicleListUseCase,
     )
 
     public val internal: Internal
@@ -61,13 +53,11 @@ public interface ServiceComponent {
 
     public companion object {
         public operator fun invoke(
-            vehicle: Vehicle,
             foregroundService: Service,
             scope: CoroutineScope,
         ): ServiceComponent = (appGraph as Factory).build(
             foregroundService,
             scope,
-            VehicleComponent(vehicle),
         ).apply { serviceNotifier() } // Creates an instance of `ServiceNotifier` after build.
 
         internal val ServiceComponent.serviceNotifier

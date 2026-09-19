@@ -10,7 +10,6 @@ import androidx.core.content.ContextCompat.startForegroundService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.core.common.appContext
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitorService
 import com.masselis.tpmsadvanced.feature.background.interfaces.flash
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitorService.Companion.intent
@@ -25,9 +24,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 
-internal class BackgroundViewModel(
-    vehicle: Vehicle,
-) : ViewModel() {
+internal class BackgroundViewModel : ViewModel() {
 
     sealed interface State : Parcelable {
         @Parcelize
@@ -47,7 +44,7 @@ internal class BackgroundViewModel(
     private val channel = Channel<Event>(BUFFERED)
     val eventChannel = channel as ReceiveChannel<Event>
 
-    private val serviceIntent = intent(vehicle)
+    private val serviceIntent = intent()
 
     init {
         MonitorService

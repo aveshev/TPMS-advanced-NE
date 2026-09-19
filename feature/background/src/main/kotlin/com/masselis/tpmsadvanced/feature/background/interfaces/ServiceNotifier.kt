@@ -2,6 +2,7 @@ package com.masselis.tpmsadvanced.feature.background.interfaces
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent.FLAG_IMMUTABLE
+import android.app.PendingIntent.getActivity
 import android.app.PendingIntent.getBroadcast
 import android.app.Service
 import android.content.Intent
@@ -31,32 +32,31 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.S
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
-import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
+import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
-import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlin.time.Duration.Companion.milliseconds
+import java.util.UUID
 
-@OptIn(FlowPreview::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 @SuppressLint("MissingPermission")
 internal class ServiceNotifier(
-    vehicle: Vehicle,
-    vehicleComponent: VehicleComponent,
     scope: CoroutineScope,
-    vehicleRangesUseCase: VehicleRangesUseCase,
     unitPreferences: UnitPreferences,
     service: Service,
+    vehicleListUseCase: VehicleListUseCase,
 ) {
     private val notificationManager = NotificationManagerCompat.from(appContext)
 
@@ -74,38 +74,28 @@ internal class ServiceNotifier(
                 .build()
         )
 
-        vehicle
-            .kind
-            .locations
-            .toList()
-            .let { locations ->
-                val comps = locations.map { vehicleComponent.TyreComponent(it) }
-                combine(
-                    combine(comps.map { it.tyreAtmosphereUseCase.listen() }) { it }
-                        .onStart { emit(emptyArray()) }
-                        .debounce(100.milliseconds),
+        combine(
+            vehicleListUseCase
+                .vehicleListFlow
+                // Editing a vehicle (ranges, name...) re-emits the list; only a change in the
+                // set of vehicles may rebuild the collectors, otherwise the BLE scan restarts.
+                .distinctUntilChanged { old, new -> old.map(Vehicle::uuid) == new.map(Vehicle::uuid) }
+                .flatMapLatest { vehicles ->
                     combine(
-                        locations.map {
-                            combine(
-                                vehicleRangesUseCase.resolvedLowPressure(it),
-                                vehicleRangesUseCase.resolvedHighPressure(it),
-                            ) { low, high -> low..high }
+                        vehicles.map { vehicle ->
+                            VehicleAlertUseCase(VehicleComponent(vehicle)).alert.map { vehicle to it }
                         }
-                    ) { it },
-                    vehicleRangesUseCase.highTemp,
-                ) { atmospheres, pressureRanges, highTemp ->
-                    atmospheres
-                        .withIndex()
-                        .firstOrNull { (index, atmosphere) ->
-                            atmosphere.pressure !in pressureRanges[index]
-                        }
-                        ?.let { (_, atmosphere) -> PressureAlert(atmosphere) }
-                        ?: atmospheres
-                            .firstOrNull { it.temperature > highTemp }
-                            ?.let(::TemperatureAlert)
-                        ?: NoAlert
-                }
-            }
+                    ) { it.toList() }
+                },
+            vehicleListUseCase.vehicleListFlow,
+        ) { alerts, latestVehicles ->
+            // The collectors hold the snapshot they were built with, so names are refreshed here
+            val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
+            worst(alerts.map { (vehicle, alert) -> (latestByUuid[vehicle.uuid] ?: vehicle) to alert })
+        }
+            // The service must call startForeground() shortly after being started, before the
+            // database had time to answer
+            .onStart { emit(NoAlert) }
             .catch { Firebase.crashlytics.recordException(it); emit(ScanFailure) }
             .distinctUntilChanged()
             .map { state ->
@@ -129,7 +119,14 @@ internal class ServiceNotifier(
                             is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
                         }
                     )
-                    .setSubText(vehicle.name)
+                    .setSubText(
+                        when (state) {
+                            NoAlert -> null
+                            is PressureAlert -> state.vehicleName
+                            is TemperatureAlert -> state.vehicleName
+                            ScanFailure -> null
+                        }
+                    )
                     .setContentText(
                         when (state) {
                             NoAlert -> "Your tyres are OK"
@@ -147,19 +144,15 @@ internal class ServiceNotifier(
                     )
                     .apply {
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert ->
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    "tpmsadvanced://vehicle/${vehicle.uuid}".toUri(),
-                                ).let {
-                                    TaskStackBuilder
-                                        .create(appContext)
-                                        .addNextIntentWithParentStack(it)
-                                        .getPendingIntent(
-                                            vehicle.uuid.hashCode(),
-                                            FLAG_IMMUTABLE
-                                        )
-                                }.also(::setContentIntent)
+                            // Opens the app on its current vehicle
+                            NoAlert -> appContext
+                                .packageManager
+                                .getLaunchIntentForPackage(appContext.packageName)
+                                ?.let { getActivity(appContext, requestCode, it, FLAG_IMMUTABLE) }
+                                ?.also(::setContentIntent)
+
+                            is PressureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
+                            is TemperatureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
 
                             ScanFailure -> {
                                 // Nothing to do, the intent does nothing when clicked
@@ -175,7 +168,7 @@ internal class ServiceNotifier(
                                     "Stop",
                                     getBroadcast(
                                         appContext,
-                                        vehicle.uuid.hashCode(),
+                                        requestCode,
                                         DisableMonitorBroadcastReceiver.intent(),
                                         FLAG_IMMUTABLE
                                     )
@@ -187,7 +180,7 @@ internal class ServiceNotifier(
                                     "Restart app",
                                     getBroadcast(
                                         appContext,
-                                        vehicle.uuid.hashCode(),
+                                        requestCode,
                                         RestartAppBroadcastReceiver.intent(),
                                         FLAG_IMMUTABLE
                                     )
@@ -201,7 +194,7 @@ internal class ServiceNotifier(
             .onEach {
                 ServiceCompat.startForeground(
                     service,
-                    vehicle.uuid.hashCode(),
+                    notificationId,
                     it,
                     // https://developer.android.com/about/versions/14/changes/fgs-types-required#connected-device
                     if (SDK_INT >= Q) FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
@@ -216,14 +209,30 @@ internal class ServiceNotifier(
         }.launchIn(scope)
     }
 
+    private fun vehicleIntent(vehicleUuid: UUID) = Intent(
+        Intent.ACTION_VIEW,
+        "tpmsadvanced://vehicle/$vehicleUuid".toUri(),
+    ).let {
+        TaskStackBuilder
+            .create(appContext)
+            .addNextIntentWithParentStack(it)
+            .getPendingIntent(requestCode, FLAG_IMMUTABLE)
+    }
+
     sealed interface State {
         data object NoAlert : State
 
-        @JvmInline
-        value class PressureAlert(val atmosphere: TyreAtmosphere) : State
+        data class PressureAlert(
+            val vehicleUuid: UUID,
+            val vehicleName: String,
+            val atmosphere: TyreAtmosphere,
+        ) : State
 
-        @JvmInline
-        value class TemperatureAlert(val atmosphere: TyreAtmosphere) : State
+        data class TemperatureAlert(
+            val vehicleUuid: UUID,
+            val vehicleName: String,
+            val atmosphere: TyreAtmosphere,
+        ) : State
 
         data object ScanFailure : State
     }
@@ -232,5 +241,21 @@ internal class ServiceNotifier(
     internal companion object {
         private const val channelNameWhenOk = "MONITOR_SERVICE_WHEN_OK"
         private const val channelNameForAlerts = "MONITOR_SERVICE_FOR_ALERT"
+        private const val notificationId = 1
+        private const val requestCode = 0
     }
 }
+
+/**
+ * Picks what the notification must show for all monitored vehicles at once: a pressure alert wins
+ * over a temperature alert, and ties are broken by the order of [alerts].
+ */
+internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
+    alerts
+        .firstNotNullOfOrNull { (vehicle, alert) ->
+            (alert as? Alert.Pressure)?.let { PressureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
+        }
+        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
+            (alert as? Alert.Temperature)?.let { TemperatureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
+        }
+        ?: NoAlert
