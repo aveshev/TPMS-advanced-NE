@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle.Event.ON_RESUME
@@ -33,9 +34,9 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.masselis.tpmsadvanced.core.common.appContext
 
 /**
- * What a background monitoring service needs from the user: notifications (and Bluetooth scan on
- * API 34+, required by the connectedDevice foreground service type) and an exemption from battery
- * optimization.
+ * What a background monitoring service needs from the user: notifications allowed (and Bluetooth
+ * scan on API 34+, required by the connectedDevice foreground service type) and an exemption from
+ * battery optimization.
  */
 internal class MonitoringPermissions(
     val status: Status,
@@ -82,6 +83,12 @@ internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPer
     val powerManager = appContext.getSystemService<PowerManager>()
     fun isBatteryOptimizationMissing() =
         powerManager?.isIgnoringBatteryOptimizations(appContext.packageName) == false
+    // The runtime permission only exists from API 33, but the user can block the notifications of
+    // an app on any version, which hides the service's notification: the user could neither see
+    // nor stop what runs
+    fun areNotificationsBlocked() = NotificationManagerCompat.from(appContext)
+        .areNotificationsEnabled()
+        .not()
     var showBatteryOptimizationAlert by remember { mutableStateOf(false) }
     var showNotificationPermissionAlert by remember { mutableStateOf(false) }
     var showReadyToMonitorAlert by remember { mutableStateOf(false) }
@@ -93,15 +100,7 @@ internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPer
     // The battery exemption can't be observed, it is read again every time the app is resumed
     var resumeCount by remember { mutableIntStateOf(0) }
 
-    // No FLAG_ACTIVITY_NEW_TASK: we always launch from a live Activity, so Settings can push
-    // onto our own task's back stack. Adding it here let a second RootActivity instance spawn
-    // when the flow bounced to Settings twice in a row (notifications, then battery).
-    fun openAppSettings() = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-        .apply { addCategory(Intent.CATEGORY_DEFAULT) }
-        .apply { data = "package:${appContext.packageName}".toUri() }
-        .apply { addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY) }
-        .apply { addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS) }
-        .also { activity?.startActivity(it) }
+    fun openAppSettings() = activity?.openAppSettings()
 
     fun openNotificationSettings() = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
         .apply { putExtra(Settings.EXTRA_APP_PACKAGE, appContext.packageName) }
@@ -124,6 +123,13 @@ internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPer
             permissionState.allPermissionsGranted.not() -> {
                 remediationWasNeeded = true
                 permissionLauncher.launch(permissions.toTypedArray())
+            }
+
+            // Nothing to request when the permission is held (or does not exist), the user has to
+            // allow the notifications in the settings
+            areNotificationsBlocked() -> {
+                remediationWasNeeded = true
+                showNotificationPermissionAlert = true
             }
 
             // Unrestricted battery usage isn't a runtime permission, so it can't be requested
@@ -197,9 +203,11 @@ internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPer
         )
     }
 
+    val notificationsBlocked = remember(resumeCount) { areNotificationsBlocked() }
     val batteryOptimizationMissing = remember(resumeCount) { isBatteryOptimizationMissing() }
     val status = when {
-        permissionState.allPermissionsGranted.not() -> MonitoringPermissions.Status.NotificationsMissing
+        permissionState.allPermissionsGranted.not() || notificationsBlocked ->
+            MonitoringPermissions.Status.NotificationsMissing
         batteryOptimizationMissing -> MonitoringPermissions.Status.BatteryOptimizationMissing
         else -> MonitoringPermissions.Status.Ok
     }

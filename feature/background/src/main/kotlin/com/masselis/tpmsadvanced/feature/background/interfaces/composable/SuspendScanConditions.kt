@@ -17,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.LocalWifiExceptionJourney
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
 
@@ -31,6 +32,7 @@ internal fun SuspendScanConditions(
     val suspendOnWifi by viewModel.suspendScanningOnWifi.collectAsState()
     val exceptionEnabled by viewModel.wifiExceptionEnabled.collectAsState()
     val exceptedSsids by viewModel.exceptedWifiSsids.collectAsState()
+    val wifiExceptionJourney = LocalWifiExceptionJourney.current
     val permissionState = rememberMultiplePermissionsState(viewModel.requiredWifiPermissions())
     // Keyed on the grant flag: WifiConnectionUseCase's NetworkCallback delivers redacted data
     // (null SSID) while ungranted, and Android doesn't re-deliver capabilities just because
@@ -62,7 +64,11 @@ internal fun SuspendScanConditions(
             text = "Make exception for certain WiFis (requires permission)",
             checked = exceptionEnabled,
             enabled = suspendOnWifi,
-            onCheckedChange = { viewModel.wifiExceptionEnabled.value = it },
+            // Only turns on once the permission is held, so that what depends on it appears then
+            onCheckedChange = { enabled ->
+                if (enabled) wifiExceptionJourney.request { viewModel.wifiExceptionEnabled.value = true }
+                else viewModel.wifiExceptionEnabled.value = false
+            },
             modifier = Modifier
                 .padding(start = 24.dp)
                 .testTag(PersistentScanningSettingsTags.wifiExceptionEnabled),

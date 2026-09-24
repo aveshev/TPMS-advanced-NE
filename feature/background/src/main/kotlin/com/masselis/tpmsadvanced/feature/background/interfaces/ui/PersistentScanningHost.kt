@@ -19,6 +19,11 @@ internal val LocalSettingsOnScreen = compositionLocalOf<MutableState<Boolean>> {
     error("No PersistentScanningHost above this composable")
 }
 
+/** The journey behind the WiFi exception toggle, so that it only turns on once its permission is held */
+internal val LocalWifiExceptionJourney = compositionLocalOf<PermissionJourney> {
+    error("No PersistentScanningHost above this composable")
+}
+
 /**
  * Must wrap every [MonitoringButton]. It owns the one permission journey (and its dialogs) that the
  * bell and the app-open check share: two independent journeys would both react when the user comes
@@ -50,33 +55,34 @@ internal fun PersistentScanningHost(
         onStopOrDispose { }
     }
 
-    // The WiFi exception needs the location permission: it is asked for every time the app is
-    // opened while the settings in place need it, not only when the settings screen is visible.
+    // The WiFi exception needs permissions of its own: they are asked for every time the app is
+    // opened while the settings in place need them, not only when the settings screen is visible.
     val wifiExceptionActive by viewModel.wifiExceptionActive.collectAsState(initial = false)
     val settingsOnScreen = remember { mutableStateOf(false) }
-    val wifiPermission = rememberWifiExceptionPermission(
+    val wifiJourney = rememberWifiExceptionJourney(
         permissions = viewModel.requiredWifiPermissions(),
         isSettingsOnScreen = { settingsOnScreen.value },
         onDenied = viewModel::disableWifiException,
     )
-    val currentWifiPermission by rememberUpdatedState(wifiPermission)
-    // Read here to key the effect: the location journey waits for the monitoring one to end
+    val currentWifiJourney by rememberUpdatedState(wifiJourney)
+    // Read here to key the effect: the journey waits for the monitoring one to end
     val monitoringJourneyRunning = permissions.isInProgress()
     LifecycleStartEffect(wifiExceptionActive, monitoringJourneyRunning) {
-        // One system permission dialog at a time. Both journeys start together when the app opens,
-        // the monitoring one goes first (its effect is declared first) and its end runs this again.
+        // One system dialog at a time. Both journeys start together when the app opens, the
+        // monitoring one goes first (its effect is declared first) and its end runs this again.
         if (
             wifiExceptionActive &&
             currentPermissions.isInProgress().not() &&
-            currentWifiPermission.isInProgress().not()
+            currentWifiJourney.isInProgress().not()
         ) {
-            currentWifiPermission.request()
+            currentWifiJourney.request()
         }
         onStopOrDispose { }
     }
     CompositionLocalProvider(
         LocalMonitoringPermissions provides permissions,
         LocalSettingsOnScreen provides settingsOnScreen,
+        LocalWifiExceptionJourney provides wifiJourney,
         content = content,
     )
 }

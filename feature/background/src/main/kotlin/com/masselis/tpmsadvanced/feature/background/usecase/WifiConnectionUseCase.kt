@@ -11,6 +11,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkCapabilities.TRANSPORT_WIFI
 import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
+import android.net.wifi.WifiManager
 import android.net.wifi.WifiManager.UNKNOWN_SSID
 import android.os.Build.VERSION.SDK_INT
 import android.os.Build.VERSION_CODES.Q
@@ -60,12 +61,12 @@ internal class WifiConnectionUseCase {
 
     // Since API 31, NetworkCapabilities redacts location-sensitive transport info (including the
     // WiFi SSID) by default, even when the caller holds the permission and location is enabled —
-    // FLAG_INCLUDE_LOCATION_INFO on the callback itself is required to opt back in. Below API 31
-    // no such redaction exists (and the flags constructor doesn't exist at all), so the plain
-    // no-arg constructor already returns the real SSID. The two constructors are called from two
-    // distinct anonymous classes on purpose: NetworkCallback(Int) doesn't exist pre-31, so a
-    // single call site guarded only by a runtime SDK_INT check would still fail to resolve on
-    // older devices.
+    // FLAG_INCLUDE_LOCATION_INFO on the callback itself is required to opt back in. The flags
+    // constructor doesn't exist before API 31, and the transport info of the older callbacks
+    // never carries the SSID (confirmed on-device on API 29, see wifiSsid()). The two
+    // constructors are called from two distinct anonymous classes on purpose: NetworkCallback(Int)
+    // doesn't exist pre-31, so a single call site guarded only by a runtime SDK_INT check would
+    // still fail to resolve on older devices.
     private fun networkCallback(
         onCapabilitiesChanged: (NetworkCapabilities) -> Unit,
         onLost: () -> Unit,
@@ -93,8 +94,14 @@ internal class WifiConnectionUseCase {
     private fun ConnectivityManager.hasWifiNetwork() = allNetworks
         .any { getNetworkCapabilities(it)?.hasTransport(TRANSPORT_WIFI) == true }
 
-    private fun NetworkCapabilities.wifiSsid(): String? = (transportInfo as? WifiInfo)
-        ?.ssid
+    // Before API 31 the transport info of a network callback is stripped of the SSID whatever the
+    // permissions are (confirmed on-device on API 29), and it doesn't even exist before API 29.
+    // WifiManager does return it when the location permission is held.
+    @Suppress("DEPRECATION")
+    private fun NetworkCapabilities.wifiSsid(): String? = when {
+        SDK_INT >= S -> (transportInfo as? WifiInfo)?.ssid
+        else -> appContext.getSystemService<WifiManager>()?.connectionInfo?.ssid
+    }
         ?.removeSurrounding("\"")
         ?.takeUnless { it == UNKNOWN_SSID }
 

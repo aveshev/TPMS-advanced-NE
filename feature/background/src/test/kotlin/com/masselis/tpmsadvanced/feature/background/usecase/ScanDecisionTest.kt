@@ -4,7 +4,6 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.SMART
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
@@ -39,10 +38,10 @@ internal class ScanDecisionTest {
     @Test
     fun `every fulfilled condition is reported as a cause`() {
         assertEquals(
-            ScanDecision.Active(setOf(CABLE, ANDROID_AUTO, SMART)),
+            ScanDecision.Active(setOf(CABLE, ANDROID_AUTO)),
             decide(
-                setOf(CABLE, WIRELESS, ANDROID_AUTO, SMART),
-                setOf(CABLE, ANDROID_AUTO, SMART),
+                setOf(CABLE, WIRELESS, ANDROID_AUTO),
+                setOf(CABLE, ANDROID_AUTO),
                 emptySet(),
             )
         )

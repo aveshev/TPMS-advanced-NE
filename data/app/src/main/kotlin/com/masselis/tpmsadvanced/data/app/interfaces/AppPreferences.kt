@@ -53,12 +53,6 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("ACTIVATE_ON_ANDROID_AUTO", newValue) }
     }
 
-    public val smartPersistence: MutableStateFlow<Boolean> = observableStateFlow(
-        sharedPreferences.getBoolean("SMART_PERSISTENCE", false)
-    ) { _, newValue ->
-        sharedPreferences.edit { putBoolean("SMART_PERSISTENCE", newValue) }
-    }
-
     public val justScan: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("JUST_SCAN", false)
     ) { _, newValue ->
