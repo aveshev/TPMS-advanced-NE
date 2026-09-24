@@ -20,18 +20,13 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Unredacting the connected SSID (via WifiManager or NetworkCapabilities +
          FLAG_INCLUDE_LOCATION_INFO alike) requires ACCESS_FINE_LOCATION specifically, on every
-         API level — NEARBY_WIFI_DEVICES alone does not unlock it, confirmed on-device on API 37. -->
+         API level — NEARBY_WIFI_DEVICES does not unlock it, confirmed on-device on API 37. Coarse
+         must be declared alongside it: from API 31, the user picks between the two. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- The service reads the connected SSID while the app is not visible (in the background,
          after a boot): "while using the app" is not enough for that. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <!-- The service reads the connected SSID while the app is not visible (in the background,
-         after a boot): "while using the app" is not enough for that. -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <!-- Deliberately NOT declared with usesPermissionFlags="neverForLocation": the exception
-         feature needs the connected network's SSID, which is exactly the location-adjacent
-         capability that flag would opt out of. -->
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
     <application>
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.DisableMonitorBroadcastReceiver" />
