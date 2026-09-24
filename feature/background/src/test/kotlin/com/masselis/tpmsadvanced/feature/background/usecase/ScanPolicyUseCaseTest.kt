@@ -5,7 +5,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase.State
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
@@ -27,7 +27,7 @@ import kotlin.test.assertEquals
 internal class ScanPolicyUseCaseTest {
 
     private lateinit var persistentScanning: MutableStateFlow<Boolean>
-    private lateinit var justScan: MutableStateFlow<Boolean>
+    private lateinit var activateConditions: MutableStateFlow<Boolean>
     private lateinit var activateOnCableCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnWirelessCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnAndroidAuto: MutableStateFlow<Boolean>
@@ -41,7 +41,7 @@ internal class ScanPolicyUseCaseTest {
     private fun test() = ScanPolicyUseCase(
         mockk<AppPreferences> {
             every { persistentScanning } returns this@ScanPolicyUseCaseTest.persistentScanning
-            every { justScan } returns this@ScanPolicyUseCaseTest.justScan
+            every { activateConditions } returns this@ScanPolicyUseCaseTest.activateConditions
             every { activateOnCableCharging } returns this@ScanPolicyUseCaseTest.activateOnCableCharging
             every { activateOnWirelessCharging } returns this@ScanPolicyUseCaseTest.activateOnWirelessCharging
             every { activateOnAndroidAuto } returns this@ScanPolicyUseCaseTest.activateOnAndroidAuto
@@ -60,7 +60,7 @@ internal class ScanPolicyUseCaseTest {
     @Before
     fun setup() {
         persistentScanning = MutableStateFlow(true)
-        justScan = MutableStateFlow(false)
+        activateConditions = MutableStateFlow(true)
         activateOnCableCharging = MutableStateFlow(true)
         activateOnWirelessCharging = MutableStateFlow(true)
         activateOnAndroidAuto = MutableStateFlow(true)
@@ -76,6 +76,30 @@ internal class ScanPolicyUseCaseTest {
         persistentScanning.value = false
         test().decision.test {
             assertEquals(ScanDecision.Active(setOf(MANUAL)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `the previous mode's decision is never handed out after switching to persistent scanning`() = runTest {
+        persistentScanning.value = false
+        val policy = test()
+        policy.decision.test {
+            assertEquals(ScanDecision.Active(setOf(MANUAL)), awaitItem())
+            persistentScanning.value = true
+            // Like the service, started at that very moment, while the replay is still the manual one
+            policy.decision.test { assertEquals(ScanDecision.Idle, awaitItem()) }
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `activate conditions without any selected always scan, like when turned off`() = runTest {
+        activateOnCableCharging.value = false
+        activateOnWirelessCharging.value = false
+        activateOnAndroidAuto.value = false
+        stayActive.value = true
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(ALWAYS)), awaitItem())
         }
     }
 
@@ -127,10 +151,10 @@ internal class ScanPolicyUseCaseTest {
     }
 
     @Test
-    fun `just scan activates scanning without charging`() = runTest {
-        justScan.value = true
+    fun `turning the activate conditions off activates scanning without charging`() = runTest {
+        activateConditions.value = false
         test().decision.test {
-            assertEquals(ScanDecision.Active(setOf(JUST_SCAN)), awaitItem())
+            assertEquals(ScanDecision.Active(setOf(ALWAYS)), awaitItem())
         }
     }
 

@@ -94,10 +94,12 @@ public interface Bindings {
     @Provides
     private fun persistentScanningSettingsViewModel(
         appPreferences: AppPreferences,
+        scanPolicyUseCase: ScanPolicyUseCase,
         wifiConnectionUseCase: WifiConnectionUseCase,
         controller: MonitoringController,
     ): PersistentScanningSettingsViewModel = PersistentScanningSettingsViewModel(
         appPreferences,
+        scanPolicyUseCase,
         wifiConnectionUseCase,
         controller,
     )

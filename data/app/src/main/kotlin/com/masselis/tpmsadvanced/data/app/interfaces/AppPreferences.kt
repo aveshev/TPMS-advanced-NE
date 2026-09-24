@@ -66,10 +66,18 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putInt("STAY_ACTIVE_MINUTES", newValue) }
     }
 
-    public val justScan: MutableStateFlow<Boolean> = observableStateFlow(
-        sharedPreferences.getBoolean("JUST_SCAN", false)
+    /** When off, persistent scanning ignores the activate conditions and always scans */
+    public val activateConditions: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_CONDITIONS", true)
     ) { _, newValue ->
-        sharedPreferences.edit { putBoolean("JUST_SCAN", newValue) }
+        sharedPreferences.edit { putBoolean("ACTIVATE_CONDITIONS", newValue) }
+    }
+
+    /** When off, none of the suspend conditions applies, whatever each one is set to */
+    public val suspendConditions: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_CONDITIONS", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_CONDITIONS", newValue) }
     }
 
     public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(

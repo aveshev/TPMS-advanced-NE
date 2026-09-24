@@ -20,6 +20,7 @@ internal class ScanSuspensionUseCaseTest {
     private lateinit var deviceIdleModeUseCase: DeviceIdleModeUseCase
     private lateinit var wifiConnectionUseCase: WifiConnectionUseCase
 
+    private lateinit var suspendConditions: MutableStateFlow<Boolean>
     private lateinit var suspendScanningInDoze: MutableStateFlow<Boolean>
     private lateinit var suspendScanningOnWifi: MutableStateFlow<Boolean>
     private lateinit var wifiExceptionEnabled: MutableStateFlow<Boolean>
@@ -35,6 +36,7 @@ internal class ScanSuspensionUseCaseTest {
 
     @Before
     fun setup() {
+        suspendConditions = MutableStateFlow(true)
         suspendScanningInDoze = MutableStateFlow(false)
         suspendScanningOnWifi = MutableStateFlow(false)
         wifiExceptionEnabled = MutableStateFlow(false)
@@ -43,6 +45,7 @@ internal class ScanSuspensionUseCaseTest {
         wifiState = MutableStateFlow(Disconnected)
 
         appPreferences = mockk {
+            every { suspendConditions } returns this@ScanSuspensionUseCaseTest.suspendConditions
             every { suspendScanningInDoze } returns this@ScanSuspensionUseCaseTest.suspendScanningInDoze
             every { suspendScanningOnWifi } returns this@ScanSuspensionUseCaseTest.suspendScanningOnWifi
             every { wifiExceptionEnabled } returns this@ScanSuspensionUseCaseTest.wifiExceptionEnabled
@@ -73,6 +76,21 @@ internal class ScanSuspensionUseCaseTest {
         isDeviceIdle.value = true
         test().suspensionReasons.test {
             assertEquals(setOf(DOZE), awaitItem())
+        }
+    }
+
+    @Test
+    fun `turning the suspend conditions off lifts every suspension`() = runTest {
+        suspendScanningInDoze.value = true
+        isDeviceIdle.value = true
+        suspendScanningOnWifi.value = true
+        wifiState.value = Connected("Home")
+        test().suspensionReasons.test {
+            assertEquals(setOf(DOZE, WIFI), awaitItem())
+            suspendConditions.value = false
+            assertEquals(emptySet(), awaitItem())
+            suspendConditions.value = true
+            assertEquals(setOf(DOZE, WIFI), awaitItem())
         }
     }
 

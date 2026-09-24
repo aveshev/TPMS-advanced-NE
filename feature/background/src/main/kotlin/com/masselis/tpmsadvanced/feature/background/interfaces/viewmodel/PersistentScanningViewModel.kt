@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.combine
 
 internal class PersistentScanningViewModel(
     private val appPreferences: AppPreferences,
-    scanPolicyUseCase: ScanPolicyUseCase,
+    private val scanPolicyUseCase: ScanPolicyUseCase,
     private val wifiConnectionUseCase: WifiConnectionUseCase,
     private val controller: MonitoringController,
 ) : ViewModel() {
@@ -23,12 +23,18 @@ internal class PersistentScanningViewModel(
 
     val decision: Flow<ScanDecision> = scanPolicyUseCase.decision
 
+    /** Known right away most of the time, so that the bell doesn't start with a wrong colour */
+    val currentDecision: ScanDecision? get() = scanPolicyUseCase.currentDecision
+
     /** Whether the settings in place need to read the connected WiFi's name, so the location permission */
     val wifiExceptionActive: Flow<Boolean> = combine(
         appPreferences.persistentScanning,
+        appPreferences.suspendConditions,
         appPreferences.suspendScanningOnWifi,
         appPreferences.wifiExceptionEnabled,
-    ) { persistent, suspendOnWifi, exception -> persistent && suspendOnWifi && exception }
+    ) { persistent, suspendConditions, suspendOnWifi, exception ->
+        persistent && suspendConditions && suspendOnWifi && exception
+    }
 
     fun requiredWifiPermissions(): List<String> = wifiConnectionUseCase.requiredPermissions()
 

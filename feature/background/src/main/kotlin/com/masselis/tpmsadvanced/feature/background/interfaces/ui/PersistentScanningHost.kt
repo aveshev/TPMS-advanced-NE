@@ -2,11 +2,12 @@ package com.masselis.tpmsadvanced.feature.background.interfaces.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -14,9 +15,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
 import com.masselis.tpmsadvanced.feature.background.ioc.Bindings
 
-/** Set by the settings screen while it is composed, so that the host knows the user is looking at it */
-internal val LocalSettingsOnScreen = compositionLocalOf<MutableState<Boolean>> {
+/**
+ * How many settings screens are composed, so that the host knows the user is looking at one. A count
+ * rather than a flag: while navigating between two of them, the next one enters before the
+ * previous one leaves.
+ */
+private val LocalSettingsOnScreen = compositionLocalOf<MutableIntState> {
     error("No PersistentScanningHost above this composable")
+}
+
+/** Tells the host that a settings screen is visible, for as long as the caller is composed */
+@Composable
+internal fun SettingsOnScreenEffect() {
+    val settingsOnScreen = LocalSettingsOnScreen.current
+    DisposableEffect(settingsOnScreen) {
+        settingsOnScreen.intValue += 1
+        onDispose { settingsOnScreen.intValue -= 1 }
+    }
 }
 
 /** The journey behind the WiFi exception toggle, so that it only turns on once its permission is held */
@@ -58,10 +73,10 @@ internal fun PersistentScanningHost(
     // The WiFi exception needs permissions of its own: they are asked for every time the app is
     // opened while the settings in place need them, not only when the settings screen is visible.
     val wifiExceptionActive by viewModel.wifiExceptionActive.collectAsState(initial = false)
-    val settingsOnScreen = remember { mutableStateOf(false) }
+    val settingsOnScreen = remember { mutableIntStateOf(0) }
     val wifiJourney = rememberWifiExceptionJourney(
         permissions = viewModel.requiredWifiPermissions(),
-        isSettingsOnScreen = { settingsOnScreen.value },
+        isSettingsOnScreen = { settingsOnScreen.intValue > 0 },
         onDenied = viewModel::disableWifiException,
     )
     val currentWifiJourney by rememberUpdatedState(wifiJourney)

@@ -19,12 +19,14 @@ import kotlin.test.assertFalse
 internal class PersistentScanningViewModelTest {
 
     private lateinit var persistentScanning: MutableStateFlow<Boolean>
+    private lateinit var suspendConditions: MutableStateFlow<Boolean>
     private lateinit var suspendScanningOnWifi: MutableStateFlow<Boolean>
     private lateinit var wifiExceptionEnabled: MutableStateFlow<Boolean>
 
     private fun test() = PersistentScanningViewModel(
         mockk<AppPreferences> {
             every { persistentScanning } returns this@PersistentScanningViewModelTest.persistentScanning
+            every { suspendConditions } returns this@PersistentScanningViewModelTest.suspendConditions
             every { suspendScanningOnWifi } returns this@PersistentScanningViewModelTest.suspendScanningOnWifi
             every { wifiExceptionEnabled } returns this@PersistentScanningViewModelTest.wifiExceptionEnabled
         },
@@ -36,23 +38,28 @@ internal class PersistentScanningViewModelTest {
     @Before
     fun setup() {
         persistentScanning = MutableStateFlow(true)
+        suspendConditions = MutableStateFlow(true)
         suspendScanningOnWifi = MutableStateFlow(true)
         wifiExceptionEnabled = MutableStateFlow(true)
     }
 
     @Test
-    fun `the wifi exception is in use when persistent scanning, wifi suspension and the exception are on`() =
+    fun `the wifi exception is in use when every setting leading to it is on`() =
         runTest {
             test().wifiExceptionActive.test { assertEquals(true, awaitItem()) }
         }
 
     @Test
-    fun `turning off any of the three settings stops the wifi exception from being in use`() = runTest {
+    fun `turning off any of the four settings stops the wifi exception from being in use`() = runTest {
         test().wifiExceptionActive.test {
             assertEquals(true, awaitItem())
             persistentScanning.value = false
             assertEquals(false, awaitItem())
             persistentScanning.value = true
+            assertEquals(true, awaitItem())
+            suspendConditions.value = false
+            assertEquals(false, awaitItem())
+            suspendConditions.value = true
             assertEquals(true, awaitItem())
             suspendScanningOnWifi.value = false
             assertEquals(false, awaitItem())

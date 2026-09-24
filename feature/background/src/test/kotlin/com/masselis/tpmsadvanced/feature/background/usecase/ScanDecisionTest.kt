@@ -2,7 +2,7 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
@@ -69,43 +69,51 @@ internal class ScanDecisionTest {
     }
 
     @Test
-    fun `just scan activates scanning without any other condition`() {
+    fun `turning the activate conditions off activates scanning without any of them`() {
         assertEquals(
-            ScanDecision.Active(setOf(JUST_SCAN)),
-            decide(setOf(JUST_SCAN, CABLE), emptySet(), emptySet())
+            ScanDecision.Active(setOf(ALWAYS)),
+            decide(setOf(ALWAYS, CABLE), emptySet(), emptySet())
         )
     }
 
     @Test
-    fun `just scan makes the other conditions irrelevant`() {
+    fun `turning the activate conditions off makes each of them irrelevant`() {
         assertEquals(
-            ScanDecision.Active(setOf(JUST_SCAN)),
-            decide(setOf(JUST_SCAN, CABLE), setOf(CABLE), emptySet())
+            ScanDecision.Active(setOf(ALWAYS)),
+            decide(setOf(ALWAYS, CABLE), setOf(CABLE), emptySet())
         )
     }
 
     @Test
-    fun `just scan is still subject to suspend conditions`() {
+    fun `always scanning is still subject to suspend conditions`() {
         assertEquals(
             ScanDecision.Suspended(setOf(DOZE)),
-            decide(setOf(JUST_SCAN), emptySet(), setOf(DOZE))
+            decide(setOf(ALWAYS), emptySet(), setOf(DOZE))
         )
     }
 
     @Test
     fun `the rationale reminds that the app scans by itself while opened unless already active`() {
-        val note = "(Scanning is still active while the app is opened!)"
+        val note = "Note: Scanning is still active while the app is opened!"
         assertEquals(
             "Background scanning is active due to charging with a cable",
             ScanDecision.Active(setOf(CABLE)).rationale()
         )
         assertEquals(
-            "Background scanning is suspended due to WiFi being connected. $note",
+            "Background scanning is suspended due to WiFi being connected.\n$note",
             ScanDecision.Suspended(setOf(WIFI)).rationale()
         )
         assertEquals(
-            "Background scanning is idle: no activate condition is currently fulfilled. $note",
+            "Background scanning is idle: no activate condition is currently fulfilled.\n$note",
             ScanDecision.Idle.rationale()
+        )
+    }
+
+    @Test
+    fun `always scanning is explained as the user's choice`() {
+        assertEquals(
+            "Background scanning is active because you chose it to be always active",
+            ScanDecision.Active(setOf(ALWAYS)).explanation()
         )
     }
 

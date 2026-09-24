@@ -1,11 +1,11 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 
 internal sealed interface ScanDecision {
 
-    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, STAY_ACTIVE, JUST_SCAN }
+    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, STAY_ACTIVE, ALWAYS }
 
     /** Background scanning is running, for at least one of [causes]. */
     data class Active(val causes: Set<ActivateCause>) : ScanDecision
@@ -19,15 +19,15 @@ internal sealed interface ScanDecision {
 
 /**
  * Persistent scanning is active if ANY enabled activate condition is fulfilled and NONE of the
- * suspend conditions is, "Just scan" being an activate condition that is always fulfilled and
- * makes every other one irrelevant.
+ * suspend conditions is. [ALWAYS] (the activate conditions being turned off) is always fulfilled
+ * and makes every other one irrelevant.
  */
 internal fun decide(
     enabled: Set<ScanDecision.ActivateCause>,
     fulfilled: Set<ScanDecision.ActivateCause>,
     suspendReasons: Set<Reason>,
 ): ScanDecision {
-    val causes = if (JUST_SCAN in enabled) setOf(JUST_SCAN) else enabled intersect fulfilled
+    val causes = if (ALWAYS in enabled) setOf(ALWAYS) else enabled intersect fulfilled
     return when {
         causes.isEmpty() -> ScanDecision.Idle
         suspendReasons.isNotEmpty() -> ScanDecision.Suspended(suspendReasons)
@@ -37,7 +37,9 @@ internal fun decide(
 
 internal fun ScanDecision.explanation(): String = when (this) {
     is ScanDecision.Active ->
-        "Background scanning is active due to ${causes.joinToString(", ") { it.label }}"
+        // Nothing to explain besides the user's own choice, the "due to" wording would sound odd
+        if (ALWAYS in causes) "Background scanning is active because you chose it to be always active"
+        else "Background scanning is active due to ${causes.joinToString(", ") { it.label }}"
 
     is ScanDecision.Suspended ->
         "Background scanning is suspended due to ${
@@ -57,7 +59,7 @@ internal fun ScanDecision.rationale(): String = when (this) {
     is ScanDecision.Active -> explanation()
     // The foreground UI scans by itself, whatever the decision is
     is ScanDecision.Suspended, ScanDecision.Idle ->
-        "${explanation()}. (Scanning is still active while the app is opened!)"
+        "${explanation()}.\nNote: Scanning is still active while the app is opened!"
 }
 
 private val ScanDecision.ActivateCause.label
@@ -67,5 +69,5 @@ private val ScanDecision.ActivateCause.label
         ScanDecision.ActivateCause.WIRELESS -> "charging wirelessly"
         ScanDecision.ActivateCause.ANDROID_AUTO -> "Android Auto being connected"
         ScanDecision.ActivateCause.STAY_ACTIVE -> "staying active after the last activate condition ended"
-        JUST_SCAN -> "Just scan being enabled"
+        ALWAYS -> "the activate conditions being turned off"
     }

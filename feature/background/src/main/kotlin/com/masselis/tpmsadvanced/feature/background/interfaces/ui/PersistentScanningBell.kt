@@ -30,7 +30,7 @@ internal fun PersistentScanningBell(
     viewModel: PersistentScanningViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val decision by viewModel.decision.collectAsState(initial = ScanDecision.Idle)
+    val decision by viewModel.decision.collectAsState(initial = viewModel.currentDecision ?: ScanDecision.Idle)
     val permissions = LocalMonitoringPermissions.current
     var showRationale by remember { mutableStateOf(false) }
     val state = BellState.of(permissions.status == MonitoringPermissions.Status.Ok, decision)
@@ -74,16 +74,21 @@ private fun PersistentScanningBell(
                 BellState.Suspended -> "Background scanning is suspended"
                 BellState.Idle -> "Background scanning is idle"
             },
-            tint = when (state) {
-                BellState.NeedsPermission -> MaterialTheme.colorScheme.error
-                BellState.Active -> MaterialTheme.colorScheme.primary
-                BellState.Suspended -> Orange
-                // The theme's content colour, a plain white would vanish on the light theme
-                BellState.Idle -> LocalContentColor.current
-            },
+            tint = state.color,
         )
     }
 }
+
+/** Also colours the status shown in the settings, so that it reads like the bell */
+internal val BellState.color: Color
+    @Composable
+    get() = when (this) {
+        BellState.NeedsPermission -> MaterialTheme.colorScheme.error
+        BellState.Active -> MaterialTheme.colorScheme.primary
+        BellState.Suspended -> Orange
+        // The theme's content colour, a plain white would vanish on the light theme
+        BellState.Idle -> LocalContentColor.current
+    }
 
 @Suppress("MagicNumber")
 private val Orange = Color(0xFFFF9800)

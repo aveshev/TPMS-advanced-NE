@@ -2,9 +2,9 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.JUST_SCAN
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -38,20 +39,41 @@ internal class ScanPolicyUseCase(
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     /**
-     * What background scanning should do right now. Shared, so the service and the UI observe the
-     * same decision and a single set of system listeners is registered.
+     * Each decision along with the mode (persistent scanning or not) it was made for. Shared, so
+     * the service and the UI observe the same decision and a single set of system listeners is
+     * registered.
      */
-    val decision: SharedFlow<ScanDecision> = appPreferences
+    private val decisionByMode: SharedFlow<Pair<Boolean, ScanDecision>> = appPreferences
         .persistentScanning
         .flatMapLatest { persistent ->
-            if (persistent) automatic()
+            if (persistent) automatic().map { persistent to it }
             // Without persistent scanning, monitoring is the manual start/stop button: scanning
             // for as long as the service runs
-            else flowOf(ScanDecision.Active(setOf(MANUAL)))
+            else flowOf(persistent to ScanDecision.Active(setOf(MANUAL)))
         }
         // Several inputs can change without changing the outcome: nobody needs to hear it again
         .distinctUntilChanged()
         .shareIn(scope, WhileSubscribed(), replay = 1)
+
+    /**
+     * What background scanning should do right now. Right after the mode changed, the shared
+     * replay still holds the previous mode's decision until the new mode's inputs are read: it is
+     * never handed out, so that nobody scans (nor shows "Active") for a stale reason.
+     */
+    val decision: Flow<ScanDecision> = combine(
+        appPreferences.persistentScanning,
+        decisionByMode,
+    ) { persistent, (mode, decision) -> decision.takeIf { mode == persistent } }
+        .filterNotNull()
+        .distinctUntilChanged()
+
+    /** The latest [decision] if one is known for the current mode, without waiting for it */
+    val currentDecision: ScanDecision?
+        get() = decisionByMode
+            .replayCache
+            .lastOrNull()
+            ?.takeIf { (mode) -> mode == appPreferences.persistentScanning.value }
+            ?.second
 
     private fun automatic(): Flow<ScanDecision> = combine(
         enabledCauses(),
@@ -67,14 +89,17 @@ internal class ScanPolicyUseCase(
     }
 
     private fun enabledCauses(): Flow<Set<ActivateCause>> = combine(
-        appPreferences.justScan,
+        appPreferences.activateConditions,
         appPreferences.activateOnCableCharging,
         appPreferences.activateOnWirelessCharging,
         appPreferences.activateOnAndroidAuto,
         appPreferences.stayActive,
-    ) { justScan, cable, wireless, androidAuto, stayActive ->
+    ) { conditions, cable, wireless, androidAuto, stayActive ->
         buildSet {
-            if (justScan) add(JUST_SCAN)
+            // Nothing selected is the same as the conditions being off, which they are turned into
+            // when leaving their page: the decision doesn't flicker through "idle" meanwhile.
+            // "Stay active" only extends the others, it doesn't count.
+            if (conditions.not() || listOf(cable, wireless, androidAuto).none { it }) add(ALWAYS)
             if (cable) add(CABLE)
             if (wireless) add(WIRELESS)
             if (androidAuto) add(ANDROID_AUTO)
@@ -86,8 +111,8 @@ internal class ScanPolicyUseCase(
         enabled: Set<ActivateCause>,
         stayActiveFor: Duration,
     ): Flow<Set<ActivateCause>> = when {
-        // No need to listen to anything when "Just scan" overrides every other condition
-        JUST_SCAN in enabled -> flowOf(emptySet())
+        // No need to listen to anything when always scanning overrides every other condition
+        ALWAYS in enabled -> flowOf(emptySet())
         STAY_ACTIVE in enabled -> directCauses(enabled).stayingActive(enabled, stayActiveFor)
 
         else -> directCauses(enabled)

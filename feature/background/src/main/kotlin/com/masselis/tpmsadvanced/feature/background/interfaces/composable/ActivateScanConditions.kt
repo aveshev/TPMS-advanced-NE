@@ -1,34 +1,53 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.masselis.tpmsadvanced.core.ui.SettingsGroup
+import com.masselis.tpmsadvanced.core.ui.SettingsIntro
+import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
+import com.masselis.tpmsadvanced.core.ui.SwitchNavigationSettingsItem
+import com.masselis.tpmsadvanced.core.ui.SwitchSettingsItem
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.OnLeaveEffect
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.SettingsOnScreenEffect
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.masselis.tpmsadvanced.feature.background.ioc.Bindings.Companion.PersistentScanningSettingsViewModel
+
+/**
+ * The page opened from the "Activate scan conditions" item of [PersistentScanningSettings], the
+ * duration of "Stay active" being picked on its own page, opened through [openStayActiveDuration].
+ */
+@Composable
+public fun ActivateScanConditions(
+    openStayActiveDuration: () -> Unit,
+    modifier: Modifier = Modifier,
+): Unit = ActivateScanConditions(
+    openStayActiveDuration,
+    modifier,
+    viewModel { PersistentScanningSettingsViewModel() },
+)
 
 @Composable
 internal fun ActivateScanConditions(
-    viewModel: PersistentScanningSettingsViewModel,
+    openStayActiveDuration: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: PersistentScanningSettingsViewModel = viewModel { PersistentScanningSettingsViewModel() },
 ) {
+    SettingsOnScreenEffect()
+    // Without any condition selected nothing would ever scan: leaving the page like this means
+    // not wanting the conditions at all
+    OnLeaveEffect(viewModel::disableActivateConditionsIfNoneSelected)
     val cable by viewModel.activateOnCableCharging.collectAsState()
     val wireless by viewModel.activateOnWirelessCharging.collectAsState()
     val androidAuto by viewModel.activateOnAndroidAuto.collectAsState()
     val stayActive by viewModel.stayActive.collectAsState()
-    val justScan by viewModel.justScan.collectAsState()
+    val stayActiveMinutes by viewModel.stayActiveMinutes.collectAsState()
     ActivateScanConditions(
         cable = cable,
         onCable = { viewModel.activateOnCableCharging.value = it },
@@ -37,22 +56,14 @@ internal fun ActivateScanConditions(
         androidAuto = androidAuto,
         onAndroidAuto = { viewModel.activateOnAndroidAuto.value = it },
         stayActive = stayActive,
+        stayActiveMinutes = stayActiveMinutes,
         onStayActive = { viewModel.stayActive.value = it },
-        stayActiveDetails = {
-            MinutesField(
-                value = viewModel.stayActiveMinutes,
-                enabled = justScan.not(),
-                modifier = Modifier
-                    .padding(start = 24.dp)
-                    .testTag(PersistentScanningSettingsTags.stayActiveMinutes),
-            )
-        },
-        justScan = justScan,
-        onJustScan = { viewModel.justScan.value = it },
+        openStayActiveDuration = openStayActiveDuration,
         modifier = modifier,
     )
 }
 
+@Suppress("LongParameterList")
 @Composable
 private fun ActivateScanConditions(
     cable: Boolean,
@@ -62,80 +73,53 @@ private fun ActivateScanConditions(
     androidAuto: Boolean,
     onAndroidAuto: (Boolean) -> Unit,
     stayActive: Boolean,
+    stayActiveMinutes: Int,
     onStayActive: (Boolean) -> Unit,
-    stayActiveDetails: @Composable () -> Unit,
-    justScan: Boolean,
-    onJustScan: (Boolean) -> Unit,
+    openStayActiveDuration: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
-    // "Just scan" makes every other activate condition irrelevant, they are greyed out
-    ToggleRow(
-        text = "When charging with a cable",
-        checked = cable,
-        enabled = justScan.not(),
-        onCheckedChange = onCable,
-        modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnCable),
+    @Suppress("MaxLineLength")
+    SettingsIntro(
+        "Background scanning listens to your tyre sensors whenever any of the conditions below is true, unless a suspend condition holds it back. Scanning while the app is open is never affected."
     )
-    ToggleRow(
-        text = "When charging wirelessly",
-        checked = wireless,
-        enabled = justScan.not(),
-        onCheckedChange = onWireless,
-        modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnWireless),
-    )
-    ToggleRow(
-        text = "When Android Auto is connected",
-        checked = androidAuto,
-        enabled = justScan.not(),
-        onCheckedChange = onAndroidAuto,
-        modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnAndroidAuto),
-    )
-    ToggleRow(
-        text = "Stay active",
-        checked = stayActive,
-        enabled = justScan.not(),
-        onCheckedChange = onStayActive,
-        modifier = Modifier.testTag(PersistentScanningSettingsTags.stayActive),
-    )
-    if (stayActive) stayActiveDetails()
-    ToggleRow(
-        text = "Just scan! (drains battery)",
-        checked = justScan,
-        onCheckedChange = onJustScan,
-        modifier = Modifier.testTag(PersistentScanningSettingsTags.justScan),
-    )
+    SettingsSectionHeader("Scan when")
+    SettingsGroup {
+        SwitchSettingsItem(
+            headline = "Charging with a cable",
+            checked = cable,
+            onCheckedChange = onCable,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnCable),
+        )
+        SwitchSettingsItem(
+            headline = "Charging wirelessly",
+            checked = wireless,
+            onCheckedChange = onWireless,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnWireless),
+        )
+        SwitchSettingsItem(
+            headline = "Android Auto is connected",
+            checked = androidAuto,
+            onCheckedChange = onAndroidAuto,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnAndroidAuto),
+        )
+    }
+    SettingsSectionHeader("Afterwards")
+    SettingsGroup {
+        SwitchNavigationSettingsItem(
+            headline = "Stay active",
+            supporting = listOf(
+                "For $stayActiveMinutes min after the last condition ends",
+                "For $stayActiveMinutes min",
+            ).map(::AnnotatedString),
+            checked = stayActive,
+            // Only extends the conditions above, meaningless without any of them
+            enabled = cable || wireless || androidAuto,
+            onCheckedChange = onStayActive,
+            onClick = openStayActiveDuration,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.stayActive),
+        )
+    }
 }
-
-/** How long to keep scanning once every activate condition above has ended */
-@Composable
-private fun MinutesField(
-    value: MutableStateFlow<Int>,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    var text by remember { mutableStateOf(value.value.toString()) }
-    val minutes = text.toIntOrNull()?.takeIf { it in MINUTES_RANGE }
-    OutlinedTextField(
-        value = text,
-        onValueChange = { input ->
-            // Only a valid value is saved, the field keeps showing what is being typed
-            text = input.filter(Char::isDigit).take(MAX_DIGITS)
-            text.toIntOrNull()?.takeIf { it in MINUTES_RANGE }?.let { value.value = it }
-        },
-        label = { Text("Minutes") },
-        supportingText = { Text("Keep scanning this long after the last condition above ends") },
-        singleLine = true,
-        isError = minutes == null,
-        enabled = enabled,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier,
-    )
-}
-
-private const val MIN_MINUTES = 1
-private const val MAX_MINUTES = 1440
-private const val MAX_DIGITS = 4
-private val MINUTES_RANGE = MIN_MINUTES..MAX_MINUTES
 
 @Suppress("MagicNumber")
 @Preview
@@ -149,27 +133,8 @@ internal fun ActivateScanConditionsPreview() {
         androidAuto = true,
         onAndroidAuto = {},
         stayActive = true,
+        stayActiveMinutes = 10,
         onStayActive = {},
-        stayActiveDetails = { MinutesField(MutableStateFlow(10), enabled = true) },
-        justScan = false,
-        onJustScan = {},
-    )
-}
-
-@Preview
-@Composable
-internal fun ActivateScanConditionsJustScanPreview() {
-    ActivateScanConditions(
-        cable = true,
-        onCable = {},
-        wireless = true,
-        onWireless = {},
-        androidAuto = true,
-        onAndroidAuto = {},
-        stayActive = true,
-        onStayActive = {},
-        stayActiveDetails = {},
-        justScan = true,
-        onJustScan = {},
+        openStayActiveDuration = {},
     )
 }
