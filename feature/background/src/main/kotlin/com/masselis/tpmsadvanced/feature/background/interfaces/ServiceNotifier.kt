@@ -22,8 +22,6 @@ import androidx.core.app.ServiceCompat.stopForeground
 import androidx.core.app.TaskStackBuilder
 import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
-import com.google.firebase.Firebase
-import com.google.firebase.crashlytics.crashlytics
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
@@ -128,7 +126,7 @@ internal class ServiceNotifier(
             // The service must call startForeground() shortly after being started, before the
             // database had time to answer
             .onStart { emit(NoAlert) }
-            .catch { Firebase.crashlytics.recordException(it); emit(ScanFailure) }
+            .catch { logger.e("Failed to listen for atmospheres", it); emit(ScanFailure) }
             .distinctUntilChanged()
             .map { state ->
                 NotificationCompat

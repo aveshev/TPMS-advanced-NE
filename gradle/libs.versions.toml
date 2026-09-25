@@ -1,15 +1,15 @@
 [versions]
-app = "1.5.0"
+app = "1.6.1"
 # This version is only applied to the application sources, gradles sources, even the Kotlin one and
 # the `buildSrc` sources, uses kotlin embedded in the gradle framework
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 sdk-min = "28"
 sdk-compile = "37"
 sdk-target = "37"
 coroutine = "1.11.0"
 lifecycle = "2.11.0"
 testServices = "1.6.0"
-sqlDelight = "2.3.2"
+sqlDelight = "2.4.0"
 mockk = "1.14.11"
 ndk = "29.0.14206865"
 car-app = "1.7.0"
@@ -23,7 +23,7 @@ androidx-arch-core-testing = "androidx.arch.core:core-testing:2.2.0"
 androidx-camera2-core = "androidx.camera:camera-camera2:1.6.1"
 androidx-camera2-lifecycle = "androidx.camera:camera-lifecycle:1.6.1"
 androidx-camera2-mlkitvision = "androidx.camera:camera-mlkit-vision:1.6.1"
-androidx-compose-bom = "androidx.compose:compose-bom:2026.08.00"
+androidx-compose-bom = "androidx.compose:compose-bom:2026.09.00"
 androidx-car-app = { module = "androidx.car.app:app", version.ref = "car-app" }
 androidx-car-app-testing = { module = "androidx.car.app:app-testing", version.ref = "car-app" }
 androidx-car-projected = { module = "androidx.car.app:app-projected", version.ref = "car-app" }
@@ -53,13 +53,13 @@ compose-navigation = "androidx.navigation:navigation-compose:2.9.8"
 detekt-gradle-plugin = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin:1.23.8"
 google-android-publisher = "com.google.apis:google-api-services-androidpublisher:v3-rev20251119-2.0.0"
 # 33.0.0 causes a "GradleCompatible" exception where some gms/firebase libs are used but differents version are used in the same time
-google-firebase-bom = "com.google.firebase:firebase-bom:34.18.0"
+google-firebase-bom = "com.google.firebase:firebase-bom:34.19.0"
 google-firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 google-mlkit-barecode = "com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1"
-google-oauth2-http = "com.google.auth:google-auth-library-oauth2-http:1.51.0"
+google-oauth2-http = "com.google.auth:google-auth-library-oauth2-http:1.52.0"
 junit = "junit:junit:4.13.2"
-kermit = "co.touchlab:kermit:2.1.0"
-kermit-crashlytics = "co.touchlab:kermit-crashlytics:2.1.0"
+kermit = "co.touchlab:kermit:2.2.0"
+kermit-crashlytics = "co.touchlab:kermit-crashlytics:2.2.0"
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
 kotlinx-collection = "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.5.2"
@@ -92,7 +92,7 @@ sqldelight-primitive-adapters = { module = "app.cash.sqldelight:primitive-adapte
 sqldelight-dialect338 = { module = "app.cash.sqldelight:sqlite-3-38-dialect", version.ref = "sqlDelight" }
 test-orchestrator = { module = "androidx.test:orchestrator", version.ref = "testServices" }
 test-services = { module = "androidx.test.services:test-services", version.ref = "testServices" }
-tomlj = "org.tomlj:tomlj:1.1.1"
+tomlj = "org.tomlj:tomlj:1.3.0"
 turbine = "app.cash.turbine:turbine:1.2.1"
 
 [plugins]
@@ -101,4 +101,4 @@ google-services = "com.google.gms.google-services:4.5.0"
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqlDelight" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 paparazzi = "app.cash.paparazzi:2.0.0-alpha05"
-metro = "dev.zacsweers.metro:1.4.2"
+metro = "dev.zacsweers.metro:1.4.4"
