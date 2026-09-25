@@ -70,7 +70,7 @@ internal fun SuspendScanConditions(
         SettingsGroup {
             SwitchSettingsItem(
                 headline = "The phone is idle for a while",
-                supporting = "Screen off, not charging, no movement",
+                supporting = "Screen off, not charging, no movement (Deep Doze)",
                 checked = suspendInDoze,
                 onCheckedChange = { viewModel.suspendScanningInDoze.value = it },
                 modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendInDoze),
