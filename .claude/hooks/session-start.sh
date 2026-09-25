@@ -47,7 +47,16 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "export ANDROID_SDK_ROOT=\"$ANDROID_HOME\"" >> "$CLAUDE_ENV_FILE"
 fi
 
-# 5. Maven Central answers 429 (Too Many Requests) to these containers, so Gradle queries
+# 5. Signs debug builds with the user's own debug keystore when the environment provides it, so
+#    APKs built here install over the debug build on their phone. Without it AGP generates a
+#    throwaway key, and Android refuses such an APK as an update.
+if [ -n "${ANDROID_DEBUG_KEYSTORE_B64:-}" ]; then
+  mkdir -p "$HOME/.android"
+  printf '%s' "$ANDROID_DEBUG_KEYSTORE_B64" | base64 -d > "$HOME/.android/debug.keystore"
+  chmod 600 "$HOME/.android/debug.keystore"
+fi
+
+# 6. Maven Central answers 429 (Too Many Requests) to these containers, so Gradle queries
 #    Google's mirror of it first. The plugin portal is moved last since it redirects to Central.
 mkdir -p "$HOME/.gradle/init.d"
 cat > "$HOME/.gradle/init.d/central-mirror.gradle.kts" <<'KTS'
@@ -70,7 +79,7 @@ settingsEvaluated {
 }
 KTS
 
-# 6. Warm up: downloads the Gradle distribution and builds buildSrc, so the cached container
+# 7. Warm up: downloads the Gradle distribution and builds buildSrc, so the cached container
 #    doesn't redo it at the first Gradle command
 cd "$PROJECT_DIR"
 ANDROID_HOME="$ANDROID_HOME" ./gradlew --quiet help >/dev/null
