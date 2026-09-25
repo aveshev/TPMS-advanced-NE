@@ -98,7 +98,7 @@ internal fun SuspendScanConditions(
             val granted = permissionState.allPermissionsGranted
             val ssid = (wifiState as? WifiConnectionUseCase.State.Connected)?.ssid?.takeIf { granted }
             SwitchSettingsItem(
-                headline = "Keep scanning on:",
+                headline = "Keep scanning on current WiFi:",
                 supporting = currentWifiSummary(wifiState, granted, suspendOnWifi && exceptionEnabled),
                 checked = ssid != null && ssid in exceptedSsids,
                 enabled = suspendOnWifi && exceptionEnabled && ssid != null,
@@ -129,13 +129,13 @@ private fun currentWifiSummary(
 internal fun CurrentWifiExceptionItemPreview() {
     SettingsGroup {
         SwitchSettingsItem(
-            headline = "Keep scanning on:",
+            headline = "Keep scanning on current WiFi:",
             supporting = currentWifiSummary(WifiConnectionUseCase.State.Connected("HomeNetwork"), true, true),
             checked = false,
             onCheckedChange = {},
         )
         SwitchSettingsItem(
-            headline = "Keep scanning on:",
+            headline = "Keep scanning on current WiFi:",
             supporting = currentWifiSummary(WifiConnectionUseCase.State.Disconnected, true, true),
             checked = false,
             enabled = false,
