@@ -11,6 +11,41 @@ Android app for Bluetooth Low Energy TPMS sensors made by the manufacturers Sysg
 Available on
 the [Play Store](https://play.google.com/store/apps/details?id=com.masselis.tpmsadvanced)
 
+## What's new in the Nerd Edition
+
+### Persistent scanning
+
+An optional always-on mode for background monitoring. Instead of starting it by hand before
+every ride, a foreground service keeps running, comes back after a reboot or an app update, and
+decides by itself when to actually listen to the sensors, so battery is only spent when it is
+useful.
+
+* **Activate scan conditions**: charging with a cable, charging wirelessly, Android Auto
+  connected. Optionally **stay active** for 1 to 30 minutes after the last one ends. Turning
+  the conditions off means always scanning.
+* **Suspend scan conditions**: they override the activate conditions. The phone being idle
+  (screen off, not charging, no movement: Deep Doze), or connected to any WiFi, except the
+  ones you list (car hotspot, garage WiFi, etc.)
+* A **status bell** replaces the Start/Stop button: green when scanning, orange when suspended,
+  neutral when idle, red when a permission is missing. Tap it to see why.
+* Scanning while the app is open is never affected. With persistent scanning off, the manual
+  Start/Stop button works as before.
+
+Reading the WiFi name in the background needs location access "Allow all the time"; the app
+walks you through it only if you use WiFi exceptions.
+
+### Everything else
+
+* Separate front and rear pressure targets
+* Pressure and temperature thresholds typed in rather than set with sliders
+* Sensor ID and time since the last update shown on each tyre, with an explanation of why some
+  sensors stay silent for a long time
+* Only the value that triggered an alert blinks
+* Background monitoring covers all vehicles at once
+* App settings styled like the Android settings app, each option explained on its own page
+* Unrestricted battery usage requested before background monitoring starts, so the system
+  doesn't kill it
+
 ## Features
 
 * Pressures alerts
