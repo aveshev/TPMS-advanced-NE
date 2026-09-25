@@ -1,11 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -15,16 +11,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
+import com.masselis.tpmsadvanced.core.ui.SettingsGroup
+import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
-import com.masselis.tpmsadvanced.feature.main.R
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DeleteVehicleButtonTags.Button.tag
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DeleteVehicleButtonTags.Dialog.cancel
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DeleteVehicleButtonTags.Dialog.delete
@@ -35,6 +28,7 @@ import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Compan
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 
+/** A [SettingsGroup] item deleting the vehicle once confirmed, the last one cannot be */
 @Composable
 internal fun DeleteVehicleButton(
     modifier: Modifier = Modifier,
@@ -44,19 +38,17 @@ internal fun DeleteVehicleButton(
     val navController = LocalHomeNavController.current
     val state by viewModel.stateFlow.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        OutlinedButton(
-            enabled = state is State.DeletableVehicle,
-            onClick = { showDeleteDialog = true },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .testTag(tag),
-        ) {
-            Icon(ImageVector.vectorResource(id = R.drawable.delete_forever_outline), null)
-            Spacer(Modifier.width(6.dp))
-            Text(text = "Delete \"${state.vehicle.name}\"")
-        }
-    }
+    TextSettingsItem(
+        headline = "Delete vehicle",
+        supporting = when (state) {
+            is State.DeletableVehicle -> null
+            is State.NotDeletableVehicle -> "The only vehicle cannot be deleted"
+        },
+        onClick = { showDeleteDialog = true },
+        enabled = state is State.DeletableVehicle,
+        headlineColor = MaterialTheme.colorScheme.error,
+        modifier = modifier.testTag(tag),
+    )
     if (showDeleteDialog) DeleteVehicleDialog(
         vehicle = state.vehicle,
         onDismissRequest = { showDeleteDialog = false },

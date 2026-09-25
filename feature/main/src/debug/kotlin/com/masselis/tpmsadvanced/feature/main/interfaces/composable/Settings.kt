@@ -37,6 +37,9 @@ public class Settings(
     private val clearFavouritesButton
         get() = onNodeWithTag(ClearBoundSensorsButtonTags.root)
 
+    private val bindSensorsButton
+        get() = onNodeWithTag(VehicleSettingsTags.bindSensors)
+
     private val deleteVehicleDialogTest = DeleteVehicleDialog()
 
     public fun assertVehicleSettingsDisplayed() {
@@ -64,6 +67,13 @@ public class Settings(
 
     public fun waitClearFavouritesDisabled() {
         waitUntil { clearFavouritesButton.check(isNotEnabled()) }
+    }
+
+    /** Opens the binding method page, leaving these settings */
+    public fun bindSensors(): ExitToken<Settings> {
+        bindSensorsButton.performScrollTo()
+        bindSensorsButton.performClick()
+        return exitToken
     }
 
     public fun leave(): ExitToken<Settings> {

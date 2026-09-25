@@ -33,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -107,10 +109,13 @@ internal fun VehicleHome(
         var showManualMonitoringSpotlight by remember { mutableStateOf(false) }
         var showAndroidAutoSupportAlert by remember { mutableStateOf(false) }
         var showWicarlinkSupportAlert by remember { mutableStateOf(false) }
+        // A vehicle just added becomes the current one, its settings open once its home is shown
+        var openSettingsOf by rememberSaveable { mutableStateOf<UUID?>(null) }
         val snackbarHostState = remember { SnackbarHostState() }
         Scaffold(
             topBar = {
                 TopAppBar(
+                    onVehicleAdded = { openSettingsOf = it },
                     manualBackgroundButtonModifier = Modifier.onGloballyPositioned { coordinates ->
                         if (offsetToFocus != null) return@onGloballyPositioned
                         coordinates.positionInRoot()
@@ -138,9 +143,37 @@ internal fun VehicleHome(
                             snackbarHostState = snackbarHostState,
                             modifier = modifier
                         )
+                        // Inside the graph so the settings route of this vehicle surely exists
+                        LaunchedEffect(openSettingsOf) {
+                            openSettingsOf
+                                ?.takeIf { it == vehicleComponent.vehicle.uuid }
+                                ?.also {
+                                    openSettingsOf = null
+                                    navController.navigate("${Path.Settings(it)}")
+                                }
+                        }
                     }
                     composable("${Path.Settings(vehicleComponent.vehicle.uuid)}") {
                         Settings(
+                            openPressure = {
+                                navController.navigate("${Path.PressureSettings(vehicleComponent.vehicle.uuid)}")
+                            },
+                            openTemperature = {
+                                navController.navigate("${Path.TemperatureSettings(vehicleComponent.vehicle.uuid)}")
+                            },
+                            openBindingMethod = {
+                                navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.PressureSettings(vehicleComponent.vehicle.uuid)}") {
+                        PressureSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.TemperatureSettings(vehicleComponent.vehicle.uuid)}") {
+                        TemperatureSettings(
                             modifier = modifier
                         )
                     }
@@ -285,6 +318,7 @@ internal fun VehicleHome(
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun TopAppBar(
+    onVehicleAdded: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     manualBackgroundButtonModifier: Modifier = Modifier
 ) {
@@ -297,8 +331,19 @@ private fun TopAppBar(
     CenterAlignedTopAppBar(
         title = {
             when (currentPath) {
-                is Path.Home -> CurrentVehicleDropdown(Modifier.testTag(carListDropdownMenu))
-                is Path.Settings -> Text(text = "Vehicle settings")
+                is Path.Home -> CurrentVehicleDropdown(
+                    modifier = Modifier.testTag(carListDropdownMenu),
+                    onVehicleAdded = onVehicleAdded,
+                )
+
+                is Path.Settings -> Text(
+                    text = LocalVehicleComponent.current.vehicleStateFlow.collectAsState().value.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                is Path.PressureSettings -> Text(text = "Pressure")
+                is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
                 is Path.PersistentScanning -> Text(text = "Persistent scanning")
@@ -314,6 +359,8 @@ private fun TopAppBar(
         navigationIcon = {
             when (currentPath) {
                 is Path.Settings,
+                is Path.PressureSettings,
+                is Path.TemperatureSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,
@@ -362,14 +409,6 @@ private fun TopAppBar(
                         modifier = Modifier.testTag(HomeTags.Overflow.root)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Bind sensors") },
-                            onClick = {
-                                showMenu = false
-                                navController.navigate("${Path.BindingMethod(currentPath.vehicleUUID)}")
-                            },
-                            modifier = Modifier.testTag(HomeTags.Overflow.bindingMethod)
-                        )
-                        DropdownMenuItem(
                             text = { Text("Vehicle settings") },
                             onClick = {
                                 showMenu = false
@@ -389,6 +428,8 @@ private fun TopAppBar(
                 }
 
                 is Path.Settings,
+                is Path.PressureSettings,
+                is Path.TemperatureSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,
@@ -496,7 +537,6 @@ internal object HomeTags {
 
     object Overflow {
         const val root = "HomeTags_Overflow_root"
-        const val bindingMethod = "HomeTags_Overflow_bindingMethod"
         const val settings = "HomeTags_Overflow_settings"
         const val appSettings = "HomeTags_Overflow_appSettings"
     }

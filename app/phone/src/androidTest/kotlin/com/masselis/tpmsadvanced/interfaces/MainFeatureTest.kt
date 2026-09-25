@@ -46,12 +46,18 @@ internal class MainFeatureTest {
                 add()
             }
         }
+        vehicleSettings {
+            leave()
+        }
         dropdownMenu {
             addVehicle {
                 setVehicleName("Motorcycle")
                 setKind(MOTORCYCLE)
                 add()
             }
+        }
+        vehicleSettings {
+            leave()
         }
         dropdownMenu {
             assertVehicleExists("Car")

@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -13,15 +14,20 @@ import com.masselis.tpmsadvanced.core.ui.SwitchSettingsItem
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreDisplaySettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.TyreDisplaySettingsViewModel
 
-/** The "Display" group of the app settings, [openTimeSinceUpdate] opening the page explaining it */
+/**
+ * The "Display" group of the app settings, [openTimeSinceUpdate] opening the page explaining it.
+ * [additionalItems] are appended to the group, for display settings owned by other features.
+ */
 @Composable
 public fun TyreDisplaySettings(
     openTimeSinceUpdate: () -> Unit,
     modifier: Modifier = Modifier,
+    additionalItems: @Composable ColumnScope.() -> Unit = {},
 ): Unit =
     TyreDisplaySettings(
         openTimeSinceUpdate,
         modifier,
+        additionalItems,
         viewModel { TyreDisplaySettingsViewModel() },
     )
 
@@ -29,6 +35,7 @@ public fun TyreDisplaySettings(
 internal fun TyreDisplaySettings(
     openTimeSinceUpdate: () -> Unit,
     modifier: Modifier = Modifier,
+    additionalItems: @Composable ColumnScope.() -> Unit = {},
     viewModel: TyreDisplaySettingsViewModel = viewModel { TyreDisplaySettingsViewModel() },
 ) {
     val showSensorId by viewModel.showSensorId.collectAsState()
@@ -40,6 +47,7 @@ internal fun TyreDisplaySettings(
         onShowTimeSinceUpdate = { viewModel.showTimeSinceUpdate.value = it },
         openTimeSinceUpdate = openTimeSinceUpdate,
         modifier = modifier,
+        additionalItems = additionalItems,
     )
 }
 
@@ -51,6 +59,7 @@ private fun TyreDisplaySettings(
     onShowTimeSinceUpdate: (Boolean) -> Unit,
     openTimeSinceUpdate: () -> Unit,
     modifier: Modifier = Modifier,
+    additionalItems: @Composable ColumnScope.() -> Unit = {},
 ) = SettingsGroup(modifier) {
     SwitchNavigationSettingsItem(
         headline = "Time since last update",
@@ -67,6 +76,7 @@ private fun TyreDisplaySettings(
         onCheckedChange = onShowSensorId,
         modifier = Modifier.testTag(TyreDisplaySettingsTags.showSensorId),
     )
+    additionalItems()
 }
 
 @Preview

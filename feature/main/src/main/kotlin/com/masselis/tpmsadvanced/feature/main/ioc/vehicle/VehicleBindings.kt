@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.VehicleS
 import com.masselis.tpmsadvanced.feature.main.usecase.ClearBoundSensorsUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.DeleteVehicleUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.RenameVehicleUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleCountStateFlowUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleStateFlowUseCase
@@ -41,9 +42,21 @@ public interface VehicleBindings {
     @Provides
     private fun vehicleSettingsViewModelImpl(
         vehicleRangesUseCase: VehicleRangesUseCase,
+        renameVehicleUseCase: RenameVehicleUseCase,
+        vehicleStateFlow: StateFlow<Vehicle>,
         unitPreferences: UnitPreferences,
-    ): VehicleSettingsViewModelImpl =
-        VehicleSettingsViewModelImpl(vehicleRangesUseCase, unitPreferences)
+    ): VehicleSettingsViewModelImpl = VehicleSettingsViewModelImpl(
+        vehicleRangesUseCase,
+        renameVehicleUseCase,
+        vehicleStateFlow,
+        unitPreferences
+    )
+
+    @Provides
+    private fun renameVehicleUseCase(
+        vehicle: Vehicle,
+        database: VehicleDatabase,
+    ): RenameVehicleUseCase = RenameVehicleUseCase(vehicle, database)
 
     @Provides
     private fun deleteVehicleViewModelImpl(
