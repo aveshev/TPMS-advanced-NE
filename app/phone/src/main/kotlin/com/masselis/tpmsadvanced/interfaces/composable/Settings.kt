@@ -12,11 +12,13 @@ import com.masselis.tpmsadvanced.interfaces.composable.SettingsTag.vehicle
 internal fun Settings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
+    openBindingMethod: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     VehicleSettings(
         openPressure = openPressure,
         openTemperature = openTemperature,
+        openBindingMethod = openBindingMethod,
         // backgroundSettings = { AutomaticBackgroundSettings(it) }
         modifier = Modifier.testTag(vehicle),
     )

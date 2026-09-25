@@ -1,0 +1,5 @@
+-- The rear range used to only exist while the override was on, it's now kept when turned off
+ALTER TABLE Vehicle ADD separateRearPressure INTEGER NOT NULL DEFAULT 0;
+-- no_update_when_deleting rejects updating a vehicle being deleted, those are removed at startup anyway
+UPDATE Vehicle SET separateRearPressure = 1
+WHERE rearLowPressure IS NOT NULL AND rearHighPressure IS NOT NULL AND isDeleting = 0;

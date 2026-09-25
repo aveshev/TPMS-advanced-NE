@@ -3,6 +3,7 @@ package com.masselis.tpmsadvanced.interfaces.screens
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.masselis.tpmsadvanced.core.androidtest.EnterExitComposable
@@ -27,9 +28,6 @@ internal class OverflowMenu private constructor(
     private val settingsNode
         get() = onNodeWithTag(HomeTags.Overflow.settings)
 
-    private val bindingMethodNode
-        get() = onNodeWithTag(HomeTags.Overflow.bindingMethod)
-
     private val settingsTest = Settings(HomeTags.backButton, SettingsTag.vehicle)
     private val bindingMethodTest = BindingMethod()
 
@@ -39,9 +37,15 @@ internal class OverflowMenu private constructor(
         return exitToken
     }
 
+    /** The binding method is reached through the vehicle settings, left afterwards if back on them */
     fun bindingMethod(instructions: Instructions<BindingMethod>): ExitToken<OverflowMenu> {
-        bindingMethodNode.performClick()
+        settingsNode.performClick()
+        settingsTest.process { bindSensors() }
         bindingMethodTest.process(instructions)
+        // Going back from the binding method returns to the settings, finishing a binding goes home
+        waitForIdle()
+        if (onAllNodesWithTag(SettingsTag.vehicle).fetchSemanticsNodes().isNotEmpty())
+            settingsTest.process { leave() }
         return exitToken
     }
 

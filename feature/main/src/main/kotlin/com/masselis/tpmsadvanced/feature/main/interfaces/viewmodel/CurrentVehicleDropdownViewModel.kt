@@ -2,8 +2,10 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel
 
 import android.os.Parcelable
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.parcelize.Parcelize
+import java.util.UUID
 
 internal interface CurrentVehicleDropdownViewModel {
 
@@ -18,7 +20,12 @@ internal interface CurrentVehicleDropdownViewModel {
         ) : State()
     }
 
+    sealed interface Event {
+        data class VehicleAdded(val uuid: UUID) : Event
+    }
+
     val stateFlow: StateFlow<State>
+    val eventChannel: ReceiveChannel<Event>
 
     fun setCurrent(vehicle: Vehicle)
 

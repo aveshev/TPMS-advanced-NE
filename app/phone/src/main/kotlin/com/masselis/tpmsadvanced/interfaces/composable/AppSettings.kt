@@ -22,7 +22,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Suspen
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DemoModeSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
-import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettings
+import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettingsItems
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
 
@@ -38,8 +38,8 @@ internal fun AppSettings(
     TyreDisplaySettings(
         openTimeSinceUpdate = openTimeSinceUpdate,
         modifier = Modifier.testTag(tyreDisplay),
+        additionalItems = { UnitsSettingsItems() },
     )
-    UnitsSettings(Modifier.padding(top = 16.dp))
     SettingsSectionHeader("Background scanning")
     PersistentScanningSettings(
         openPersistentScanning = openPersistentScanning,

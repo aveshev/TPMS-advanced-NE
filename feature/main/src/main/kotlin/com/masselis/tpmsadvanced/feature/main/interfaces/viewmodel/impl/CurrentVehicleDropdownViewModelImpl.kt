@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.CurrentVehicleDropdownViewModel
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.CurrentVehicleDropdownViewModel.Event
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.CurrentVehicleDropdownViewModel.State
 import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
@@ -12,6 +13,8 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -38,6 +41,9 @@ internal class CurrentVehicleDropdownViewModelImpl(
     )
     override val stateFlow = mutableStateFlow.asStateFlow()
 
+    private val mutableEventChannel = Channel<Event>(Channel.BUFFERED)
+    override val eventChannel: ReceiveChannel<Event> = mutableEventChannel
+
     init {
         combine(
             currentVehicleUseCase.flatMapLatest { it.vehicleStateFlow },
@@ -56,7 +62,9 @@ internal class CurrentVehicleDropdownViewModelImpl(
 
     override fun insert(carName: String, kind: Vehicle.Kind) {
         viewModelScope.launch {
-            currentVehicleUseCase.insertAsCurrent(carName, kind)
+            currentVehicleUseCase
+                .insertAsCurrent(carName, kind)
+                .also { mutableEventChannel.send(Event.VehicleAdded(it)) }
         }
     }
 }

@@ -46,10 +46,13 @@ public fun VehiclePressureSettings(
     val high by viewModel.highPressure.collectAsState()
     val rearLow by viewModel.rearLowPressure.collectAsState()
     val rearHigh by viewModel.rearHighPressure.collectAsState()
+    val separateRear by viewModel.separateRearPressure.collectAsState()
     VehiclePressureSettings(
         unit = unit,
         front = low..high,
-        rear = rearLow?.let { start -> rearHigh?.let { start..it } },
+        rear = rearLow
+            ?.takeIf { separateRear }
+            ?.let { start -> rearHigh?.let { start..it } },
         canSeparateRear = component.vehicle.kind.hasFrontRearAxles,
         onFront = {
             viewModel.lowPressure.value = it.start

@@ -50,21 +50,27 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehic
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdownTags.dropdownEntry
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdownTags.dropdownEntryAddVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.CurrentVehicleDropdownViewModel
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.CurrentVehicleDropdownViewModel.Event
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.CurrentVehicleDropdownViewModel.State
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.CurrentVehicleDropdownViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
+/** The vehicle picker, [onVehicleAdded] being called with the uuid of a vehicle once added */
 @Composable
 public fun CurrentVehicleDropdown(
     modifier: Modifier = Modifier,
+    onVehicleAdded: (UUID) -> Unit = {},
 ) {
     CurrentVehicleDropdown(
         modifier,
+        onVehicleAdded,
         viewModel { CurrentVehicleDropdownViewModel(createSavedStateHandle()) }
     )
 }
@@ -73,10 +79,19 @@ public fun CurrentVehicleDropdown(
 @Composable
 private fun CurrentVehicleDropdown(
     modifier: Modifier = Modifier,
+    onVehicleAdded: (UUID) -> Unit = {},
     viewModel: CurrentVehicleDropdownViewModel = viewModel {
         CurrentVehicleDropdownViewModel(createSavedStateHandle())
     }
 ) {
+    // Before the early return below, the events must be collected whatever the state
+    LaunchedEffect(viewModel) {
+        for (event in viewModel.eventChannel) {
+            when (event) {
+                is Event.VehicleAdded -> onVehicleAdded(event.uuid)
+            }
+        }
+    }
     val vehicles = viewModel.stateFlow.collectAsState().value as? State.Vehicles ?: return
     var expanded by remember { mutableStateOf(false) }
     var askNewVehicle by remember { mutableStateOf(false) }
@@ -248,6 +263,7 @@ private fun CurrentVehicleDropdownPreview() {
 
 private class MockCurrentVehicleDropdownViewModel(state: State) : CurrentVehicleDropdownViewModel {
     override val stateFlow: StateFlow<State> = MutableStateFlow(state)
+    override val eventChannel: ReceiveChannel<Event> = Channel()
     override fun setCurrent(vehicle: Vehicle) = error("")
     override fun insert(carName: String, kind: Vehicle.Kind) = error("")
 }

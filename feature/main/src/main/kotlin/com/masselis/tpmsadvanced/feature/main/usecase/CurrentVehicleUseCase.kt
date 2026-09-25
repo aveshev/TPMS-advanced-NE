@@ -37,6 +37,7 @@ public class CurrentVehicleUseCase internal constructor(
     public suspend fun setAsCurrent(vehicle: Vehicle): Unit =
         database.setIsCurrent(vehicle.uuid, true)
 
-    internal suspend fun insertAsCurrent(carName: String, kind: Vehicle.Kind): Unit = database
-        .insert(randomUUID(), kind, carName, true, kind.defaultsToSeparateFrontRearPressure)
+    /** Returns the new vehicle's uuid */
+    internal suspend fun insertAsCurrent(carName: String, kind: Vehicle.Kind): UUID = randomUUID()
+        .also { database.insert(it, kind, carName, true, kind.defaultsToSeparateFrontRearPressure) }
 }

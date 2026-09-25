@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,13 +39,14 @@ import kotlinx.coroutines.delay
 
 /**
  * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
- * [openPressure] and [openTemperature].
+ * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding.
  */
 @Suppress("LongMethod", "MaxLineLength")
 @Composable
 public fun VehicleSettings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
+    openBindingMethod: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundSettings: @Composable (VehicleComponent) -> Unit = backgroundSettingsPlaceholder,
     component: VehicleComponent = LocalVehicleComponent.current,
@@ -57,19 +59,13 @@ public fun VehicleSettings(
     val high by viewModel.highPressure.collectAsState()
     val rearLow by viewModel.rearLowPressure.collectAsState()
     val rearHigh by viewModel.rearHighPressure.collectAsState()
+    val separateRear by viewModel.separateRearPressure.collectAsState()
     val temperatureUnit by viewModel.temperatureUnit.collectAsState()
     val lowTemp by viewModel.lowTemp.collectAsState()
     val normalTemp by viewModel.normalTemp.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
     var showRename by rememberSaveable { mutableStateOf(false) }
     Column(modifier) {
-        SettingsGroup(Modifier.padding(top = 16.dp)) {
-            TextSettingsItem(
-                headline = "Name",
-                supporting = vehicle.name,
-                onClick = { showRename = true },
-            )
-        }
         SettingsSectionHeader("Alerts")
         SettingsGroup {
             fun ClosedFloatingPointRange<Pressure>.summary() =
@@ -77,6 +73,7 @@ public fun VehicleSettings(
             TextSettingsItem(
                 headline = "Pressure",
                 supporting = rearLow
+                    ?.takeIf { separateRear }
                     ?.let { start -> rearHigh?.let { start..it } }
                     ?.let { "Front ${(low..high).summary()} · Rear ${it.summary()}" }
                     ?: (low..high).summary(),
@@ -98,9 +95,19 @@ public fun VehicleSettings(
         }
         SettingsSectionHeader("Sensors")
         SettingsGroup {
+            TextSettingsItem(
+                headline = "Bind sensors",
+                onClick = openBindingMethod,
+                opensPage = true,
+                modifier = Modifier.testTag(VehicleSettingsTags.bindSensors),
+            )
             ClearBoundSensorsButton()
         }
         SettingsGroup(Modifier.padding(top = 24.dp)) {
+            TextSettingsItem(
+                headline = "Edit name",
+                onClick = { showRename = true },
+            )
             DeleteVehicleButton()
         }
     }
@@ -159,6 +166,11 @@ private fun RenameVehicleDialog(
 @Composable
 internal fun RenameVehicleDialogPreview() {
     RenameVehicleDialog(name = "My car", onRename = {}, onDismissRequest = {})
+}
+
+@Suppress("ConstPropertyName")
+internal object VehicleSettingsTags {
+    const val bindSensors = "VehicleSettingsTags_bindSensors"
 }
 
 private val backgroundSettingsPlaceholder: @Composable (VehicleComponent) -> Unit = {}

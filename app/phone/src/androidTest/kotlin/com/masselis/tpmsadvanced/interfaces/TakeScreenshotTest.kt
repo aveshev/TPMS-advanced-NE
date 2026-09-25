@@ -39,6 +39,9 @@ internal class TakeScreenshotTest {
                     add()
                 }
             }
+            vehicleSettings {
+                leave()
+            }
             takeScreenshots(AppCompatDelegate.MODE_NIGHT_YES)
         }
     }
