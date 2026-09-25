@@ -29,6 +29,81 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_TIME_SINCE_UPDATE", newValue) }
     }
 
+    public val persistentScanning: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("PERSISTENT_SCANNING", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("PERSISTENT_SCANNING", newValue) }
+    }
+
+    public val activateOnCableCharging: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_CABLE_CHARGING", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_CABLE_CHARGING", newValue) }
+    }
+
+    public val activateOnWirelessCharging: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_WIRELESS_CHARGING", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_WIRELESS_CHARGING", newValue) }
+    }
+
+    public val activateOnAndroidAuto: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_ANDROID_AUTO", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_ANDROID_AUTO", newValue) }
+    }
+
+    /** Keeps scanning for [stayActiveMinutes] once every activate condition has ended */
+    public val stayActive: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("STAY_ACTIVE", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("STAY_ACTIVE", newValue) }
+    }
+
+    public val stayActiveMinutes: MutableStateFlow<Int> = observableStateFlow(
+        sharedPreferences.getInt("STAY_ACTIVE_MINUTES", DEFAULT_STAY_ACTIVE_MINUTES)
+    ) { _, newValue ->
+        sharedPreferences.edit { putInt("STAY_ACTIVE_MINUTES", newValue) }
+    }
+
+    /** When off, persistent scanning ignores the activate conditions and always scans */
+    public val activateConditions: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_CONDITIONS", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_CONDITIONS", newValue) }
+    }
+
+    /** When off, none of the suspend conditions applies, whatever each one is set to */
+    public val suspendConditions: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_CONDITIONS", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_CONDITIONS", newValue) }
+    }
+
+    public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_IN_DOZE", newValue) }
+    }
+
+    public val suspendScanningOnWifi: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_ON_WIFI", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_ON_WIFI", newValue) }
+    }
+
+    public val wifiExceptionEnabled: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("WIFI_EXCEPTION_ENABLED", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("WIFI_EXCEPTION_ENABLED", newValue) }
+    }
+
+    public val exceptedWifiSsids: MutableStateFlow<Set<String>> = observableStateFlow(
+        sharedPreferences.getStringSet("EXCEPTED_WIFI_SSIDS", emptySet())!!.toSet()
+    ) { _, newValue ->
+        sharedPreferences.edit { putStringSet("EXCEPTED_WIFI_SSIDS", newValue) }
+    }
+
     private val packageInfo
         get() = appContext
             .packageManager
@@ -52,5 +127,9 @@ public class AppPreferences internal constructor(
     init {
         if (currentVersionCode != previousVersionCode)
             sharedPreferences.edit { putLong("VC", currentVersionCode) }
+    }
+
+    private companion object {
+        const val DEFAULT_STAY_ACTIVE_MINUTES = 10
     }
 }

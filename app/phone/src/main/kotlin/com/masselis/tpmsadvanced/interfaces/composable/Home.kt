@@ -47,7 +47,8 @@ import androidx.navigation.compose.rememberNavController
 import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.Spotlight
-import com.masselis.tpmsadvanced.feature.background.interfaces.ui.BackgroundIconButton
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
@@ -71,9 +72,11 @@ internal fun Home(
     }
 ) {
     val vehicleComponent by viewModel.vehicleComponentStateFlow.collectAsState()
-    VehicleHome(
-        vehicleComponent = vehicleComponent
-    )
+    PersistentScanningHost {
+        VehicleHome(
+            vehicleComponent = vehicleComponent
+        )
+    }
 }
 
 @Suppress("LongMethod")
@@ -128,6 +131,54 @@ internal fun VehicleHome(
                     }
                     composable("${Path.AppSettings}") {
                         AppSettings(
+                            openTimeSinceUpdate = {
+                                navController.navigate("${Path.TimeSinceUpdate}")
+                            },
+                            openPersistentScanning = {
+                                navController.navigate("${Path.PersistentScanning}")
+                            },
+                            openActivateScanConditions = {
+                                navController.navigate("${Path.ActivateScanConditions}")
+                            },
+                            openSuspendScanConditions = {
+                                navController.navigate("${Path.SuspendScanConditions}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.TimeSinceUpdate}") {
+                        TimeSinceUpdateSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.PersistentScanning}") {
+                        PersistentScanningDetailsSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.ActivateScanConditions}") {
+                        ActivateScanConditionsSettings(
+                            openStayActiveDuration = {
+                                navController.navigate("${Path.StayActiveDuration}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.StayActiveDuration}") {
+                        StayActiveDurationSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.SuspendScanConditions}") {
+                        SuspendScanConditionsSettings(
+                            openExceptedWifis = {
+                                navController.navigate("${Path.ExceptedWifis}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.ExceptedWifis}") {
+                        ExceptedWifisSettings(
                             modifier = modifier
                         )
                     }
@@ -202,7 +253,7 @@ internal fun VehicleHome(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun TopAppBar(
     modifier: Modifier = Modifier,
@@ -220,6 +271,12 @@ private fun TopAppBar(
                 is Path.Home -> CurrentVehicleDropdown(Modifier.testTag(carListDropdownMenu))
                 is Path.Settings -> Text(text = "Vehicle settings")
                 is Path.AppSettings -> Text(text = "App settings")
+                is Path.TimeSinceUpdate -> Text(text = "Time since last update")
+                is Path.PersistentScanning -> Text(text = "Persistent scanning")
+                is Path.ActivateScanConditions -> Text(text = "Activate scan conditions")
+                is Path.StayActiveDuration -> Text(text = "Stay active")
+                is Path.SuspendScanConditions -> Text(text = "Suspend scan conditions")
+                is Path.ExceptedWifis -> Text(text = "Excepted WiFis")
                 is Path.BindingMethod -> Text(text = "Binding method")
                 is Path.Unlocated -> Text(text = "Binding")
                 is Path.QrCode, null -> {}
@@ -227,7 +284,17 @@ private fun TopAppBar(
         },
         navigationIcon = {
             when (currentPath) {
-                is Path.Settings, is Path.AppSettings, is Path.BindingMethod, is Path.QrCode, is Path.Unlocated -> {
+                is Path.Settings,
+                is Path.AppSettings,
+                is Path.TimeSinceUpdate,
+                is Path.PersistentScanning,
+                is Path.ActivateScanConditions,
+                is Path.StayActiveDuration,
+                is Path.SuspendScanConditions,
+                is Path.ExceptedWifis,
+                is Path.BindingMethod,
+                is Path.QrCode,
+                is Path.Unlocated -> {
                     IconButton(
                         onClick = { navController.popBackStack() },
                         content = {
@@ -247,7 +314,7 @@ private fun TopAppBar(
             var showMenu by remember { mutableStateOf(false) }
             when (currentPath) {
                 is Path.Home -> {
-                    BackgroundIconButton(
+                    MonitoringButton(
                         modifier = manualBackgroundButtonModifier
                             .testTag(HomeTags.Actions.manualBackground)
                     )
@@ -294,6 +361,12 @@ private fun TopAppBar(
 
                 is Path.Settings,
                 is Path.AppSettings,
+                is Path.TimeSinceUpdate,
+                is Path.PersistentScanning,
+                is Path.ActivateScanConditions,
+                is Path.StayActiveDuration,
+                is Path.SuspendScanConditions,
+                is Path.ExceptedWifis,
                 is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated,

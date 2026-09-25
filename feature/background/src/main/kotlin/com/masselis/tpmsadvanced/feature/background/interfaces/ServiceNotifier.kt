@@ -21,6 +21,7 @@ import androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE
 import androidx.core.app.ServiceCompat.stopForeground
 import androidx.core.app.TaskStackBuilder
 import androidx.core.net.toUri
+import co.touchlab.kermit.Logger
 import com.google.firebase.Firebase
 import com.google.firebase.crashlytics.crashlytics
 import com.masselis.tpmsadvanced.core.common.appContext
@@ -28,10 +29,16 @@ import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.R
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
+import com.masselis.tpmsadvanced.feature.background.usecase.explanation
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -44,6 +51,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -57,7 +65,9 @@ internal class ServiceNotifier(
     unitPreferences: UnitPreferences,
     service: Service,
     vehicleListUseCase: VehicleListUseCase,
+    scanPolicyUseCase: ScanPolicyUseCase,
 ) {
+    private val logger = Logger.withTag("ServiceNotifier")
     private val notificationManager = NotificationManagerCompat.from(appContext)
 
     init {
@@ -74,25 +84,47 @@ internal class ServiceNotifier(
                 .build()
         )
 
-        combine(
-            vehicleListUseCase
-                .vehicleListFlow
-                // Editing a vehicle (ranges, name...) re-emits the list; only a change in the
-                // set of vehicles may rebuild the collectors, otherwise the BLE scan restarts.
-                .distinctUntilChanged { old, new -> old.map(Vehicle::uuid) == new.map(Vehicle::uuid) }
-                .flatMapLatest { vehicles ->
-                    combine(
-                        vehicles.map { vehicle ->
-                            VehicleAlertUseCase(VehicleComponent(vehicle)).alert.map { vehicle to it }
-                        }
-                    ) { it.toList() }
-                },
-            vehicleListUseCase.vehicleListFlow,
-        ) { alerts, latestVehicles ->
-            // The collectors hold the snapshot they were built with, so names are refreshed here
-            val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
-            worst(alerts.map { (vehicle, alert) -> (latestByUuid[vehicle.uuid] ?: vehicle) to alert })
-        }
+        scanPolicyUseCase
+            .decision
+            .flatMapLatest { decision ->
+                when (decision) {
+                    // Not scanning: skip the scan entirely rather than emit nothing, since the
+                    // service must call startForeground() shortly after being started — a
+                    // silent flow here would starve that call if the app launches already
+                    // suspended (e.g. opened while already in Doze).
+                    is ScanDecision.Suspended -> flowOf(Suspended(decision.reasons))
+                    ScanDecision.Idle -> flowOf(Idle)
+                    is ScanDecision.Active -> combine(
+                        vehicleListUseCase
+                            .vehicleListFlow
+                            // Editing a vehicle (ranges, name...) re-emits the list; only a change
+                            // in the set of vehicles may rebuild the collectors, otherwise the BLE
+                            // scan restarts.
+                            .distinctUntilChanged { old, new ->
+                                old.map(Vehicle::uuid) == new.map(Vehicle::uuid)
+                            }
+                            .flatMapLatest { vehicles ->
+                                combine(
+                                    vehicles.map { vehicle ->
+                                        VehicleAlertUseCase(VehicleComponent(vehicle))
+                                            .alert
+                                            .map { vehicle to it }
+                                    }
+                                ) { it.toList() }
+                            },
+                        vehicleListUseCase.vehicleListFlow,
+                    ) { alerts, latestVehicles ->
+                        // The collectors hold the snapshot they were built with, so names are
+                        // refreshed here
+                        val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
+                        worst(
+                            alerts.map { (vehicle, alert) ->
+                                (latestByUuid[vehicle.uuid] ?: vehicle) to alert
+                            }
+                        )
+                    }
+                }
+            }
             // The service must call startForeground() shortly after being started, before the
             // database had time to answer
             .onStart { emit(NoAlert) }
@@ -103,25 +135,25 @@ internal class ServiceNotifier(
                     .Builder(
                         appContext,
                         when (state) {
-                            NoAlert -> channelNameWhenOk
+                            NoAlert, is Suspended, Idle -> channelNameWhenOk
                             is PressureAlert, is TemperatureAlert, ScanFailure -> channelNameForAlerts
                         }
                     )
                     .setSmallIcon(
                         when (state) {
-                            NoAlert -> R.drawable.car_tire
+                            NoAlert, is Suspended, Idle -> R.drawable.car_tire
                             is PressureAlert, is TemperatureAlert, ScanFailure -> R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
-                            NoAlert -> PRIORITY_LOW
+                            NoAlert, is Suspended, Idle -> PRIORITY_LOW
                             is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
                         }
                     )
                     .setSubText(
                         when (state) {
-                            NoAlert -> null
+                            NoAlert, is Suspended, Idle -> null
                             is PressureAlert -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
                             ScanFailure -> null
@@ -140,12 +172,15 @@ internal class ServiceNotifier(
 
                             ScanFailure -> "The Android system reported an issue during the" +
                                     " bluetooth scan, TPMS Advanced must be restarted"
+
+                            is Suspended -> ScanDecision.Suspended(state.reasons).explanation()
+                            Idle -> ScanDecision.Idle.explanation()
                         }
                     )
                     .apply {
                         when (state) {
                             // Opens the app on its current vehicle
-                            NoAlert -> appContext
+                            NoAlert, is Suspended, Idle -> appContext
                                 .packageManager
                                 .getLaunchIntentForPackage(appContext.packageName)
                                 ?.let { getActivity(appContext, requestCode, it, FLAG_IMMUTABLE) }
@@ -162,7 +197,7 @@ internal class ServiceNotifier(
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert ->
+                            NoAlert, is PressureAlert, is TemperatureAlert, is Suspended, Idle ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -192,13 +227,22 @@ internal class ServiceNotifier(
                     .build()
             }
             .onEach {
-                ServiceCompat.startForeground(
-                    service,
-                    notificationId,
-                    it,
-                    // https://developer.android.com/about/versions/14/changes/fgs-types-required#connected-device
-                    if (SDK_INT >= Q) FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
-                )
+                try {
+                    ServiceCompat.startForeground(
+                        service,
+                        notificationId,
+                        it,
+                        // https://developer.android.com/about/versions/14/changes/fgs-types-required#connected-device
+                        if (SDK_INT >= Q) FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+                    )
+                } catch (e: SecurityException) {
+                    // The system refuses a connectedDevice foreground service when Bluetooth scan
+                    // was revoked. That kills the process, and a sticky service is restarted right
+                    // away: crashing here would loop. The next app opening walks the user through
+                    // the missing permissions and starts the service again.
+                    logger.w(e) { "The system refused the foreground service, stopping it" }
+                    service.stopSelf()
+                }
             }
             .launchIn(scope)
 
@@ -235,6 +279,10 @@ internal class ServiceNotifier(
         ) : State
 
         data object ScanFailure : State
+
+        data class Suspended(val reasons: Set<Reason>) : State
+
+        data object Idle : State
     }
 
     @Suppress("ConstPropertyName")

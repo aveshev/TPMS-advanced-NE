@@ -19,6 +19,30 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings"
     }
 
+    data object TimeSinceUpdate : Path {
+        override fun toString(): String = "app_settings/time_since_last_update"
+    }
+
+    data object PersistentScanning : Path {
+        override fun toString(): String = "app_settings/persistent_scanning"
+    }
+
+    data object ActivateScanConditions : Path {
+        override fun toString(): String = "app_settings/activate_scan_conditions"
+    }
+
+    data object StayActiveDuration : Path {
+        override fun toString(): String = "app_settings/activate_scan_conditions/stay_active"
+    }
+
+    data object ExceptedWifis : Path {
+        override fun toString(): String = "app_settings/suspend_scan_conditions/excepted_wifis"
+    }
+
+    data object SuspendScanConditions : Path {
+        override fun toString(): String = "app_settings/suspend_scan_conditions"
+    }
+
     @JvmInline
     value class BindingMethod(val vehicleUUID: UUID) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/binding_method"
@@ -35,10 +59,21 @@ internal sealed interface Path {
     }
 
     companion object {
+        /** Pages that don't depend on a vehicle, their route is fixed */
+        private val appPages
+            get() = listOf(
+                AppSettings,
+                TimeSinceUpdate,
+                PersistentScanning,
+                ActivateScanConditions,
+                StayActiveDuration,
+                SuspendScanConditions,
+                ExceptedWifis,
+            )
+
         @Suppress("NAME_SHADOWING")
-        fun from(route: String): Path =
-            if (route == "app_settings") AppSettings
-            else route
+        fun from(route: String): Path = when (val page = appPages.firstOrNull { "$it" == route }) {
+            null -> route
                 .split('/')
                 .let { (host, uuid, screen) ->
                     assert(host == "vehicle")
@@ -52,5 +87,8 @@ internal sealed interface Path {
                         else -> error("Unrecognized route: \"$route\"")
                     }
                 }
+
+            else -> page
+        }
     }
 }

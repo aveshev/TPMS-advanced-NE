@@ -18,6 +18,8 @@ dependencies {
 
     implementation(project(":feature:main"))
 
+    implementation(libs.androidx.car.app)
+
     debugImplementation(project(":core:debug-ui"))
 
     testImplementation(project(":core:test"))
