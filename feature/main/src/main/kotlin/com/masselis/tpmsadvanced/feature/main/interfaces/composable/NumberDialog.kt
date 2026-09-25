@@ -33,8 +33,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.masselis.tpmsadvanced.feature.main.R
 import kotlinx.coroutines.delay
-import kotlin.math.ceil
-import kotlin.math.floor
 
 /**
  * Edits a number expressed in the user's [unit], typed in or nudged by [step] with the −/+ buttons.
@@ -58,17 +56,13 @@ internal fun NumberDialog(
     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(format(value).let { TextFieldValue(it, TextRange(0, it.length)) })
     }
-    // format() follows the locale's decimal separator, both are accepted back
-    val parsed = text.text.replace(',', '.').toFloatOrNull()
-    // The bounds are displayed rounded, typing them as displayed must still be accepted
-    val tolerance = step / 100
-    val isValid = parsed != null && parsed >= range.start - tolerance && parsed <= range.endInclusive + tolerance
-    val current = parsed ?: value
-    val confirm = { parsed?.takeIf { isValid }?.coerceIn(range)?.also(onConfirm) }
+    val input = remember(range, step) { NumberInput(range, step) }
+    val accepted = input.accepted(text.text)
+    val isValid = accepted != null
+    val current = input.parse(text.text) ?: value
+    val confirm = { accepted?.also(onConfirm) }
     val nudge = { next: Float ->
         next
-            .times(step)
-            .coerceIn(range)
             .let(format)
             .also { text = TextFieldValue(it, TextRange(it.length)) }
     }
@@ -80,9 +74,8 @@ internal fun NumberDialog(
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        // The small offset keeps a value sitting on a step, despite float errors, on it
-                        onClick = { nudge(ceil(current / step - STEP_EPSILON) - 1) },
-                        enabled = current > range.start + tolerance,
+                        onClick = { nudge(input.decreased(current)) },
+                        enabled = input.canDecrease(current),
                     ) {
                         Icon(ImageVector.vectorResource(R.drawable.remove_24px), "Decrease")
                     }
@@ -102,8 +95,8 @@ internal fun NumberDialog(
                             .focusRequester(focusRequester),
                     )
                     IconButton(
-                        onClick = { nudge(floor(current / step + STEP_EPSILON) + 1) },
-                        enabled = current < range.endInclusive - tolerance,
+                        onClick = { nudge(input.increased(current)) },
+                        enabled = input.canIncrease(current),
                     ) {
                         Icon(ImageVector.vectorResource(R.drawable.add_24px), "Increase")
                     }
@@ -131,8 +124,6 @@ internal fun NumberDialog(
         focusRequester.requestFocus()
     }
 }
-
-private const val STEP_EPSILON = 0.01f
 
 @Preview
 @Composable
