@@ -105,7 +105,7 @@ public fun VehicleSettings(
         }
         SettingsGroup(Modifier.padding(top = 24.dp)) {
             TextSettingsItem(
-                headline = "Edit name",
+                headline = "Edit vehicle name",
                 onClick = { showRename = true },
             )
         }
