@@ -108,6 +108,8 @@ public fun VehicleSettings(
                 headline = "Edit name",
                 onClick = { showRename = true },
             )
+        }
+        SettingsGroup(Modifier.padding(top = 24.dp)) {
             DeleteVehicleButton()
         }
     }

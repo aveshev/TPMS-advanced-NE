@@ -88,8 +88,9 @@ private fun VehiclePressureSettings(
     )
     if (canSeparateRear) SettingsGroup(Modifier.padding(top = 24.dp)) {
         SwitchSettingsItem(
-            headline = "Different rear pressure",
-            supporting = if (rear != null) "Rear tyres have their own range" else "Rear tyres use the front range",
+            headline = "Set rear pressure separately",
+            // Static on purpose: the section headers below already show which state is active
+            supporting = "Turn on if the rear tyres need a different pressure than the front ones",
             checked = rear != null,
             onCheckedChange = onSeparateRear,
         )
