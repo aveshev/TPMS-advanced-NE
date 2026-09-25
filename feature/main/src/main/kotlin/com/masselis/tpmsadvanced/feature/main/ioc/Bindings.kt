@@ -4,6 +4,8 @@ import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
+import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DemoModeSwitchViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PreconditionsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreDisplaySettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.CurrentVehicleDropdownViewModelImpl
@@ -59,6 +61,10 @@ public interface Bindings {
         factory
     )
 
+    @Provides
+    private fun demoModeSwitchViewModel(demoOrBleScannerUseCase: DemoOrBleScannerUseCase): DemoModeSwitchViewModel =
+        DemoModeSwitchViewModel(demoOrBleScannerUseCase)
+
 
     public val featureMainInternal: Internal
 
@@ -68,6 +74,7 @@ public interface Bindings {
         internal val preconditionsViewModel: () -> PreconditionsViewModel,
         internal val tyreDisplaySettingsViewModel: () -> TyreDisplaySettingsViewModel,
         internal val currentVehicleDropdownViewModel: CurrentVehicleDropdownViewModelImpl.Factory,
+        internal val demoModeSwitchViewModel: () -> DemoModeSwitchViewModel
     )
 
     public companion object : Bindings by appGraph as Bindings {
@@ -76,5 +83,7 @@ public interface Bindings {
         internal fun TyreDisplaySettingsViewModel() = featureMainInternal.tyreDisplaySettingsViewModel()
         internal val CurrentVehicleDropdownViewModel
             get() = featureMainInternal.currentVehicleDropdownViewModel
+
+        internal fun DemoModeSwitchViewModel() = featureMainInternal.demoModeSwitchViewModel()
     }
 }

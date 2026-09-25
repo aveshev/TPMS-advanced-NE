@@ -65,7 +65,6 @@ walks you through it only if you use WiFi exceptions.
 
 * Battery alerts
 * Last time update
-* Android Auto support
 * Temperature history
 * Automatic startup in background when connected to the car's radio in bluetooth
 * Add support for other BLE Sensors

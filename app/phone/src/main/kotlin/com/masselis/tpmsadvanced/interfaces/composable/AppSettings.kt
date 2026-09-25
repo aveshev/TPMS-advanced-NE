@@ -16,6 +16,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Persis
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningSettings
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.StayActiveDuration
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendScanConditions
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DemoModeSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
@@ -41,6 +42,8 @@ internal fun AppSettings(
         openSuspendConditions = openSuspendScanConditions,
         modifier = Modifier.testTag(persistentScanning),
     )
+    SettingsSectionHeader("Demo")
+    DemoModeSettings()
 }
 
 @Composable
