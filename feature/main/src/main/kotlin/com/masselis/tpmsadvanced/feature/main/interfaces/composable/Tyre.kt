@@ -1,4 +1,4 @@
-@file:Suppress("NAME_SHADOWING")
+@file:Suppress("NAME_SHADOWING", "TooManyFunctions")
 
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
@@ -72,7 +72,7 @@ internal fun Tyre(
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "MaxLineLength")
 @Composable
-private fun Tyre(
+internal fun Tyre(
     state: State,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,

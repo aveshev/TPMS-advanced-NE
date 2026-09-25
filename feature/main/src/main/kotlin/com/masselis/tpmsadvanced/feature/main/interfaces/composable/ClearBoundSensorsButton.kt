@@ -1,23 +1,14 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.createSavedStateHandle
+import com.masselis.tpmsadvanced.core.ui.SettingsGroup
+import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
-import com.masselis.tpmsadvanced.feature.main.R
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ClearBoundSensorsButtonTags.root
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ClearBoundSensorsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ClearBoundSensorsViewModel.State
@@ -25,6 +16,7 @@ import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Compan
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 
+/** A [SettingsGroup] item unbinding the vehicle's sensors */
 @Composable
 internal fun ClearBoundSensorsButton(
     modifier: Modifier = Modifier,
@@ -34,19 +26,16 @@ internal fun ClearBoundSensorsButton(
     }
 ) {
     val state by viewModel.stateFlow.collectAsState()
-    Box(modifier = modifier) {
-        OutlinedButton(
-            enabled = state is State.ClearingPossible,
-            onClick = { viewModel.clear() },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .testTag(root),
-        ) {
-            Icon(ImageVector.vectorResource(id = R.drawable.link_variant_remove), null)
-            Spacer(Modifier.width(6.dp))
-            Text(text = "Clear favourites")
-        }
-    }
+    TextSettingsItem(
+        headline = "Clear favourites",
+        supporting = when (state) {
+            State.ClearingPossible -> "Unbind the sensors bound to this vehicle"
+            State.AlreadyCleared -> "No sensor is bound to this vehicle"
+        },
+        onClick = { viewModel.clear() },
+        enabled = state is State.ClearingPossible,
+        modifier = modifier.testTag(root),
+    )
 }
 
 @Suppress("ConstPropertyName")

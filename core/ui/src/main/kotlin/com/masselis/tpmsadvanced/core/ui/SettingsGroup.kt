@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.masselis.tpmsadvanced.core.ui
 
 import androidx.compose.foundation.background
@@ -21,6 +23,9 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -174,6 +179,71 @@ public fun ActionSettingsItem(
     action()
 }
 
+/**
+ * A [SettingsGroup] item made of texts. [onClick] makes the whole item clickable, [opensPage] adding
+ * a chevron hinting it opens a page rather than a dialog.
+ */
+@Composable
+public fun TextSettingsItem(
+    headline: String,
+    modifier: Modifier = Modifier,
+    supporting: String? = null,
+    onClick: (() -> Unit)? = null,
+    opensPage: Boolean = false,
+    enabled: Boolean = true,
+    headlineColor: Color = Color.Unspecified,
+): Unit = Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = modifier
+        .settingsItem(MaterialTheme.colorScheme.settingsItem)
+        .run { onClick?.let { clickable(enabled = enabled, onClick = it) } ?: this }
+        .padding(start = 16.dp, end = if (opensPage) 8.dp else 16.dp),
+) {
+    ItemTexts(
+        headline = headline,
+        supporting = listOfNotNull(supporting?.let(::AnnotatedString)),
+        modifier = Modifier.enabledAlpha(enabled),
+        headlineColor = headlineColor,
+    )
+    if (opensPage) Icon(
+        imageVector = ImageVector.vectorResource(R.drawable.chevron_right_24px),
+        contentDescription = null,
+        modifier = Modifier
+            .size(32.dp)
+            .enabledAlpha(enabled),
+    )
+}
+
+/** A [SettingsGroup] item choosing one of a few [options] with segmented buttons at its end */
+@Composable
+public fun <T> SegmentedSettingsItem(
+    headline: String,
+    options: List<T>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    label: (T) -> String,
+    modifier: Modifier = Modifier,
+): Unit = Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = modifier
+        .settingsItem(MaterialTheme.colorScheme.settingsItem)
+        .padding(horizontal = 16.dp),
+) {
+    ItemTexts(headline, emptyList(), Modifier.padding(end = 16.dp))
+    SingleChoiceSegmentedButtonRow {
+        options.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                // The check mark would widen the selected segment, its fill already tells it apart
+                icon = {},
+                label = { Text(label(option)) },
+            )
+        }
+    }
+}
+
 /** A [SettingsGroup] item of a single choice list, the whole item selects it */
 @Composable
 public fun RadioSettingsItem(
@@ -216,6 +286,7 @@ private fun RowScope.ItemTexts(
     singleLineSupporting: Boolean = false,
     headlineModifier: Modifier = Modifier,
     headlineDecoration: TextDecoration? = null,
+    headlineColor: Color = Color.Unspecified,
 ) = Column(
     modifier = modifier
         .weight(1f)
@@ -224,6 +295,7 @@ private fun RowScope.ItemTexts(
     Text(
         text = headline,
         style = MaterialTheme.typography.bodyLarge,
+        color = headlineColor,
         textDecoration = headlineDecoration,
         modifier = headlineModifier,
     )
@@ -302,6 +374,14 @@ internal fun SettingsGroupPreview() {
                 onClick = {},
             )
             RadioSettingsItem(headline = "Choice", selected = true, onClick = {})
+            TextSettingsItem(headline = "Page", supporting = "Current value", onClick = {}, opensPage = true)
+            SegmentedSettingsItem(
+                headline = "Segments",
+                options = listOf("A", "B", "C"),
+                selected = "B",
+                onSelect = {},
+                label = { it },
+            )
             SettingsItem { Text("Anything else") }
         }
     }

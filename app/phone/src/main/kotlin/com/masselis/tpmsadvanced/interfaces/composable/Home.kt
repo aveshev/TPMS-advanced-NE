@@ -50,6 +50,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -141,6 +142,22 @@ internal fun VehicleHome(
                     }
                     composable("${Path.Settings(vehicleComponent.vehicle.uuid)}") {
                         Settings(
+                            openPressure = {
+                                navController.navigate("${Path.PressureSettings(vehicleComponent.vehicle.uuid)}")
+                            },
+                            openTemperature = {
+                                navController.navigate("${Path.TemperatureSettings(vehicleComponent.vehicle.uuid)}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.PressureSettings(vehicleComponent.vehicle.uuid)}") {
+                        PressureSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.TemperatureSettings(vehicleComponent.vehicle.uuid)}") {
+                        TemperatureSettings(
                             modifier = modifier
                         )
                     }
@@ -298,7 +315,14 @@ private fun TopAppBar(
         title = {
             when (currentPath) {
                 is Path.Home -> CurrentVehicleDropdown(Modifier.testTag(carListDropdownMenu))
-                is Path.Settings -> Text(text = "Vehicle settings")
+                is Path.Settings -> Text(
+                    text = LocalVehicleComponent.current.vehicleStateFlow.collectAsState().value.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                is Path.PressureSettings -> Text(text = "Pressure")
+                is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
                 is Path.PersistentScanning -> Text(text = "Persistent scanning")
@@ -314,6 +338,8 @@ private fun TopAppBar(
         navigationIcon = {
             when (currentPath) {
                 is Path.Settings,
+                is Path.PressureSettings,
+                is Path.TemperatureSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,
@@ -389,6 +415,8 @@ private fun TopAppBar(
                 }
 
                 is Path.Settings,
+                is Path.PressureSettings,
+                is Path.TemperatureSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,

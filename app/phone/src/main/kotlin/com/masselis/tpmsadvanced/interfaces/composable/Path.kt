@@ -15,6 +15,16 @@ internal sealed interface Path {
         override fun toString(): String = "vehicle/$vehicleUUID/settings"
     }
 
+    @JvmInline
+    value class PressureSettings(val vehicleUUID: UUID) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/settings_pressure"
+    }
+
+    @JvmInline
+    value class TemperatureSettings(val vehicleUUID: UUID) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/settings_temperature"
+    }
+
     data object AppSettings : Path {
         override fun toString(): String = "app_settings"
     }
@@ -81,6 +91,8 @@ internal sealed interface Path {
                     when (screen) {
                         "home" -> Home(uuid)
                         "settings" -> Settings(uuid)
+                        "settings_pressure" -> PressureSettings(uuid)
+                        "settings_temperature" -> TemperatureSettings(uuid)
                         "binding_method" -> BindingMethod(uuid)
                         "qrcode" -> QrCode(uuid)
                         "unlocated" -> Unlocated(uuid)

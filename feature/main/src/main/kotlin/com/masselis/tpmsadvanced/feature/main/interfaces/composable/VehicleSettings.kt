@@ -1,232 +1,164 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Switch
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import com.masselis.tpmsadvanced.core.common.Fraction
-import com.masselis.tpmsadvanced.core.ui.Separator
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.masselis.tpmsadvanced.core.ui.SettingsGroup
+import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
+import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
-import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
-import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.psi
-import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
-import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow.State
+import kotlinx.coroutines.delay
 
+/**
+ * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
+ * [openPressure] and [openTemperature].
+ */
+@Suppress("LongMethod", "MaxLineLength")
 @Composable
 public fun VehicleSettings(
+    openPressure: () -> Unit,
+    openTemperature: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundSettings: @Composable (VehicleComponent) -> Unit = backgroundSettingsPlaceholder,
     component: VehicleComponent = LocalVehicleComponent.current,
 ) {
-    VehicleSettings(
-        modifier,
-        backgroundSettings,
-        component,
-        component.viewModel(component.key()) { it.VehicleSettingsViewModel() },
-    )
-}
-
-@Composable
-internal fun VehicleSettings(
-    modifier: Modifier = Modifier,
-    backgroundSettings: @Composable (VehicleComponent) -> Unit = backgroundSettingsPlaceholder,
-    component: VehicleComponent = LocalVehicleComponent.current,
-    viewModel: VehicleSettingsViewModel = component.viewModel(component.key()) { it.VehicleSettingsViewModel() },
-) {
-    val highTemp by viewModel.highTemp.collectAsState()
-    val normalTemp by viewModel.normalTemp.collectAsState()
+    val viewModel: VehicleSettingsViewModel =
+        component.viewModel(component.key()) { it.VehicleSettingsViewModel() }
+    val vehicle by viewModel.vehicle.collectAsState()
+    val pressureUnit by viewModel.pressureUnit.collectAsState()
+    val low by viewModel.lowPressure.collectAsState()
+    val high by viewModel.highPressure.collectAsState()
+    val rearLow by viewModel.rearLowPressure.collectAsState()
+    val rearHigh by viewModel.rearHighPressure.collectAsState()
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
     val lowTemp by viewModel.lowTemp.collectAsState()
-    val tempUnit by viewModel.temperatureUnit.collectAsState()
-    val hasFrontRearAxles = component.vehicle.kind.hasFrontRearAxles
+    val normalTemp by viewModel.normalTemp.collectAsState()
+    val highTemp by viewModel.highTemp.collectAsState()
+    var showRename by rememberSaveable { mutableStateOf(false) }
     Column(modifier) {
-        with(viewModel) {
-            val pressureUnit by pressureUnit.collectAsState()
-            val rearLowPressureValue = if (hasFrontRearAxles) rearLowPressure.collectAsState().value else null
-            PressureRange(
-                lowPressure.collectAsState().value,
-                highPressure.collectAsState().value,
-                pressureUnit,
-                { lowPressure.value = it },
-                { highPressure.value = it },
-                title = if (rearLowPressureValue != null)
-                    "Front tyres expected pressure range:"
-                else
-                    "Expected pressure range:",
+        SettingsGroup(Modifier.padding(top = 16.dp)) {
+            TextSettingsItem(
+                headline = "Name",
+                supporting = vehicle.name,
+                onClick = { showRename = true },
             )
-            if (hasFrontRearAxles) {
-                val rearHighPressureValue = rearHighPressure.collectAsState().value
-                Separator()
-                RearPressureToggle(
-                    checked = rearLowPressureValue != null,
-                    onCheckedChange = { setRearOverrideEnabled(it) },
-                )
-                if (rearLowPressureValue != null && rearHighPressureValue != null)
-                    PressureRange(
-                        rearLowPressureValue,
-                        rearHighPressureValue,
-                        pressureUnit,
-                        { rearLowPressure.value = it },
-                        { rearHighPressure.value = it },
-                        title = "Rear tyres expected pressure range:",
-                    )
-            }
         }
-        Separator()
-        Text("Temperature", fontWeight = FontWeight.Medium)
-        MinTemp(lowTemp, normalTemp, tempUnit, { viewModel.lowTemp.value = it })
-        NormTemp(lowTemp, normalTemp, highTemp, tempUnit, { viewModel.normalTemp.value = it })
-        MaxTemp(highTemp, normalTemp, tempUnit, { viewModel.highTemp.value = it })
+        SettingsSectionHeader("Alerts")
+        SettingsGroup {
+            fun ClosedFloatingPointRange<Pressure>.summary() =
+                "${start.numberString(pressureUnit)} – ${endInclusive.numberString(pressureUnit)} ${pressureUnit.symbol()}"
+            TextSettingsItem(
+                headline = "Pressure",
+                supporting = rearLow
+                    ?.let { start -> rearHigh?.let { start..it } }
+                    ?.let { "Front ${(low..high).summary()} · Rear ${it.summary()}" }
+                    ?: (low..high).summary(),
+                onClick = openPressure,
+                opensPage = true,
+            )
+            TextSettingsItem(
+                headline = "Temperature",
+                supporting = "Cold ${lowTemp.numberString(temperatureUnit)} · " +
+                    "Normal ${normalTemp.numberString(temperatureUnit)} · " +
+                    "Hot ${highTemp.numberString(temperatureUnit)} ${temperatureUnit.symbol()}",
+                onClick = openTemperature,
+                opensPage = true,
+            )
+        }
         if (backgroundSettings !== backgroundSettingsPlaceholder) {
-            Separator()
+            SettingsSectionHeader("Background")
             backgroundSettings(component)
         }
-        Separator()
-        ClearBoundSensorsButton(Modifier.fillMaxWidth())
-        Separator()
-        DeleteVehicleButton(Modifier.fillMaxWidth())
+        SettingsSectionHeader("Sensors")
+        SettingsGroup {
+            ClearBoundSensorsButton()
+        }
+        SettingsGroup(Modifier.padding(top = 24.dp)) {
+            DeleteVehicleButton()
+        }
     }
+    if (showRename) RenameVehicleDialog(
+        name = vehicle.name,
+        onRename = { viewModel.rename(it); showRename = false },
+        onDismissRequest = { showRename = false },
+    )
 }
 
 @Composable
-private fun PressureRange(
-    lowPressure: Pressure,
-    highPressure: Pressure,
-    unit: PressureUnit,
-    onLowPressure: (Pressure) -> Unit,
-    onHighPressure: (Pressure) -> Unit,
+private fun RenameVehicleDialog(
+    name: String,
+    onRename: (String) -> Unit,
+    onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "Expected pressure range:",
 ) {
-    var showLowPressureDialog by remember { mutableStateOf(false) }
-    PressureRangeField(
-        minMaxRange = 0f.psi..150f.psi,
-        values = lowPressure..highPressure,
-        onValue = {
-            onLowPressure(it.start)
-            onHighPressure(it.endInclusive)
+    // Starts fully selected so typing replaces the name
+    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(name, TextRange(0, name.length)))
+    }
+    val canRename = text.text.isNotBlank()
+    val focusRequester = remember { FocusRequester() }
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("Vehicle name") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { if (canRename) onRename(text.text) }),
+                modifier = Modifier.focusRequester(focusRequester),
+            )
         },
-        openInfo = { showLowPressureDialog = true },
-        unit = unit,
+        confirmButton = {
+            TextButton(onClick = { onRename(text.text) }, enabled = canRename) { Text("Rename") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+        },
         modifier = modifier,
-        title = title,
     )
-    if (showLowPressureDialog)
-        PressureInfo(
-            pressureRange = lowPressure..highPressure,
-            unit = unit,
-            onDismissRequest = { showLowPressureDialog = false }
-        )
-}
-
-@Composable
-private fun RearPressureToggle(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = "Separate rear tyres pressure range",
-            modifier = Modifier.weight(1f)
-        )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    LaunchedEffect(Unit) {
+        // Same delay as the add vehicle dialog: the dialog's window must be shown to take the focus
+        delay(200)
+        focusRequester.requestFocus()
     }
 }
 
+@Preview
 @Composable
-private fun MinTemp(
-    lowTemp: Temperature,
-    normalTemp: Temperature,
-    unit: TemperatureUnit,
-    onLowTemp: (Temperature) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var showLowTempDialog by remember { mutableStateOf(false) }
-    TemperatureField(
-        label = "Cold",
-        openInfo = { showLowTempDialog = true },
-        value = lowTemp,
-        unit = unit,
-        onValue = onLowTemp,
-        minMaxRange = 5f.celsius..normalTemp,
-        modifier = modifier
-    )
-    if (showLowTempDialog) TemperatureInfo(
-        text = "When the temperature is close to %s, the tyre is colored in blue",
-        state = State.Normal.BlueToGreen(Fraction(0f)),
-        temperature = lowTemp,
-        unit = unit,
-    ) { showLowTempDialog = false }
-}
-
-@Composable
-private fun NormTemp(
-    lowTemp: Temperature,
-    normalTemp: Temperature,
-    highTemp: Temperature,
-    unit: TemperatureUnit,
-    onNormalTemp: (Temperature) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var showNormalTempDialog by remember { mutableStateOf(false) }
-    TemperatureField(
-        label = "Normal",
-        openInfo = { showNormalTempDialog = true },
-        value = normalTemp,
-        unit = unit,
-        onValue = onNormalTemp,
-        minMaxRange = lowTemp..highTemp,
-        modifier = modifier
-    )
-    if (showNormalTempDialog) TemperatureInfo(
-        text = "When the temperature is close to %s, the tyre is colored in green",
-        state = State.Normal.BlueToGreen(Fraction(1f)),
-        temperature = normalTemp,
-        unit = unit,
-    ) { showNormalTempDialog = false }
-}
-
-@Composable
-private fun MaxTemp(
-    highTemp: Temperature,
-    normalTemp: Temperature,
-    unit: TemperatureUnit,
-    onHighTemp: (Temperature) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var showHighTempDialog by remember { mutableStateOf(false) }
-    TemperatureField(
-        label = "Hot",
-        openInfo = { showHighTempDialog = true },
-        value = highTemp,
-        unit = unit,
-        onValue = onHighTemp,
-        minMaxRange = normalTemp..(150f.celsius),
-        modifier = modifier
-    )
-    if (showHighTempDialog) TemperatureInfo(
-        text = "When the temperature is equals or superior to %s, the tyre starts to blink in red to alert you",
-        state = State.Alerting,
-        temperature = highTemp,
-        unit = unit,
-    ) { showHighTempDialog = false }
+internal fun RenameVehicleDialogPreview() {
+    RenameVehicleDialog(name = "My car", onRename = {}, onDismissRequest = {})
 }
 
 private val backgroundSettingsPlaceholder: @Composable (VehicleComponent) -> Unit = {}

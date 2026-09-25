@@ -47,6 +47,10 @@ public class VehicleDatabase internal constructor(database: Database) {
         queries.setAsFavourite(isCurrent, uuid)
     }
 
+    public suspend fun updateName(name: String, uuid: UUID): Unit = withContext(IO) {
+        queries.updateName(name, uuid)
+    }
+
     public fun selectLowPressure(vehicleId: UUID): Pressure =
         queries.selectLowPressureByVehicleId(vehicleId).executeAsOne()
 

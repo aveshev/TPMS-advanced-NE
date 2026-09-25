@@ -9,7 +9,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.masselis.tpmsadvanced.BuildConfig
+import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
+import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateScanConditions
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ExceptedWifis
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningDetails
@@ -19,6 +22,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Suspen
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DemoModeSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
+import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettings
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
 
@@ -35,6 +39,7 @@ internal fun AppSettings(
         openTimeSinceUpdate = openTimeSinceUpdate,
         modifier = Modifier.testTag(tyreDisplay),
     )
+    UnitsSettings(Modifier.padding(top = 16.dp))
     SettingsSectionHeader("Background scanning")
     PersistentScanningSettings(
         openPersistentScanning = openPersistentScanning,
@@ -44,6 +49,10 @@ internal fun AppSettings(
     )
     SettingsSectionHeader("Demo")
     DemoModeSettings()
+    SettingsSectionHeader("About")
+    SettingsGroup {
+        TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
+    }
 }
 
 @Composable
@@ -91,7 +100,7 @@ internal fun ExceptedWifisSettings(
 }
 
 @Composable
-private fun SettingsPage(
+internal fun SettingsPage(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) = Column(
