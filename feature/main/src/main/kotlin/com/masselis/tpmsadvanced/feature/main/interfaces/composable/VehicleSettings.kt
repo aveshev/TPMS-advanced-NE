@@ -101,8 +101,6 @@ internal fun VehicleSettings(
         ClearBoundSensorsButton(Modifier.fillMaxWidth())
         Separator()
         DeleteVehicleButton(Modifier.fillMaxWidth())
-        Separator()
-        DemoModeSwitch(Modifier.fillMaxWidth())
     }
 }
 
