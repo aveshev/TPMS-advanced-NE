@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed (monochrome) layer of the adaptive launcher icon, Android 13+ tints it with the wallpaper
+  colours. It's the tyre pressure warning glyph of ic_launcher_adaptive_fore without its long shadow,
+  drawn in the foreground's own pixel grid (432px at xxxhdpi) so both line up exactly.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <!-- The tyre's outline, open at the top between the stems and cut flat by the tread -->
+    <group>
+        <clip-path android:pathData="M0,0 H169.5 V150 H262.5 V0 H432 V290 H0 Z" />
+        <path
+            android:fillColor="#FF000000"
+            android:fillType="evenOdd"
+            android:pathData="M123,207 A93,93 0 1,0 309,207 A93,93 0 1,0 123,207 Z M141,207 A75,75 0 1,1 291,207 A75,75 0 1,1 141,207 Z" />
+    </group>
+    <!-- Stems, exclamation mark, tread and its four blocks -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M151,123 H169.5 V150 H151 Z M262.5,123 H281 V150 H262.5 Z M206.75,151 H225.25 V207 H206.75 Z M206.75,226 H225.25 V244 H206.75 Z M151,272 H281 V290 H151 Z M151,290 H169.5 V309.5 H151 Z M188,290 H206.5 V309.5 H188 Z M225.5,290 H244 V309.5 H225.5 Z M262.5,290 H281 V309.5 H262.5 Z" />
+</vector>
