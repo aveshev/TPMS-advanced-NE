@@ -205,6 +205,7 @@ private fun elapsedLabel(timestamp: Double, now: Double): String {
         totalMinutes == 0L -> "<1 min"
         totalMinutes < HOUR_TIER_START_MINUTES -> "$totalMinutes min"
         totalHours < DAY_TIER_START_HOURS -> "$totalHours hours"
+        totalHours / HOURS_PER_DAY > MAX_DAYS -> "$MAX_DAYS+ days"
         else -> "${totalHours / HOURS_PER_DAY} days"
     }
 }
@@ -235,6 +236,9 @@ private const val MINUTES_PER_HOUR = 60L
 private const val HOURS_PER_DAY = 24L
 private const val HOUR_TIER_START_MINUTES = 120L
 private const val DAY_TIER_START_HOURS = 48L
+
+// Keeps the label within the width `Vehicle` reserves for readouts
+private const val MAX_DAYS = 99L
 
 
 @Preview

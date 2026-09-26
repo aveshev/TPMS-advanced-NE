@@ -2,38 +2,48 @@
 
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.content.Intent.ACTION_VIEW
-import android.net.Uri
-import android.widget.Toast
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.constraintlayout.compose.ConstrainScope
+import androidx.constraintlayout.compose.ConstrainedLayoutReference
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.ConstraintLayoutBaseScope.HorizontalAnchor
+import androidx.constraintlayout.compose.ConstraintLayoutScope
 import androidx.constraintlayout.compose.Dimension
 import com.masselis.tpmsadvanced.feature.main.R
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 import com.masselis.tpmsadvanced.core.ui.KeepScreenOn
+import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.KILO_PASCAL
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.PSI
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.FRONT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.REAR
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
@@ -44,6 +54,51 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
+
+/*
+ * Every vehicle image is drawn on a 208:462 canvas, centered and taking `imageHeight` (0..1) of the
+ * available height. Tyres are placed and sized as fractions of that image so they stay on the
+ * drawn wheels whatever the screen size or orientation. Texts and buttons keep a fixed size to
+ * remain readable.
+ */
+private const val IMAGE_RATIO = 208f / 462f
+
+/*
+ * The image is as tall as possible, up to [MAX_IMAGE_HEIGHT] of the height, while leaving room on
+ * each side for the widest readout text, its [READOUT_GAP] and a [SCREEN_MARGIN], so readouts are
+ * never cut by the screen edges. On narrow screens (portrait) the width decides, down to
+ * [MIN_IMAGE_HEIGHT].
+ */
+private const val MIN_IMAGE_HEIGHT = .45f
+private const val MAX_IMAGE_HEIGHT = .9f
+
+/*
+ * The image never covers more than this share of the available area. Vehicles with readouts on
+ * both sides are limited by the width first on phones; this keeps a vehicle whose readouts are all
+ * on one side (more width left for the image) from growing much bigger than the others.
+ */
+private const val MAX_IMAGE_AREA = .5f
+private val READOUT_GAP = 8.dp
+private val SCREEN_MARGIN = 4.dp
+
+/**
+ * Widest pressure line of a readout in this unit, up to the 150 psi settings limit, see [TyreStat]
+ * and [com.masselis.tpmsadvanced.data.vehicle.model.Pressure.string]
+ */
+private val PressureUnit.widestReadout: String
+    get() = when (this) {
+        KILO_PASCAL -> "1034 kpa*"
+        BAR -> "8.88 bar*"
+        PSI -> "88.8 psi*"
+    }
+
+/** Widest plausible detail lines of a readout, see [TyreStat] */
+private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
+
+/** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
+private const val TYRE_HEIGHT = .165f
 
 @Composable
 public fun CurrentVehicle(
@@ -64,23 +119,137 @@ public fun Vehicle(
     modifier: Modifier = Modifier,
 ) {
     KeepScreenOn()
-    when (component.vehicle.kind) {
-        Kind.CAR -> Car(snackbarHostState, modifier)
-        Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(snackbarHostState, modifier)
-        Kind.MOTORCYCLE -> Motorcycle(snackbarHostState, modifier)
-        Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(snackbarHostState, modifier)
-        Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(snackbarHostState, modifier)
+    val pressureUnit by component
+        .viewModel(component.key()) { it.VehicleSettingsViewModel() }
+        .pressureUnit
+        .collectAsState()
+    val readoutWidth = rememberWidestReadoutWidth(pressureUnit) + READOUT_GAP
+    val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
+    BoxWithConstraints(modifier) {
+        val imageHeight = maxWidth
+            .minus(readoutWidth * readoutSides.size)
+            .minus(SCREEN_MARGIN * 2)
+            .div(maxHeight * IMAGE_RATIO)
+            // (imageHeight * maxHeight)² * IMAGE_RATIO <= MAX_IMAGE_AREA * maxWidth * maxHeight
+            .coerceAtMost(sqrt(MAX_IMAGE_AREA * maxWidth.value / (IMAGE_RATIO * maxHeight.value)))
+            .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
+        // Centers the image and its readouts together when readouts are only on one side
+        val fill = Modifier
+            .fillMaxSize()
+            .offset(
+                x = listOfNotNull(
+                    readoutWidth.takeIf { LEFT in readoutSides },
+                    readoutWidth.takeIf { RIGHT in readoutSides }?.unaryMinus(),
+                ).fold(0.dp, Dp::plus) / 2
+            )
+        when (component.vehicle.kind) {
+            Kind.CAR -> Car(imageHeight, snackbarHostState, fill)
+            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, fill)
+            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, fill)
+            Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, fill)
+            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, fill)
+        }
+    }
+}
+
+/** Side of the image the readout of this location sits on, see the layouts below */
+private val Location.readoutSide: SensorLocation.Side
+    get() = when (this) {
+        is Location.Axle -> RIGHT
+        is Location.Wheel -> location.side
+        is Location.Side -> side
+    }
+
+/** Width of the widest line a [TyreStat] can show, with the current font and font scale */
+@Composable
+private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit): Dp {
+    val measurer = rememberTextMeasurer()
+    val pressureStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
+    val density = LocalDensity.current
+    return remember(measurer, pressureStyle, density, pressureUnit) {
+        listOf(measurer.measure(pressureUnit.widestReadout, pressureStyle))
+            .plus(WIDEST_DETAILS.map { measurer.measure(it, pressureStyle.copy(fontSize = 16.sp)) })
+            .maxOf { it.size.width }
+            .let { with(density) { it.toDp() } }
     }
 }
 
 @Composable
+private fun ConstraintLayoutScope.VehicleImage(
+    ref: ConstrainedLayoutReference,
+    @DrawableRes id: Int,
+    contentDescription: String,
+    imageHeight: Float,
+) {
+    Image(
+        bitmap = ImageBitmap.imageResource(id = id),
+        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
+        contentDescription = contentDescription,
+        modifier = Modifier
+            .aspectRatio(IMAGE_RATIO)
+            .constrainAs(ref) {
+                centerTo(parent)
+                height = Dimension.percent(imageHeight)
+            }
+    )
+}
+
+/**
+ * Invisible box centered like the image and spanning [span] of its width, its edges anchor what
+ * sits at `(1 - span) / 2` and `(1 + span) / 2` of the image width: wheel centers or the outline.
+ */
+@Composable
+private fun ConstraintLayoutScope.ImageSpan(
+    ref: ConstrainedLayoutReference,
+    span: Float,
+    imageHeight: Float,
+) {
+    Box(
+        Modifier
+            .aspectRatio(span * IMAGE_RATIO)
+            .constrainAs(ref) {
+                centerTo(parent)
+                height = Dimension.percent(imageHeight)
+            }
+    )
+}
+
+/** Anchor at [y] (0..1) of the image height */
+private fun ConstraintLayoutScope.imageGuideline(y: Float, imageHeight: Float): HorizontalAnchor =
+    createGuidelineFromTop((1f - imageHeight) / 2f + imageHeight * y)
+
+/**
+ * Takes the whole height it's given and places its content centered on [y] (0..1) of that height,
+ * pushed back inside when it would overflow. Given the image's height, it keeps a readout next to
+ * its tyre without ever going above or below the image.
+ */
+private fun Modifier.verticallyCenteredOn(y: Float) = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minHeight = 0))
+    layout(placeable.width, constraints.maxHeight) {
+        placeable.place(
+            x = 0,
+            y = (constraints.maxHeight * y - placeable.height / 2f)
+                .roundToInt()
+                .coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0))
+        )
+    }
+}
+
+private fun ConstrainScope.tyreSize(imageHeight: Float) {
+    height = Dimension.percent(imageHeight * TYRE_HEIGHT)
+    width = Dimension.ratio("15:40")
+}
+
+@Composable
 private fun Car(
+    imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
     ConstraintLayout(modifier = modifier) {
-        val (carConst,
-            tyreBox,
+        val (
+            vehicleImage,
+            track,
             frontLeft,
             frontLeftStats,
             frontLeftBinding,
@@ -94,44 +263,32 @@ private fun Car(
             rearRightStats,
             rearRightBinding
         ) = createRefs()
-        Image(
-            bitmap = ImageBitmap.imageResource(id = R.drawable.schema_car_top_view),
-            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
-            contentDescription = "Image of your car",
-            modifier = Modifier
-                .aspectRatio(208f / 462f)
-                .constrainAs(carConst) {
-                    centerTo(parent)
-                    height = Dimension.percent(.7f)
-                }
-        )
-        Box(
-            Modifier
-                .aspectRatio(235f / 462f)
-                .constrainAs(tyreBox) {
-                    centerTo(parent)
-                    height = Dimension.percent(.55f)
-                }
-        )
+        VehicleImage(vehicleImage, R.drawable.schema_car_top_view, "Image of your car", imageHeight)
+        ImageSpan(track, .74f, imageHeight)
+        val frontY = .217f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .783f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(frontLeft) {
-                    top.linkTo(tyreBox.top)
-                    start.linkTo(tyreBox.start)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(track.start)
+                    centerAround(frontAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
-                    top.linkTo(frontLeft.top)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(frontLeft.start, 8.dp)
                     // If not, the word "bar" for "1,50 bar" is not displayed 🤷
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -146,18 +303,19 @@ private fun Car(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(frontRight) {
-                    top.linkTo(tyreBox.top)
-                    end.linkTo(tyreBox.end)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(track.end)
+                    centerAround(frontAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightStats) {
-                    top.linkTo(frontRight.top)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(frontRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -172,19 +330,20 @@ private fun Car(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearLeft) {
-                    bottom.linkTo(tyreBox.bottom)
-                    start.linkTo(tyreBox.start)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(track.start)
+                    centerAround(rearAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftStats) {
-                    bottom.linkTo(rearLeft.bottom)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(rearLeft.start, 8.dp)
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -199,18 +358,19 @@ private fun Car(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearRight) {
-                    bottom.linkTo(tyreBox.bottom)
-                    end.linkTo(tyreBox.end)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(track.end)
+                    centerAround(rearAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightStats) {
-                    bottom.linkTo(rearRight.bottom)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(rearRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -225,13 +385,14 @@ private fun Car(
 
 @Composable
 private fun SingleAxleTrailer(
+    imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
-            askHelp,
-            tyreBox,
+            vehicleImage,
+            track,
             tyreLeft,
             leftStats,
             leftBinding,
@@ -239,41 +400,34 @@ private fun SingleAxleTrailer(
             rightStats,
             rightBinding,
         ) = createRefs()
-        BackgroundImageAskHelp(
-            Modifier.constrainAs(askHelp) {
-                end.linkTo(parent.end, 8.dp)
-                bottom.linkTo(parent.bottom, 4.dp)
-            }
+        VehicleImage(
+            vehicleImage,
+            R.drawable.schema_single_axle_trailer_top_view,
+            "Image of your trailer",
+            imageHeight
         )
-        Box(
-            Modifier
-                .aspectRatio(235f / 462f)
-                .constrainAs(tyreBox) {
-                    centerTo(parent)
-                    height = Dimension.percent(.55f)
-                }
-        )
+        ImageSpan(track, .86f, imageHeight)
+        val axleY = .686f
+        val axle = imageGuideline(axleY, imageHeight)
         with(Location.Side(LEFT)) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
-                modifier = Modifier
-                    .constrainAs(tyreLeft) {
-                        start.linkTo(tyreBox.start)
-                        top.linkTo(tyreBox.top)
-                        bottom.linkTo(tyreBox.bottom)
-                        width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
-                    }
+                modifier = Modifier.constrainAs(tyreLeft) {
+                    centerAround(track.start)
+                    centerAround(axle)
+                    tyreSize(imageHeight)
+                }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(leftStats) {
-                    top.linkTo(tyreLeft.top)
-                    bottom.linkTo(tyreLeft.bottom)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(tyreLeft.start, 8.dp)
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(axleY)
             )
             BindSensorButton(
                 location = this,
@@ -288,31 +442,28 @@ private fun SingleAxleTrailer(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
-                modifier = Modifier
-                    .constrainAs(tyreRight) {
-                        end.linkTo(tyreBox.end)
-                        top.linkTo(tyreBox.top)
-                        bottom.linkTo(tyreBox.bottom)
-                        width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
-                    }
+                modifier = Modifier.constrainAs(tyreRight) {
+                    centerAround(track.end)
+                    centerAround(axle)
+                    tyreSize(imageHeight)
+                }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rightStats) {
-                    top.linkTo(tyreRight.top)
-                    bottom.linkTo(tyreRight.bottom)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(tyreRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(axleY)
             )
             BindSensorButton(
                 location = this,
-                modifier = Modifier
-                    .constrainAs(rightBinding) {
-                        top.linkTo(tyreRight.top)
-                        bottom.linkTo(tyreRight.bottom)
-                        end.linkTo(tyreRight.start)
-                    }
+                modifier = Modifier.constrainAs(rightBinding) {
+                    top.linkTo(tyreRight.top)
+                    bottom.linkTo(tyreRight.bottom)
+                    end.linkTo(tyreRight.start)
+                }
             )
         }
     }
@@ -320,13 +471,13 @@ private fun SingleAxleTrailer(
 
 @Composable
 private fun Motorcycle(
+    imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
             vehicleImage,
-            tyreBox,
             tyreFront,
             frontStats,
             frontBinding,
@@ -334,45 +485,34 @@ private fun Motorcycle(
             rearStats,
             rearBinding,
         ) = createRefs()
-        Image(
-            bitmap = ImageBitmap.imageResource(id = R.drawable.schema_motorcycle_top_view),
-            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
-            contentDescription = "Image of your motorcycle",
-            modifier = Modifier
-                .aspectRatio(208f / 462f)
-                .constrainAs(vehicleImage) {
-                    centerTo(parent)
-                    height = Dimension.percent(.7f)
-                }
+        VehicleImage(
+            vehicleImage,
+            R.drawable.schema_motorcycle_top_view,
+            "Image of your motorcycle",
+            imageHeight
         )
-        Box(
-            Modifier
-                .aspectRatio(235f / 462f)
-                .constrainAs(tyreBox) {
-                    centerHorizontallyTo(parent)
-                    centerVerticallyTo(parent, 0.4f)
-                    height = Dimension.percent(.65f)
-                }
-        )
+        val frontY = .0865f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .805f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Axle(FRONT)) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
-                modifier = Modifier
-                    .constrainAs(tyreFront) {
-                        start.linkTo(tyreBox.start)
-                        end.linkTo(tyreBox.end)
-                        top.linkTo(tyreBox.top)
-                        width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
-                    }
+                modifier = Modifier.constrainAs(tyreFront) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(frontAxle)
+                    tyreSize(imageHeight)
+                }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontStats) {
-                    centerHorizontallyTo(tyreFront)
-                    bottom.linkTo(vehicleImage.top, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(vehicleImage.end, 8.dp)
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -387,30 +527,28 @@ private fun Motorcycle(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
-                modifier = Modifier
-                    .constrainAs(tyreRear) {
-                        start.linkTo(tyreBox.start)
-                        end.linkTo(tyreBox.end)
-                        bottom.linkTo(tyreBox.bottom)
-                        width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
-                    }
+                modifier = Modifier.constrainAs(tyreRear) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(rearAxle)
+                    tyreSize(imageHeight)
+                }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearStats) {
-                    centerHorizontallyTo(tyreRear)
-                    top.linkTo(vehicleImage.bottom, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(vehicleImage.end, 8.dp)
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
-                modifier = Modifier
-                    .constrainAs(rearBinding) {
-                        top.linkTo(tyreRear.top)
-                        bottom.linkTo(tyreRear.bottom)
-                        end.linkTo(tyreRear.start)
-                    }
+                modifier = Modifier.constrainAs(rearBinding) {
+                    top.linkTo(tyreRear.top)
+                    bottom.linkTo(tyreRear.bottom)
+                    end.linkTo(tyreRear.start)
+                }
             )
         }
     }
@@ -418,13 +556,15 @@ private fun Motorcycle(
 
 @Composable
 private fun TadpoleThreadWheeler(
+    imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
-            askHelp,
-            tyreBox,
+            vehicleImage,
+            frontTrack,
+            rearOutline,
             frontLeft,
             frontLeftStats,
             frontLeftBinding,
@@ -435,45 +575,45 @@ private fun TadpoleThreadWheeler(
             rearStats,
             rearBinding,
         ) = createRefs()
-        BackgroundImageAskHelp(
-            Modifier.constrainAs(askHelp) {
-                end.linkTo(parent.end, 8.dp)
-                bottom.linkTo(parent.bottom, 4.dp)
-            }
+        VehicleImage(
+            vehicleImage,
+            R.drawable.schema_tadpole_three_wheeler_top_view,
+            "Image of your three-wheeler",
+            imageHeight
         )
-        Box(
-            Modifier
-                .aspectRatio(235f / 462f)
-                .constrainAs(tyreBox) {
-                    centerTo(parent)
-                    height = Dimension.percent(.55f)
-                }
-        )
+        ImageSpan(frontTrack, .68f, imageHeight)
+        // Outline around the rear wheel (the exhaust on the right), the rear readout sits next to it
+        ImageSpan(rearOutline, .76f, imageHeight)
+        val frontY = .1005f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .845f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(frontLeft) {
-                    top.linkTo(tyreBox.top)
-                    start.linkTo(tyreBox.start)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(frontTrack.start)
+                    centerAround(frontAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
-                    top.linkTo(frontLeft.top)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(frontLeft.start, 8.dp)
                     // If not, the word "bar" for "1,50 bar" is not displayed 🤷
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftBinding) {
-                    top.linkTo(frontLeft.top)
-                    start.linkTo(frontLeft.end)
+                    top.linkTo(frontLeft.bottom)
+                    centerHorizontallyTo(frontLeft)
                 }
             )
         }
@@ -482,24 +622,25 @@ private fun TadpoleThreadWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(frontRight) {
-                    top.linkTo(tyreBox.top)
-                    end.linkTo(tyreBox.end)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(frontTrack.end)
+                    centerAround(frontAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightStats) {
-                    top.linkTo(frontRight.top)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(frontRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightBinding) {
-                    top.linkTo(frontRight.top)
-                    end.linkTo(frontRight.start)
+                    top.linkTo(frontRight.bottom)
+                    centerHorizontallyTo(frontRight)
                 }
             )
         }
@@ -507,31 +648,28 @@ private fun TadpoleThreadWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
-                modifier = Modifier
-                    .constrainAs(tyreRear) {
-                        start.linkTo(tyreBox.start)
-                        end.linkTo(tyreBox.end)
-                        bottom.linkTo(tyreBox.bottom)
-                        width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
-                    }
+                modifier = Modifier.constrainAs(tyreRear) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(rearAxle)
+                    tyreSize(imageHeight)
+                }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearStats) {
-                    top.linkTo(tyreRear.top)
-                    bottom.linkTo(tyreRear.bottom)
-                    start.linkTo(tyreRear.end, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(rearOutline.end, 8.dp)
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
-                modifier = Modifier
-                    .constrainAs(rearBinding) {
-                        top.linkTo(tyreRear.top)
-                        bottom.linkTo(tyreRear.bottom)
-                        end.linkTo(tyreRear.start)
-                    }
+                modifier = Modifier.constrainAs(rearBinding) {
+                    top.linkTo(tyreRear.top)
+                    bottom.linkTo(tyreRear.bottom)
+                    end.linkTo(tyreRear.start)
+                }
             )
         }
     }
@@ -539,13 +677,15 @@ private fun TadpoleThreadWheeler(
 
 @Composable
 private fun DeltaThreeWheeler(
+    imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
-            askHelp,
-            tyreBox,
+            vehicleImage,
+            rearTrack,
+            frontOutline,
             tyreFront,
             frontStats,
             frontBinding,
@@ -556,40 +696,37 @@ private fun DeltaThreeWheeler(
             rearRightStats,
             rearRightBinding
         ) = createRefs()
-        BackgroundImageAskHelp(
-            Modifier.constrainAs(askHelp) {
-                end.linkTo(parent.end, 8.dp)
-                bottom.linkTo(parent.bottom, 4.dp)
-            }
+        VehicleImage(
+            vehicleImage,
+            R.drawable.schema_delta_three_wheeler_top_view,
+            "Image of your three-wheeler",
+            imageHeight
         )
-        Box(
-            Modifier
-                .aspectRatio(235f / 462f)
-                .constrainAs(tyreBox) {
-                    centerTo(parent)
-                    height = Dimension.percent(.55f)
-                }
-        )
+        ImageSpan(rearTrack, .713f, imageHeight)
+        // Outline around the front wheel, the front readout sits next to it
+        ImageSpan(frontOutline, .22f, imageHeight)
+        val frontY = .0865f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .835f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Axle(FRONT)) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
-                modifier = Modifier
-                    .constrainAs(tyreFront) {
-                        start.linkTo(tyreBox.start)
-                        end.linkTo(tyreBox.end)
-                        top.linkTo(tyreBox.top)
-                        width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
-                    }
+                modifier = Modifier.constrainAs(tyreFront) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(frontAxle)
+                    tyreSize(imageHeight)
+                }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontStats) {
-                    top.linkTo(tyreFront.top)
-                    bottom.linkTo(tyreFront.bottom)
-                    start.linkTo(tyreFront.end, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(frontOutline.end, 8.dp)
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -605,25 +742,26 @@ private fun DeltaThreeWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearLeft) {
-                    bottom.linkTo(tyreBox.bottom)
-                    start.linkTo(tyreBox.start)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(rearTrack.start)
+                    centerAround(rearAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftStats) {
-                    bottom.linkTo(rearLeft.bottom)
-                    end.linkTo(rearLeft.start, 8.dp)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    end.linkTo(vehicleImage.start, 8.dp)
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftBinding) {
-                    bottom.linkTo(rearLeft.bottom)
-                    start.linkTo(rearLeft.end)
+                    bottom.linkTo(rearLeft.top)
+                    centerHorizontallyTo(rearLeft)
                 }
             )
         }
@@ -632,79 +770,27 @@ private fun DeltaThreeWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearRight) {
-                    bottom.linkTo(tyreBox.bottom)
-                    end.linkTo(tyreBox.end)
-                    width = Dimension.value(30.dp)
-                    height = Dimension.value(100.dp)
+                    centerAround(rearTrack.end)
+                    centerAround(rearAxle)
+                    tyreSize(imageHeight)
                 }
             )
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightStats) {
-                    bottom.linkTo(rearRight.bottom)
-                    start.linkTo(rearRight.end, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(vehicleImage.end, 8.dp)
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightBinding) {
-                    bottom.linkTo(rearRight.bottom)
-                    end.linkTo(rearRight.start)
+                    bottom.linkTo(rearRight.top)
+                    centerHorizontallyTo(rearRight)
                 }
             )
         }
-    }
-}
-
-@Composable
-private fun BackgroundImageAskHelp(
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-    ) {
-        Text(
-            text = "This app is built by its community,\nThis screen needs a background image",
-            fontWeight = FontWeight.Light,
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
-            textAlign = TextAlign.End,
-        )
-        Spacer(Modifier.width(8.dp))
-        OutlinedButton(
-            onClick = {
-                try {
-                    context.startActivity(
-                        Intent(
-                            ACTION_VIEW,
-                            Uri.parse(
-                                "https://github.com/" +
-                                        "VincentMasselis/" +
-                                        "TPMS-advanced/" +
-                                        "issues/" +
-                                        "new?" +
-                                        "labels=enhancement&template=vehicle-background-image-proposal.md"
-                            )
-                        )
-                    )
-                } catch (_: ActivityNotFoundException) {
-                    Toast.makeText(context, "No web browser found", Toast.LENGTH_LONG).show()
-                }
-            },
-            contentPadding = PaddingValues(
-                top = 4.dp,
-                bottom = 4.dp,
-                start = 12.dp,
-                end = 12.dp
-            ),
-            content = {
-                Text(
-                    text = "Help us",
-                    fontSize = 12.sp,
-                )
-            }
-        )
     }
 }
