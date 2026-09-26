@@ -44,7 +44,7 @@ private const val IMAGE_RATIO = 208f / 462f
 private const val IMAGE_HEIGHT = .7f
 
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
-private const val TYRE_HEIGHT = .15f
+private const val TYRE_HEIGHT = .165f
 
 @Composable
 public fun CurrentVehicle(
@@ -141,7 +141,7 @@ private fun Car(
             rearRightBinding
         ) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_car_top_view, "Image of your car")
-        WheelTrack(track, .742f)
+        WheelTrack(track, .765f)
         val frontAxle = imageGuideline(.217f)
         val rearAxle = imageGuideline(.783f)
         with(Location.Wheel(FRONT_LEFT)) {
@@ -351,7 +351,7 @@ private fun Motorcycle(
             R.drawable.schema_motorcycle_top_view,
             "Image of your motorcycle"
         )
-        val frontAxle = imageGuideline(.095f)
+        val frontAxle = imageGuideline(.0865f)
         val rearAxle = imageGuideline(.805f)
         with(Location.Axle(FRONT)) {
             Tyre(
@@ -432,8 +432,8 @@ private fun TadpoleThreadWheeler(
             R.drawable.schema_tadpole_three_wheeler_top_view,
             "Image of your three-wheeler"
         )
-        WheelTrack(frontTrack, .432f)
-        val frontAxle = imageGuideline(.145f)
+        WheelTrack(frontTrack, .43f)
+        val frontAxle = imageGuideline(.1525f)
         val rearAxle = imageGuideline(.83f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
@@ -540,8 +540,8 @@ private fun DeltaThreeWheeler(
             R.drawable.schema_delta_three_wheeler_top_view,
             "Image of your three-wheeler"
         )
-        WheelTrack(rearTrack, .696f)
-        val frontAxle = imageGuideline(.083f)
+        WheelTrack(rearTrack, .737f)
+        val frontAxle = imageGuideline(.0865f)
         val rearAxle = imageGuideline(.835f)
         with(Location.Axle(FRONT)) {
             Tyre(
