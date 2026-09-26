@@ -26,7 +26,10 @@ internal fun BackgroundIconButton(
 ) {
     val state by viewModel.stateFlow.collectAsState()
     val activity = LocalActivity.current
-    val permissions = rememberMonitoringPermissions(onGranted = { viewModel.monitor() })
+    val permissions = rememberMonitoringPermissions(
+        confirmBeforeStart = true,
+        onGranted = { viewModel.monitor() },
+    )
 
     AnimatedContent(state) { state ->
         when (state) {
