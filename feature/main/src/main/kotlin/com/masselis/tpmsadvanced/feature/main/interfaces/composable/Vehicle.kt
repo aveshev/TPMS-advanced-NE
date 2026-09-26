@@ -432,9 +432,9 @@ private fun TadpoleThreadWheeler(
             R.drawable.schema_tadpole_three_wheeler_top_view,
             "Image of your three-wheeler"
         )
-        WheelTrack(frontTrack, .4f)
-        val frontAxle = imageGuideline(.117f)
-        val rearAxle = imageGuideline(.851f)
+        WheelTrack(frontTrack, .432f)
+        val frontAxle = imageGuideline(.195f)
+        val rearAxle = imageGuideline(.807f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
