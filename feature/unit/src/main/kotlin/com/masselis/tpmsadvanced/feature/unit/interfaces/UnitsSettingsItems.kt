@@ -21,14 +21,14 @@ internal fun UnitsSettingsItems(
     val pressure by viewModel.pressure.collectAsState()
     val temperature by viewModel.temperature.collectAsState()
     SegmentedSettingsItem(
-        headline = "Pressure units",
+        headline = "Pressure in",
         options = PressureUnit.entries,
         selected = pressure,
         onSelect = { viewModel.pressure.value = it },
         label = { it.symbol() },
     )
     SegmentedSettingsItem(
-        headline = "Temperature units",
+        headline = "Temperature in",
         options = TemperatureUnit.entries,
         selected = temperature,
         onSelect = { viewModel.temperature.value = it },
