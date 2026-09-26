@@ -85,6 +85,8 @@ New feature/fix work always branches from `develop`, never `main` — before cre
 ### Remotes
 This checkout has two remotes: `origin` (the user's fork, `aveshev/TPMS-advanced-NE`) and `upstream` (`VincentMasselis/TPMS-advanced`, the original project). Nothing from this project — branches, pushes, PRs — should go to `upstream` unless specifically asked to do so. Default to `origin` for pushes and PRs (`gh repo set-default aveshev/TPMS-advanced-NE` keeps `gh pr create` from guessing wrong).
 
+Features are built in this fork, then downported onto branches cut from `upstream/develop` for upstream PRs. Those branches carry upstream's older UI and upstream's own CLAUDE.md, which lacks these rules. Before opening an upstream PR, or pushing to a branch that is already the head of one (draft or not), the exact commit being proposed must have been installed on a physical device and signed off by the user. This applies even when a cloud session prepared and tested it. If there's no record of that sign-off, stop and ask. Build downports in a separate worktree, and check `migrations/` before installing across the fork and upstream bases, since their database versions can differ.
+
 ## Code Style
 
 Chaining is the default control flow in this codebase, not an occasional idiom. Favor it over imperative statement sequences with intermediate named `val`s.
