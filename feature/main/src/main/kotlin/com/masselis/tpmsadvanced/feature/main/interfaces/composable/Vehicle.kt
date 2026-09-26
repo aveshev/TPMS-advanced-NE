@@ -507,7 +507,9 @@ private fun TadpoleThreadWheeler(
                         centerHorizontallyTo(vehicleImage)
                         bottom.linkTo(rearWheelEdge)
                         width = Dimension.value(30.dp)
-                        height = Dimension.value(100.dp)
+                        // Tyre keeps a 15:40 ratio centered in its slot, a 100dp slot would leave
+                        // 10dp between the drawn tyre and the wheel edge
+                        height = Dimension.value(80.dp)
                     }
             )
             TyreStat(
