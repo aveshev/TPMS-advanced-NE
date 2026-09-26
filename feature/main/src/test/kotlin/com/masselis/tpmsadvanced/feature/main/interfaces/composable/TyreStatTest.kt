@@ -45,6 +45,13 @@ internal class TyreStatTest {
     }
 
     @Test
+    fun calibrated() {
+        paparazzi.snapshot {
+            TyreStatCalibratedPreview()
+        }
+    }
+
+    @Test
     fun alerting() {
         paparazzi.snapshot {
             TyreStatAlertingPreview()
