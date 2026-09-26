@@ -74,12 +74,12 @@ Useful references:
   | Kind | Wheels |
   |------|--------|
   | Trailer | track span `.86`, axle at y `.686` |
-  | Tadpole | front track span `.68` at y `.1005`; rear wheel at y `.845`, centred |
+  | Tadpole | front track span `.58` at y `.1005`; rear wheel at y `.845`, centred |
   | Delta | front wheel at y `.0865`, centred; rear track span `.713` at y `.835` |
   | Car (for comparison) | track span `.74`, axles at y `.217` / `.783` |
   | Motorcycle (for comparison) | front y `.0865`, rear y `.805` |
 
-- **Tadpole rear readout:** the image has a one-sided exhaust on the right, reaching about 75% of
+- **Tadpole rear readout:** the image has a one-sided exhaust on the right, reaching about 64% of
   the image width. Place the rear readout past it, not next to the rear tyre, or it overlaps.
 - **Delta:** the rear wheels are drawn fully covered by tapered fenders, so the small fixed tyre
   boxes sit inside the fenders instead of showing a mismatched tyre.
@@ -102,7 +102,8 @@ Useful references:
   - re-stroked to a uniform line width;
   - replaced the delta's rear wheels with tapered fenders;
   - made the tadpole symmetric and redrew its tail tip, restoring the original exhaust
-    afterwards.
+    afterwards;
+  - narrowed the tadpole to 85% of its width to match real MP3/Tricity proportions.
 - **Gemini terms:** Google doesn't claim ownership of generated output, so the user can use and
   contribute it.
 - **Copyright:** purely AI-generated parts probably aren't copyrightable (US). That doesn't block
@@ -279,12 +280,13 @@ session's scratchpad doesn't survive:
 - `fenders.py`: the delta's tapered rear fenders over the user's `3.webp`.
 - `t7_convert_exh.py`: the final tadpole from the user's `7.webp`:
   - mirrored about x=230.5, with the original exhaust region kept;
+  - narrowed to 85% of its width;
   - re-stroked;
   - tail tip redrawn;
   - upper exhaust mounting hole redrawn.
 
   It reproduces the committed file byte for byte:
-  `python3 t7_convert_exh.py <outdir> 1.27`.
+  `python3 t7_convert_exh.py <outdir> 1.27 0.85` (the last argument is the narrowing).
 - `mkscratch.py`: builds a scratch Paparazzi copy of `Vehicle.kt` (fake tyres/readouts) to render
   layouts. Never commit its output.
 
