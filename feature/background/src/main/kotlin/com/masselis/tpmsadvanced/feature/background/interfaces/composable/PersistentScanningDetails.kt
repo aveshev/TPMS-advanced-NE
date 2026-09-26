@@ -36,7 +36,10 @@ internal fun PersistentScanningDetails(
 ) {
     SettingsOnScreenEffect()
     // The toggle only turns on once everything the service needs was granted; refusing leaves it off
-    val permissions = rememberMonitoringPermissions(onGranted = viewModel::enablePersistentScanning)
+    val permissions = rememberMonitoringPermissions(
+        confirmBeforeStart = false,
+        onGranted = viewModel::enablePersistentScanning,
+    )
     val persistentScanning by viewModel.persistentScanning.collectAsState()
     val decision = viewModel.persistentDecision()
     PersistentScanningDetails(
