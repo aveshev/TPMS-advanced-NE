@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstrainScope
@@ -35,6 +36,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import kotlin.math.roundToInt
 
 /*
  * Every vehicle image is drawn on a 208:462 canvas, centered and taking `imageHeight` (0..1) of the
@@ -110,11 +112,11 @@ private fun ConstraintLayoutScope.VehicleImage(
 }
 
 /**
- * Invisible box centered like the image and spanning [span] of its width, tyres are centered on
- * its edges to sit on wheels drawn at `(1 - span) / 2` and `(1 + span) / 2` of the image width.
+ * Invisible box centered like the image and spanning [span] of its width, its edges anchor what
+ * sits at `(1 - span) / 2` and `(1 + span) / 2` of the image width: wheel centers or the outline.
  */
 @Composable
-private fun ConstraintLayoutScope.WheelTrack(
+private fun ConstraintLayoutScope.ImageSpan(
     ref: ConstrainedLayoutReference,
     span: Float,
     imageHeight: Float,
@@ -132,6 +134,23 @@ private fun ConstraintLayoutScope.WheelTrack(
 /** Anchor at [y] (0..1) of the image height */
 private fun ConstraintLayoutScope.imageGuideline(y: Float, imageHeight: Float): HorizontalAnchor =
     createGuidelineFromTop((1f - imageHeight) / 2f + imageHeight * y)
+
+/**
+ * Takes the whole height it's given and places its content centered on [y] (0..1) of that height,
+ * pushed back inside when it would overflow. Given the image's height, it keeps a readout next to
+ * its tyre without ever going above or below the image.
+ */
+private fun Modifier.verticallyCenteredOn(y: Float) = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minHeight = 0))
+    layout(placeable.width, constraints.maxHeight) {
+        placeable.place(
+            x = 0,
+            y = (constraints.maxHeight * y - placeable.height / 2f)
+                .roundToInt()
+                .coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0))
+        )
+    }
+}
 
 private fun ConstrainScope.tyreSize(imageHeight: Float) {
     height = Dimension.percent(imageHeight * TYRE_HEIGHT)
@@ -162,9 +181,11 @@ private fun Car(
             rearRightBinding
         ) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_car_top_view, "Image of your car", imageHeight)
-        WheelTrack(track, .74f, imageHeight)
-        val frontAxle = imageGuideline(.217f, imageHeight)
-        val rearAxle = imageGuideline(.783f, imageHeight)
+        ImageSpan(track, .74f, imageHeight)
+        val frontY = .217f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .783f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
@@ -178,11 +199,13 @@ private fun Car(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
-                    centerVerticallyTo(frontLeft)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(frontLeft.start, 8.dp)
                     // If not, the word "bar" for "1,50 bar" is not displayed 🤷
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -205,9 +228,11 @@ private fun Car(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightStats) {
-                    centerVerticallyTo(frontRight)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(frontRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -230,10 +255,12 @@ private fun Car(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftStats) {
-                    centerVerticallyTo(rearLeft)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(rearLeft.start, 8.dp)
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -256,9 +283,11 @@ private fun Car(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightStats) {
-                    centerVerticallyTo(rearRight)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(rearRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -294,8 +323,9 @@ private fun SingleAxleTrailer(
             "Image of your trailer",
             imageHeight
         )
-        WheelTrack(track, .86f, imageHeight)
-        val axle = imageGuideline(.686f, imageHeight)
+        ImageSpan(track, .86f, imageHeight)
+        val axleY = .686f
+        val axle = imageGuideline(axleY, imageHeight)
         with(Location.Side(LEFT)) {
             Tyre(
                 location = this,
@@ -309,10 +339,12 @@ private fun SingleAxleTrailer(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(leftStats) {
-                    centerVerticallyTo(tyreLeft)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(tyreLeft.start, 8.dp)
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(axleY)
             )
             BindSensorButton(
                 location = this,
@@ -336,9 +368,11 @@ private fun SingleAxleTrailer(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rightStats) {
-                    centerVerticallyTo(tyreRight)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(tyreRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(axleY)
             )
             BindSensorButton(
                 location = this,
@@ -374,8 +408,10 @@ private fun Motorcycle(
             "Image of your motorcycle",
             imageHeight
         )
-        val frontAxle = imageGuideline(.0865f, imageHeight)
-        val rearAxle = imageGuideline(.805f, imageHeight)
+        val frontY = .0865f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .805f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Axle(FRONT)) {
             Tyre(
                 location = this,
@@ -389,9 +425,11 @@ private fun Motorcycle(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontStats) {
-                    centerVerticallyTo(tyreFront)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(vehicleImage.end, 8.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -415,9 +453,11 @@ private fun Motorcycle(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearStats) {
-                    centerVerticallyTo(tyreRear)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(vehicleImage.end, 8.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -441,6 +481,7 @@ private fun TadpoleThreadWheeler(
         val (
             vehicleImage,
             frontTrack,
+            rearOutline,
             frontLeft,
             frontLeftStats,
             frontLeftBinding,
@@ -457,9 +498,13 @@ private fun TadpoleThreadWheeler(
             "Image of your three-wheeler",
             imageHeight
         )
-        WheelTrack(frontTrack, .68f, imageHeight)
-        val frontAxle = imageGuideline(.1005f, imageHeight)
-        val rearAxle = imageGuideline(.845f, imageHeight)
+        ImageSpan(frontTrack, .68f, imageHeight)
+        // Body outline around the rear wheel, the rear readout sits next to it
+        ImageSpan(rearOutline, .66f, imageHeight)
+        val frontY = .1005f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .845f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
@@ -473,11 +518,13 @@ private fun TadpoleThreadWheeler(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
-                    centerVerticallyTo(frontLeft)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(frontLeft.start, 8.dp)
                     // If not, the word "bar" for "1,50 bar" is not displayed 🤷
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -500,9 +547,11 @@ private fun TadpoleThreadWheeler(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightStats) {
-                    centerVerticallyTo(frontRight)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(frontRight.end, 8.dp)
-                }
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -525,9 +574,11 @@ private fun TadpoleThreadWheeler(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearStats) {
-                    centerVerticallyTo(tyreRear)
-                    start.linkTo(vehicleImage.end, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(rearOutline.end, 8.dp)
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -551,6 +602,7 @@ private fun DeltaThreeWheeler(
         val (
             vehicleImage,
             rearTrack,
+            frontOutline,
             tyreFront,
             frontStats,
             frontBinding,
@@ -567,9 +619,13 @@ private fun DeltaThreeWheeler(
             "Image of your three-wheeler",
             imageHeight
         )
-        WheelTrack(rearTrack, .713f, imageHeight)
-        val frontAxle = imageGuideline(.0865f, imageHeight)
-        val rearAxle = imageGuideline(.835f, imageHeight)
+        ImageSpan(rearTrack, .713f, imageHeight)
+        // Outline around the front wheel, the front readout sits next to it
+        ImageSpan(frontOutline, .22f, imageHeight)
+        val frontY = .0865f
+        val frontAxle = imageGuideline(frontY, imageHeight)
+        val rearY = .835f
+        val rearAxle = imageGuideline(rearY, imageHeight)
         with(Location.Axle(FRONT)) {
             Tyre(
                 location = this,
@@ -583,9 +639,11 @@ private fun DeltaThreeWheeler(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(frontStats) {
-                    centerVerticallyTo(tyreFront)
-                    start.linkTo(vehicleImage.end, 8.dp)
-                }
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
+                    start.linkTo(frontOutline.end, 8.dp)
+                }.verticallyCenteredOn(frontY)
             )
             BindSensorButton(
                 location = this,
@@ -609,10 +667,12 @@ private fun DeltaThreeWheeler(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftStats) {
-                    centerVerticallyTo(rearLeft)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     end.linkTo(vehicleImage.start, 8.dp)
                     width = Dimension.value(100.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
@@ -635,9 +695,11 @@ private fun DeltaThreeWheeler(
             TyreStat(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightStats) {
-                    centerVerticallyTo(rearRight)
+                    top.linkTo(vehicleImage.top)
+                    bottom.linkTo(vehicleImage.bottom)
+                    height = Dimension.fillToConstraints
                     start.linkTo(vehicleImage.end, 8.dp)
-                }
+                }.verticallyCenteredOn(rearY)
             )
             BindSensorButton(
                 location = this,
