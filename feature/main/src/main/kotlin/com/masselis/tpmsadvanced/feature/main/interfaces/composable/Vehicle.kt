@@ -75,8 +75,8 @@ private val READOUT_GAP = 8.dp
 private val SCREEN_MARGIN = 4.dp
 
 /** Widest plausible lines of a readout, per unit, see [TyreStat] */
-private val WIDEST_PRESSURES = listOf("888 kpa", "8.88 bar", "88.8 psi")
-private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "88 days")
+private val WIDEST_PRESSURES = listOf("888 kpa*", "8.88 bar*", "88.8 psi*")
+private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
 
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
 private const val TYRE_HEIGHT = .165f
