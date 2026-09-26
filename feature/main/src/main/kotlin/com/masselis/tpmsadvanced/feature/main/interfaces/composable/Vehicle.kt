@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -90,15 +91,25 @@ public fun Vehicle(
     modifier: Modifier = Modifier,
 ) {
     KeepScreenOn()
-    val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP + SCREEN_MARGIN
+    val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP
     BoxWithConstraints(modifier) {
-        val imageHeight = ((maxWidth - readoutWidth * 2) / (maxHeight * IMAGE_RATIO))
+        // The motorcycle's readouts are all on its right: the image and the readouts are centered
+        // together, which leaves room for a single readout column instead of two
+        val isOneSided = component.vehicle.kind == Kind.MOTORCYCLE
+        val imageHeight = maxWidth
+            .minus(readoutWidth * if (isOneSided) 1 else 2)
+            .minus(SCREEN_MARGIN * 2)
+            .div(maxHeight * IMAGE_RATIO)
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
         val fill = Modifier.fillMaxSize()
         when (component.vehicle.kind) {
             Kind.CAR -> Car(imageHeight, snackbarHostState, fill)
             Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, fill)
-            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, fill)
+            Kind.MOTORCYCLE -> Motorcycle(
+                imageHeight,
+                snackbarHostState,
+                fill.offset(x = -readoutWidth / 2)
+            )
             Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, fill)
             Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, fill)
         }
