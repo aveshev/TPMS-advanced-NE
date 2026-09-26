@@ -1,7 +1,6 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -25,7 +24,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
@@ -103,13 +101,12 @@ public fun VehicleSettings(
             )
             ClearBoundSensorsButton()
         }
-        SettingsGroup(Modifier.padding(top = 24.dp)) {
+        SettingsSectionHeader("Vehicle")
+        SettingsGroup {
             TextSettingsItem(
                 headline = "Edit vehicle name",
                 onClick = { showRename = true },
             )
-        }
-        SettingsGroup(Modifier.padding(top = 24.dp)) {
             DeleteVehicleButton()
         }
     }
