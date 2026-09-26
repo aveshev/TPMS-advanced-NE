@@ -93,11 +93,9 @@ public fun Vehicle(
     KeepScreenOn()
     val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP
     BoxWithConstraints(modifier) {
-        // The motorcycle's readouts are all on its right: the image and the readouts are centered
-        // together, which leaves room for a single readout column instead of two
-        val isOneSided = component.vehicle.kind == Kind.MOTORCYCLE
+        // Sized for a readout column on each side for every vehicle so they all get the same size
         val imageHeight = maxWidth
-            .minus(readoutWidth * if (isOneSided) 1 else 2)
+            .minus(readoutWidth * 2)
             .minus(SCREEN_MARGIN * 2)
             .div(maxHeight * IMAGE_RATIO)
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
@@ -105,6 +103,7 @@ public fun Vehicle(
         when (component.vehicle.kind) {
             Kind.CAR -> Car(imageHeight, snackbarHostState, fill)
             Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, fill)
+            // Its readouts are all on its right, centre the image and the readouts together
             Kind.MOTORCYCLE -> Motorcycle(
                 imageHeight,
                 snackbarHostState,
