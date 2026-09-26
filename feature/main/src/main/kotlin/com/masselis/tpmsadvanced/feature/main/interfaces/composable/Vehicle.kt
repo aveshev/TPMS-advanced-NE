@@ -432,11 +432,9 @@ private fun TadpoleThreadWheeler(
             R.drawable.schema_tadpole_three_wheeler_top_view,
             "Image of your three-wheeler"
         )
-        WheelTrack(frontTrack, .734f)
-        val frontAxle = imageGuideline(.306f)
-        // The rear wheel is mostly hidden by the tail, the tyre ends where the wheel meets the
-        // licence plate holder instead of being centered on the axle.
-        val rearWheelEdge = imageGuideline(.842f)
+        WheelTrack(frontTrack, .27f)
+        val frontAxle = imageGuideline(.093f)
+        val rearAxle = imageGuideline(.805f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
@@ -495,7 +493,7 @@ private fun TadpoleThreadWheeler(
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(tyreRear) {
                     centerHorizontallyTo(vehicleImage)
-                    bottom.linkTo(rearWheelEdge)
+                    centerAround(rearAxle)
                     tyreSize()
                 }
             )
