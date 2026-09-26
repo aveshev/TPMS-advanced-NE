@@ -108,16 +108,13 @@ public fun VehicleSettings(
             )
             SwitchNavigationSettingsItem(
                 headline = "Pressure calibration",
-                supporting = if (calibration) listOfNotNull(
+                supporting = listOfNotNull(
                     offset.takeIf { it.kpa != 0f }?.signedWithSymbol(pressureUnit),
                     multiplier.takeIf { it != 1f }?.multiplierString(),
                 )
-                    .takeIf { it.isNotEmpty() }
+                    .takeIf { calibration && it.isNotEmpty() }
                     ?.joinToString(" · ")
-                    .let { listOf(it ?: "No correction yet") }
-                    .map(::AnnotatedString)
-                else listOf("Corrects sensors reading a bit too high or too low", "No adjustment")
-                    .map(::AnnotatedString),
+                    .let { listOf(AnnotatedString(it ?: "No adjustment")) },
                 checked = calibration,
                 onCheckedChange = { viewModel.pressureCalibration.value = it },
                 onClick = openCalibration,
