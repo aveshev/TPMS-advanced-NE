@@ -434,7 +434,7 @@ private fun TadpoleThreadWheeler(
         )
         WheelTrack(frontTrack, .68f)
         val frontAxle = imageGuideline(.1005f)
-        val rearAxle = imageGuideline(.83f)
+        val rearAxle = imageGuideline(.845f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
