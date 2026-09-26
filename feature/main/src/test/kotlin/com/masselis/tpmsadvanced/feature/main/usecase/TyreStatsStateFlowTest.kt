@@ -27,6 +27,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class TyreStatsStateFlowTest {
@@ -36,6 +37,7 @@ internal class TyreStatsStateFlowTest {
 
     private lateinit var tyreAtmosphereUseCase: TyreAtmosphereUseCase
     private lateinit var vehicleRangesUseCase: VehicleRangesUseCase
+    private lateinit var vehicleCalibrationUseCase: VehicleCalibrationUseCase
     private lateinit var unitPreferences: UnitPreferences
 
     @Before
@@ -48,6 +50,9 @@ internal class TyreStatsStateFlowTest {
             every { resolvedLowPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(1f.bar)
             every { resolvedHighPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(3f.bar)
         }
+        vehicleCalibrationUseCase = mockk {
+            every { isEnabled } returns MutableStateFlow(false)
+        }
         unitPreferences = mockk {
             every { pressure } returns MutableStateFlow(BAR)
             every { temperature } returns MutableStateFlow(CELSIUS)
@@ -58,6 +63,7 @@ internal class TyreStatsStateFlowTest {
     private fun test() = TyreStatsStateFlow(
         tyreAtmosphereUseCase,
         vehicleRangesUseCase,
+        vehicleCalibrationUseCase,
         Wheel(FRONT_LEFT),
         unitPreferences,
         scope.backgroundScope,
@@ -101,6 +107,19 @@ internal class TyreStatsStateFlowTest {
         test().test {
             assertIs<State.NotDetected>(awaitItem())
             assertIs<State.Alerting>(awaitItem())
+        }
+    }
+
+    @Test
+    fun `marks the pressure as calibrated`() = runTest {
+        every { vehicleCalibrationUseCase.isEnabled } returns MutableStateFlow(true)
+        setAtmosphere(2f.bar, 45f.celsius)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            awaitItem().also {
+                assertIs<State.Normal>(it)
+                assertTrue(it.isPressureCalibrated)
+            }
         }
     }
 

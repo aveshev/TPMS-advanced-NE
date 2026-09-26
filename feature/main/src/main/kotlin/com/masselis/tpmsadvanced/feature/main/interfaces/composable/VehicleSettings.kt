@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
+import com.masselis.tpmsadvanced.core.ui.SwitchNavigationSettingsItem
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
@@ -37,7 +39,8 @@ import kotlinx.coroutines.delay
 
 /**
  * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
- * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding.
+ * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding and
+ * [openCalibration] the pressure calibration.
  */
 @Suppress("LongMethod", "MaxLineLength")
 @Composable
@@ -45,6 +48,7 @@ public fun VehicleSettings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
     openBindingMethod: () -> Unit,
+    openCalibration: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundSettings: @Composable (VehicleComponent) -> Unit = backgroundSettingsPlaceholder,
     component: VehicleComponent = LocalVehicleComponent.current,
@@ -62,6 +66,9 @@ public fun VehicleSettings(
     val lowTemp by viewModel.lowTemp.collectAsState()
     val normalTemp by viewModel.normalTemp.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
+    val calibration by viewModel.pressureCalibration.collectAsState()
+    val offset by viewModel.pressureOffset.collectAsState()
+    val multiplier by viewModel.pressureMultiplier.collectAsState()
     var showRename by rememberSaveable { mutableStateOf(false) }
     Column(modifier) {
         SettingsSectionHeader("Alerts")
@@ -98,6 +105,25 @@ public fun VehicleSettings(
                 onClick = openBindingMethod,
                 opensPage = true,
                 modifier = Modifier.testTag(VehicleSettingsTags.bindSensors),
+            )
+            SwitchNavigationSettingsItem(
+                headline = "Pressure calibration",
+                supporting = if (calibration) listOfNotNull(
+                    offset.takeIf { it.kpa != 0f }?.signedWithSymbol(pressureUnit),
+                    multiplier.takeIf { it != 1f }?.multiplierString(),
+                )
+                    .takeIf { it.isNotEmpty() }
+                    ?.joinToString(" · ")
+                    .let { listOf(it ?: "No correction yet") }
+                    .map(::AnnotatedString)
+                else listOf("Corrects sensors reading a few ${pressureUnit.symbol()} off", "Off")
+                    .map(::AnnotatedString),
+                checked = calibration,
+                onCheckedChange = { viewModel.pressureCalibration.value = it },
+                onClick = openCalibration,
+                // The page explains the asterisk and the correction, which matters before turning it on
+                openableWhenOff = true,
+                modifier = Modifier.testTag(VehicleSettingsTags.calibration),
             )
             ClearBoundSensorsButton()
         }
@@ -170,6 +196,7 @@ internal fun RenameVehicleDialogPreview() {
 @Suppress("ConstPropertyName")
 internal object VehicleSettingsTags {
     const val bindSensors = "VehicleSettingsTags_bindSensors"
+    const val calibration = "VehicleSettingsTags_calibration"
 }
 
 private val backgroundSettingsPlaceholder: @Composable (VehicleComponent) -> Unit = {}
