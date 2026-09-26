@@ -64,6 +64,12 @@ internal interface InternalComponent : FeatureComponent {
 ### Database — SQLDelight
 Room is not used. SQLDelight generates type-safe Kotlin from `.sq` files. Migrations use `.sqm` files alongside `.db` snapshot files in `data/vehicle/src/main/sqldelight/`. Every new migration must be accompanied by an updated schema snapshot.
 
+**Rear pressure migration squash (2026-09-26, aveshev/TPMS-advanced-NE#27, merge commit `b52d6fa`).** The rear pressure columns used to be two migrations (`5.sqm` + `6.sqm`, snapshot `7.db`, database version 7). They are now a single `5.sqm` (snapshot `6.db`, version 6), matching upstream PR VincentMasselis/TPMS-advanced#469. The final schema is the same, only the version number differs, and SQLite rejects both mismatches:
+- A **pre-squash build** (a branch that doesn't contain `b52d6fa`, still has `migrations/6.sqm`) on a device already at version 6 crashes on launch with `duplicate column name: separateRearPressure`: it runs the old `6.sqm` again.
+- A **squashed build** on a device still at version 7 crashes with `Can't downgrade database`.
+
+Before `installDebug`, check the branch contains the squash: `git merge-base --is-ancestor b52d6fa HEAD` (or `migrations/` must end at `5.sqm`). If it doesn't, merge `develop` into the branch first. Don't try to fix it on the device. Both crashes leave the data untouched (the failed upgrade rolls back), so installing a squashed build is enough for a version 6 device. A device stuck at version 7 needs its data cleared, or restored with `user_version` set to 6. The user has a local backup/restore script for that at `~/tpms-backups/tpms-data.sh` (outside the repo, `restore <backup-dir> -s <serial>`); ask before overwriting a device's data.
+
 ### Demo Mode
 No build flavors — a single build. Demo mode (used for Play Store screenshots/testing) is a runtime setting toggled from the app's settings screen, backed by `ScannerDatabase.isDemo` in `data/vehicle`.
 
