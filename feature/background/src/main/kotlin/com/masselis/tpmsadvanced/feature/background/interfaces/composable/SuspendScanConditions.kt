@@ -99,7 +99,7 @@ internal fun SuspendScanConditions(
             val ssid = (wifiState as? WifiConnectionUseCase.State.Connected)?.ssid?.takeIf { granted }
             SwitchSettingsItem(
                 headline = "Keep scanning on current WiFi:",
-                supporting = currentWifiSummary(wifiState, granted, suspendOnWifi && exceptionEnabled),
+                supporting = currentWifiSummary(wifiState, granted),
                 checked = ssid != null && ssid in exceptedSsids,
                 enabled = suspendOnWifi && exceptionEnabled && ssid != null,
                 onCheckedChange = { ssid?.let(viewModel::toggleExceptedSsid) },
@@ -112,15 +112,15 @@ internal fun SuspendScanConditions(
 private fun currentWifiSummary(
     wifiState: WifiConnectionUseCase.State?,
     granted: Boolean,
-    exceptionInUse: Boolean,
 ): String = when {
-    exceptionInUse && granted.not() -> "Location permission \"Allow all the time\" required"
+    // The WiFi name can't be read without it, so what's connected doesn't matter
+    granted.not() -> "Needs full location permission"
+    wifiState == null -> "Checking WiFi status..."
     wifiState == WifiConnectionUseCase.State.Disconnected -> "Not connected to a WiFi"
-    // Still asking the system, or not allowed to read the name
-    wifiState !is WifiConnectionUseCase.State.Connected || granted.not() -> "The current WiFi"
     // Connected, but the system doesn't tell the name: permission granted, yet the Location
     // switch of the phone is off
-    wifiState.ssid == null -> "Name unreadable, is Location turned on?"
+    wifiState !is WifiConnectionUseCase.State.Connected || wifiState.ssid == null ->
+        "Turn on Location in phone settings"
     else -> "${wifiState.ssid} (connected)"
 }
 
@@ -130,13 +130,13 @@ internal fun CurrentWifiExceptionItemPreview() {
     SettingsGroup {
         SwitchSettingsItem(
             headline = "Keep scanning on current WiFi:",
-            supporting = currentWifiSummary(WifiConnectionUseCase.State.Connected("HomeNetwork"), true, true),
+            supporting = currentWifiSummary(WifiConnectionUseCase.State.Connected("HomeNetwork"), true),
             checked = false,
             onCheckedChange = {},
         )
         SwitchSettingsItem(
             headline = "Keep scanning on current WiFi:",
-            supporting = currentWifiSummary(WifiConnectionUseCase.State.Disconnected, true, true),
+            supporting = currentWifiSummary(WifiConnectionUseCase.State.Disconnected, true),
             checked = false,
             enabled = false,
             onCheckedChange = {},
