@@ -581,9 +581,9 @@ private fun TadpoleThreadWheeler(
             "Image of your three-wheeler",
             imageHeight
         )
-        ImageSpan(frontTrack, .68f, imageHeight)
+        ImageSpan(frontTrack, .58f, imageHeight)
         // Outline around the rear wheel (the exhaust on the right), the rear readout sits next to it
-        ImageSpan(rearOutline, .76f, imageHeight)
+        ImageSpan(rearOutline, .65f, imageHeight)
         val frontY = .1005f
         val frontAxle = imageGuideline(frontY, imageHeight)
         val rearY = .845f
