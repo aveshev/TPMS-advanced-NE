@@ -92,6 +92,30 @@ public class VehicleDatabase internal constructor(database: Database) {
             queries.updateSeparateRearPressure(separate, uuid)
         }
 
+    public fun selectPressureCalibration(vehicleId: UUID): Boolean =
+        queries.selectPressureCalibrationByVehicleId(vehicleId).executeAsOne()
+
+    public suspend fun updatePressureCalibration(enabled: Boolean, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updatePressureCalibration(enabled, uuid)
+        }
+
+    public fun selectPressureOffset(vehicleId: UUID): Pressure =
+        queries.selectPressureOffsetByVehicleId(vehicleId).executeAsOne()
+
+    public suspend fun updatePressureOffset(offset: Pressure, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updatePressureOffset(offset, uuid)
+        }
+
+    public fun selectPressureMultiplier(vehicleId: UUID): Float =
+        queries.selectPressureMultiplierByVehicleId(vehicleId).executeAsOne().toFloat()
+
+    public suspend fun updatePressureMultiplier(multiplier: Float, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updatePressureMultiplier(multiplier.toDouble(), uuid)
+        }
+
     public fun selectLowTemp(vehicleId: UUID): Temperature =
         queries.selectLowTempByVehicleId(vehicleId).executeAsOne()
 
@@ -153,9 +177,13 @@ public class VehicleDatabase internal constructor(database: Database) {
             Pressure?,
             Pressure?,
             Boolean,
+            Boolean,
+            Pressure,
+            Double,
         ) -> Vehicle =
+            // The pressure calibration is only read by the vehicle scope's own queries
             { uuid, name, _, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, _,
-              rearLowPressure, rearHighPressure, separateRearPressure ->
+              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _ ->
                 Vehicle(
                     uuid,
                     kind,

@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -26,9 +27,11 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
+import com.masselis.tpmsadvanced.core.ui.SwitchNavigationSettingsItem
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureCalibration
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -37,7 +40,8 @@ import kotlinx.coroutines.delay
 
 /**
  * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
- * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding.
+ * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding and
+ * [openCalibration] the pressure calibration.
  */
 @Suppress("LongMethod", "MaxLineLength")
 @Composable
@@ -45,6 +49,7 @@ public fun VehicleSettings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
     openBindingMethod: () -> Unit,
+    openCalibration: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundSettings: @Composable (VehicleComponent) -> Unit = backgroundSettingsPlaceholder,
     component: VehicleComponent = LocalVehicleComponent.current,
@@ -62,6 +67,13 @@ public fun VehicleSettings(
     val lowTemp by viewModel.lowTemp.collectAsState()
     val normalTemp by viewModel.normalTemp.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
+    val calibration by viewModel.pressureCalibration.collectAsState()
+    val offset by viewModel.pressureOffset.collectAsState()
+    val multiplier by viewModel.pressureMultiplier.collectAsState()
+    val calibrationValues = PressureCalibration(offset, multiplier)
+    // Leaving the calibration page without any adjustment turns it off, which only happens once
+    // that page is gone: this page shows it that way from the start rather than flashing it on
+    val calibrationChecked = calibration && calibrationValues.adjusts
     var showRename by rememberSaveable { mutableStateOf(false) }
     Column(modifier) {
         SettingsSectionHeader("Alerts")
@@ -98,6 +110,27 @@ public fun VehicleSettings(
                 onClick = openBindingMethod,
                 opensPage = true,
                 modifier = Modifier.testTag(VehicleSettingsTags.bindSensors),
+            )
+            SwitchNavigationSettingsItem(
+                headline = "Pressure calibration",
+                supporting = listOfNotNull(
+                    offset.takeIf { calibrationValues.hasOffset }?.signedWithSymbol(pressureUnit),
+                    multiplier.takeIf { calibrationValues.hasMultiplier }?.multiplierString(),
+                )
+                    .takeIf { calibrationChecked }
+                    ?.joinToString(" · ")
+                    .let { listOf(AnnotatedString(it ?: "No adjustment")) },
+                checked = calibrationChecked,
+                // Turned on without any adjustment, the only sensible next step is to set one.
+                // Leaving the page without doing so turns it off again.
+                onCheckedChange = { enabled ->
+                    viewModel.pressureCalibration.value = enabled
+                    if (enabled && calibrationValues.adjusts.not()) openCalibration()
+                },
+                onClick = openCalibration,
+                // The page explains the asterisk and the correction, which matters before turning it on
+                openableWhenOff = true,
+                modifier = Modifier.testTag(VehicleSettingsTags.calibration),
             )
             ClearBoundSensorsButton()
         }
@@ -170,6 +203,7 @@ internal fun RenameVehicleDialogPreview() {
 @Suppress("ConstPropertyName")
 internal object VehicleSettingsTags {
     const val bindSensors = "VehicleSettingsTags_bindSensors"
+    const val calibration = "VehicleSettingsTags_calibration"
 }
 
 private val backgroundSettingsPlaceholder: @Composable (VehicleComponent) -> Unit = {}

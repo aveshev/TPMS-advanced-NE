@@ -18,10 +18,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.parcelize.Parcelize
 
-@Suppress("OPT_IN_TO_INHERITANCE")
+@Suppress("OPT_IN_TO_INHERITANCE", "LongParameterList")
 public class TyreStatsStateFlow internal constructor(
     atmosphereUseCase: TyreAtmosphereUseCase,
     rangeUseCase: VehicleRangesUseCase,
+    calibrationUseCase: VehicleCalibrationUseCase,
     location: Location,
     unitPreferences: UnitPreferences,
     scope: CoroutineScope,
@@ -32,6 +33,7 @@ public class TyreStatsStateFlow internal constructor(
         rangeUseCase.resolvedHighPressure(location),
         unitPreferences.pressure,
         unitPreferences.temperature,
+        calibrationUseCase.isEnabled,
     ) { values ->
         @Suppress("MagicNumber")
         (Data(
@@ -40,10 +42,11 @@ public class TyreStatsStateFlow internal constructor(
             values[2] as Pressure,
             values[3] as Pressure,
             values[4] as PressureUnit,
-            values[5] as TemperatureUnit
+            values[5] as TemperatureUnit,
+            values[6] as Boolean,
         ))
     }
-        .map { (atmosphere, highTemp, lowPressure, highPressure, pressureUnit, temperatureUnit) ->
+        .map { (atmosphere, highTemp, lowPressure, highPressure, pressureUnit, temperatureUnit, isCalibrated) ->
             val isPressureAlert = atmosphere.pressure.hasPressure().not() ||
                 atmosphere.pressure !in lowPressure..highPressure
             val isTemperatureAlert = atmosphere.temperature.celsius > highTemp.celsius
@@ -56,13 +59,15 @@ public class TyreStatsStateFlow internal constructor(
                 temperatureUnit,
                 isPressureAlert,
                 isTemperatureAlert,
+                isCalibrated,
             ) else State.Normal(
                 atmosphere.timestamp,
                 atmosphere.sensorId,
                 atmosphere.pressure,
                 pressureUnit,
                 atmosphere.temperature,
-                temperatureUnit
+                temperatureUnit,
+                isCalibrated,
             )
         }
         .catch { emit(State.NotDetected) }
@@ -75,7 +80,8 @@ public class TyreStatsStateFlow internal constructor(
         val lowPressure: Pressure,
         val highPressure: Pressure,
         val pressureUnit: PressureUnit,
-        val temperature: TemperatureUnit
+        val temperature: TemperatureUnit,
+        val isCalibrated: Boolean,
     )
 
     public sealed class State : Parcelable {
@@ -92,6 +98,8 @@ public class TyreStatsStateFlow internal constructor(
             public val pressureUnit: PressureUnit,
             public val temperature: Temperature,
             public val temperatureUnit: TemperatureUnit,
+            // The pressure was corrected by the vehicle's calibration, marked by an asterisk
+            public val isPressureCalibrated: Boolean = false,
         ) : State()
 
         // Show the read values from the tyre, with the offending item(s) in red
@@ -105,6 +113,7 @@ public class TyreStatsStateFlow internal constructor(
             public val temperatureUnit: TemperatureUnit,
             public val isPressureAlert: Boolean,
             public val isTemperatureAlert: Boolean,
+            public val isPressureCalibrated: Boolean = false,
         ) : State()
     }
 }
