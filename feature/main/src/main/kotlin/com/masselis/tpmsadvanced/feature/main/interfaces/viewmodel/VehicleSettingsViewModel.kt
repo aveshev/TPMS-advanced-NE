@@ -30,5 +30,7 @@ internal interface VehicleSettingsViewModel {
 
     fun setRearOverrideEnabled(enabled: Boolean)
 
+    fun disableCalibrationIfNoAdjustment()
+
     fun rename(name: String)
 }

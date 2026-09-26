@@ -3,6 +3,7 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureCalibration
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.usecase.RenameVehicleUseCase
@@ -40,6 +41,13 @@ internal class VehicleSettingsViewModelImpl(
 
     override fun setRearOverrideEnabled(enabled: Boolean): Unit =
         vehicleRangesUseCase.setRearOverrideEnabled(enabled)
+
+    override fun disableCalibrationIfNoAdjustment() {
+        PressureCalibration(pressureOffset.value, pressureMultiplier.value)
+            .adjusts
+            .not()
+            .also { if (it) pressureCalibration.value = false }
+    }
 
     override fun rename(name: String) {
         viewModelScope.launch { renameVehicleUseCase.rename(name) }

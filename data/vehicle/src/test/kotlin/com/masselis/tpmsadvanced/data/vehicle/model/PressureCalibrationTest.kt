@@ -3,6 +3,8 @@ package com.masselis.tpmsadvanced.data.vehicle.model
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 internal class PressureCalibrationTest {
 
@@ -28,5 +30,21 @@ internal class PressureCalibrationTest {
     @Test
     fun `never goes below zero`() {
         assertEquals(0f.kpa, PressureCalibration((-50f).kpa, 1f).applyTo(20f.kpa))
+    }
+
+    @Test
+    fun `adjusts nothing with the default values`() {
+        assertFalse(PressureCalibration(0f.kpa, 1f).adjusts)
+    }
+
+    @Test
+    fun `adjusts nothing despite float errors`() {
+        assertFalse(PressureCalibration(0.00001f.kpa, 100 * 0.01f).adjusts)
+    }
+
+    @Test
+    fun `adjusts with an offset or a multiplier`() {
+        assertTrue(PressureCalibration(1f.kpa, 1f).adjusts)
+        assertTrue(PressureCalibration(0f.kpa, 1.01f).adjusts)
     }
 }

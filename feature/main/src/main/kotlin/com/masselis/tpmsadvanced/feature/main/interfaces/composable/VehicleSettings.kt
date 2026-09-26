@@ -31,6 +31,7 @@ import com.masselis.tpmsadvanced.core.ui.SwitchNavigationSettingsItem
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureCalibration
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -69,6 +70,10 @@ public fun VehicleSettings(
     val calibration by viewModel.pressureCalibration.collectAsState()
     val offset by viewModel.pressureOffset.collectAsState()
     val multiplier by viewModel.pressureMultiplier.collectAsState()
+    val calibrationValues = PressureCalibration(offset, multiplier)
+    // Leaving the calibration page without any adjustment turns it off, which only happens once
+    // that page is gone: this page shows it that way from the start rather than flashing it on
+    val calibrationChecked = calibration && calibrationValues.adjusts
     var showRename by rememberSaveable { mutableStateOf(false) }
     Column(modifier) {
         SettingsSectionHeader("Alerts")
@@ -109,14 +114,19 @@ public fun VehicleSettings(
             SwitchNavigationSettingsItem(
                 headline = "Pressure calibration",
                 supporting = listOfNotNull(
-                    offset.takeIf { it.kpa != 0f }?.signedWithSymbol(pressureUnit),
-                    multiplier.takeIf { it != 1f }?.multiplierString(),
+                    offset.takeIf { calibrationValues.hasOffset }?.signedWithSymbol(pressureUnit),
+                    multiplier.takeIf { calibrationValues.hasMultiplier }?.multiplierString(),
                 )
-                    .takeIf { calibration && it.isNotEmpty() }
+                    .takeIf { calibrationChecked }
                     ?.joinToString(" · ")
                     .let { listOf(AnnotatedString(it ?: "No adjustment")) },
-                checked = calibration,
-                onCheckedChange = { viewModel.pressureCalibration.value = it },
+                checked = calibrationChecked,
+                // Turned on without any adjustment, the only sensible next step is to set one.
+                // Leaving the page without doing so turns it off again.
+                onCheckedChange = { enabled ->
+                    viewModel.pressureCalibration.value = enabled
+                    if (enabled && calibrationValues.adjusts.not()) openCalibration()
+                },
                 onClick = openCalibration,
                 // The page explains the asterisk and the correction, which matters before turning it on
                 openableWhenOff = true,

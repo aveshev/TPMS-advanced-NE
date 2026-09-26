@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.masselis.tpmsadvanced.core.ui.OnLeaveEffect
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsIntro
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
@@ -43,6 +44,9 @@ public fun VehicleCalibrationSettings(
 ) {
     val viewModel: VehicleSettingsViewModel =
         component.viewModel(component.key()) { it.VehicleSettingsViewModel() }
+    // A calibration adjusting nothing only adds asterisks: leaving the page like this means not
+    // wanting it at all
+    OnLeaveEffect(viewModel::disableCalibrationIfNoAdjustment)
     val unit by viewModel.pressureUnit.collectAsState()
     val enabled by viewModel.pressureCalibration.collectAsState()
     val offset by viewModel.pressureOffset.collectAsState()
