@@ -34,6 +34,7 @@ import androidx.constraintlayout.compose.Dimension
 import com.masselis.tpmsadvanced.feature.main.R
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.core.ui.KeepScreenOn
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.FRONT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.REAR
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
@@ -100,31 +101,41 @@ public fun Vehicle(
 ) {
     KeepScreenOn()
     val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP
+    val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
     BoxWithConstraints(modifier) {
-        // The motorcycle's readouts are all on its right: the image and the readouts are centered
-        // together, which leaves room for a single readout column instead of two
-        val isOneSided = component.vehicle.kind == Kind.MOTORCYCLE
         val imageHeight = maxWidth
-            .minus(readoutWidth * if (isOneSided) 1 else 2)
+            .minus(readoutWidth * readoutSides.size)
             .minus(SCREEN_MARGIN * 2)
             .div(maxHeight * IMAGE_RATIO)
             // (imageHeight * maxHeight)² * IMAGE_RATIO <= MAX_IMAGE_AREA * maxWidth * maxHeight
             .coerceAtMost(sqrt(MAX_IMAGE_AREA * maxWidth.value / (IMAGE_RATIO * maxHeight.value)))
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
-        val fill = Modifier.fillMaxSize()
+        // Centers the image and its readouts together when readouts are only on one side
+        val fill = Modifier
+            .fillMaxSize()
+            .offset(
+                x = listOfNotNull(
+                    readoutWidth.takeIf { LEFT in readoutSides },
+                    readoutWidth.takeIf { RIGHT in readoutSides }?.unaryMinus(),
+                ).fold(0.dp, Dp::plus) / 2
+            )
         when (component.vehicle.kind) {
             Kind.CAR -> Car(imageHeight, snackbarHostState, fill)
             Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, fill)
-            Kind.MOTORCYCLE -> Motorcycle(
-                imageHeight,
-                snackbarHostState,
-                fill.offset(x = -readoutWidth / 2)
-            )
+            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, fill)
             Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, fill)
             Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, fill)
         }
     }
 }
+
+/** Side of the image the readout of this location sits on, see the layouts below */
+private val Location.readoutSide: SensorLocation.Side
+    get() = when (this) {
+        is Location.Axle -> RIGHT
+        is Location.Wheel -> location.side
+        is Location.Side -> side
+    }
 
 /** Width of the widest line a [TyreStat] can show, with the current font and font scale */
 @Composable
