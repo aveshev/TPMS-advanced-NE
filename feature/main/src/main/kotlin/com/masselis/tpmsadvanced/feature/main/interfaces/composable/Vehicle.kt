@@ -44,7 +44,7 @@ private const val IMAGE_RATIO = 208f / 462f
 private const val IMAGE_HEIGHT = .7f
 
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
-private const val TYRE_HEIGHT = .175f
+private const val TYRE_HEIGHT = .15f
 
 @Composable
 public fun CurrentVehicle(
@@ -433,7 +433,7 @@ private fun TadpoleThreadWheeler(
             "Image of your three-wheeler"
         )
         WheelTrack(frontTrack, .432f)
-        val frontAxle = imageGuideline(.157f)
+        val frontAxle = imageGuideline(.145f)
         val rearAxle = imageGuideline(.83f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
