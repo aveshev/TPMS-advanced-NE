@@ -548,7 +548,7 @@ private fun DeltaThreeWheeler(
         // The image is centered and takes 70% of the height, a wheel drawn at `y` (0..1) in the
         // image is at `.15f + .7f * y` in the parent.
         val frontAxle = createGuidelineFromTop(.15f + .7f * .083f)
-        val rearAxle = createGuidelineFromTop(.15f + .7f * .845f)
+        val rearAxle = createGuidelineFromTop(.15f + .7f * .835f)
         with(Location.Axle(FRONT)) {
             Tyre(
                 location = this,
@@ -582,7 +582,7 @@ private fun DeltaThreeWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearLeft) {
-                    linkTo(vehicleImage.start, vehicleImage.end, bias = .07f)
+                    linkTo(vehicleImage.start, vehicleImage.end, bias = .086f)
                     centerAround(rearAxle)
                     width = Dimension.value(30.dp)
                     height = Dimension.value(100.dp)
@@ -609,7 +609,7 @@ private fun DeltaThreeWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearRight) {
-                    linkTo(vehicleImage.start, vehicleImage.end, bias = .93f)
+                    linkTo(vehicleImage.start, vehicleImage.end, bias = .914f)
                     centerAround(rearAxle)
                     width = Dimension.value(30.dp)
                     height = Dimension.value(100.dp)
