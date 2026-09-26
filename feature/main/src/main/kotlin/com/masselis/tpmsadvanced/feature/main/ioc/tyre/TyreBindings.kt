@@ -25,6 +25,7 @@ import com.masselis.tpmsadvanced.feature.main.usecase.SensorBindingUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreAtmosphereUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow
+import com.masselis.tpmsadvanced.feature.main.usecase.VehicleCalibrationUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
@@ -91,8 +92,10 @@ public interface TyreBindings {
     private fun listenTyreUseCase(uc: ListenBoundTyreUseCase): ListenTyreUseCase = uc
 
     @Provides
-    private fun tyreAtmosphereUseCase(listenTyreUseCase: ListenTyreUseCase): TyreAtmosphereUseCase =
-        TyreAtmosphereUseCase(listenTyreUseCase)
+    private fun tyreAtmosphereUseCase(
+        listenTyreUseCase: ListenTyreUseCase,
+        calibrationUseCase: VehicleCalibrationUseCase,
+    ): TyreAtmosphereUseCase = TyreAtmosphereUseCase(listenTyreUseCase, calibrationUseCase)
 
     @Provides
     private fun searchSensorToBindUseCase(
@@ -118,12 +121,14 @@ public interface TyreBindings {
     private fun tyreStatsUseCase(
         atmosphereUseCase: TyreAtmosphereUseCase,
         rangeUseCase: VehicleRangesUseCase,
+        calibrationUseCase: VehicleCalibrationUseCase,
         location: Location,
         unitPreferences: UnitPreferences,
         @VehicleLifecycle scope: CoroutineScope,
     ): TyreStatsStateFlow = TyreStatsStateFlow(
         atmosphereUseCase,
         rangeUseCase,
+        calibrationUseCase,
         location,
         unitPreferences,
         scope

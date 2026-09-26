@@ -42,7 +42,7 @@ private fun DemoModeSettings(
         headline = "Demo mode",
         checked = demoMode,
         onCheckedChange = onDemoMode,
-        supporting = "Restarts the app",
+        supporting = "Changing restarts the app",
         modifier = Modifier.testTag(DemoModeSettingsTags.demoMode),
     )
 }

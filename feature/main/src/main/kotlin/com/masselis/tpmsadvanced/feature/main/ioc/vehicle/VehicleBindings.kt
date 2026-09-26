@@ -11,6 +11,7 @@ import com.masselis.tpmsadvanced.feature.main.usecase.ClearBoundSensorsUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.DeleteVehicleUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.RenameVehicleUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.VehicleCalibrationUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleCountStateFlowUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleStateFlowUseCase
@@ -39,14 +40,24 @@ public interface VehicleBindings {
         database: VehicleDatabase
     ): VehicleRangesUseCase = VehicleRangesUseCase(vehicle, scope, database)
 
+    @SingleIn(VehicleComponent.Scope::class)
+    @Provides
+    private fun vehicleCalibrationUseCase(
+        vehicle: Vehicle,
+        @VehicleLifecycle scope: CoroutineScope,
+        database: VehicleDatabase
+    ): VehicleCalibrationUseCase = VehicleCalibrationUseCase(vehicle, scope, database)
+
     @Provides
     private fun vehicleSettingsViewModelImpl(
         vehicleRangesUseCase: VehicleRangesUseCase,
+        vehicleCalibrationUseCase: VehicleCalibrationUseCase,
         renameVehicleUseCase: RenameVehicleUseCase,
         vehicleStateFlow: StateFlow<Vehicle>,
         unitPreferences: UnitPreferences,
     ): VehicleSettingsViewModelImpl = VehicleSettingsViewModelImpl(
         vehicleRangesUseCase,
+        vehicleCalibrationUseCase,
         renameVehicleUseCase,
         vehicleStateFlow,
         unitPreferences

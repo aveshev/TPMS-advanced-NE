@@ -164,11 +164,19 @@ internal fun VehicleHome(
                             openBindingMethod = {
                                 navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
                             },
+                            openCalibration = {
+                                navController.navigate("${Path.CalibrationSettings(vehicleComponent.vehicle.uuid)}")
+                            },
                             modifier = modifier
                         )
                     }
                     composable("${Path.PressureSettings(vehicleComponent.vehicle.uuid)}") {
                         PressureSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.CalibrationSettings(vehicleComponent.vehicle.uuid)}") {
+                        CalibrationSettings(
                             modifier = modifier
                         )
                     }
@@ -344,6 +352,7 @@ private fun TopAppBar(
 
                 is Path.PressureSettings -> Text(text = "Pressure")
                 is Path.TemperatureSettings -> Text(text = "Temperature")
+                is Path.CalibrationSettings -> Text(text = "Pressure calibration")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
                 is Path.PersistentScanning -> Text(text = "Persistent scanning")
@@ -361,6 +370,7 @@ private fun TopAppBar(
                 is Path.Settings,
                 is Path.PressureSettings,
                 is Path.TemperatureSettings,
+                is Path.CalibrationSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,
@@ -430,6 +440,7 @@ private fun TopAppBar(
                 is Path.Settings,
                 is Path.PressureSettings,
                 is Path.TemperatureSettings,
+                is Path.CalibrationSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,

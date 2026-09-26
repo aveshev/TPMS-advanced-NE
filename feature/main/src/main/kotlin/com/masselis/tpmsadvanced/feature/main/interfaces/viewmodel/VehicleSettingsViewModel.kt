@@ -18,6 +18,10 @@ internal interface VehicleSettingsViewModel {
     val separateRearPressure: StateFlow<Boolean>
     val pressureUnit: StateFlow<PressureUnit>
 
+    val pressureCalibration: MutableStateFlow<Boolean>
+    val pressureOffset: MutableStateFlow<Pressure>
+    val pressureMultiplier: MutableStateFlow<Float>
+
     val highTemp: MutableStateFlow<Temperature>
     val normalTemp: MutableStateFlow<Temperature>
     val lowTemp: MutableStateFlow<Temperature>
@@ -25,6 +29,8 @@ internal interface VehicleSettingsViewModel {
     val temperatureUnit: StateFlow<TemperatureUnit>
 
     fun setRearOverrideEnabled(enabled: Boolean)
+
+    fun disableCalibrationIfNoAdjustment()
 
     fun rename(name: String)
 }

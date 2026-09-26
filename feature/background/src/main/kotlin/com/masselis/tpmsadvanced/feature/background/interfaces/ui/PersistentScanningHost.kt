@@ -60,7 +60,10 @@ internal fun PersistentScanningHost(
     content: @Composable () -> Unit,
 ) {
     val persistentScanning by viewModel.persistentScanning.collectAsState()
-    val permissions = rememberMonitoringPermissions(onGranted = viewModel::ensureRunning)
+    val permissions = rememberMonitoringPermissions(
+        confirmBeforeStart = false,
+        onGranted = viewModel::ensureRunning,
+    )
     val currentPermissions by rememberUpdatedState(permissions)
     LifecycleStartEffect(persistentScanning) {
         // When everything is granted this only makes sure the service runs, without any popup.

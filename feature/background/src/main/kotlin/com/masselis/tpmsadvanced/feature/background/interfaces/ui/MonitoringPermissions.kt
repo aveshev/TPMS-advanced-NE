@@ -66,11 +66,19 @@ internal val LocalMonitoringPermissions = compositionLocalOf<MonitoringPermissio
 /**
  * Also emits the dialogs of the "grant everything" journey, so it must be called from a place that
  * stays in the composition for as long as the journey can run.
+ *
+ * With [confirmBeforeStart], a journey that had the user fix something ends with a dialog saying
+ * monitoring starts, confirmed before [onGranted] runs: the manual monitoring closes the app right
+ * away, which would be abrupt without it. Persistent scanning keeps the app open, and the WiFi
+ * exception journey may still follow with its own permission, so it goes on without the dialog.
  */
 @OptIn(ExperimentalPermissionsApi::class)
 @Suppress("CyclomaticComplexMethod", "LongMethod")
 @Composable
-internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPermissions {
+internal fun rememberMonitoringPermissions(
+    confirmBeforeStart: Boolean,
+    onGranted: () -> Unit,
+): MonitoringPermissions {
     val activity = LocalActivity.current
     val currentOnGranted by rememberUpdatedState(onGranted)
     val permissions = remember {
@@ -142,7 +150,7 @@ internal fun rememberMonitoringPermissions(onGranted: () -> Unit): MonitoringPer
 
             // Only interrupt with a confirmation when the user actually had to go fix something;
             // otherwise monitoring starts directly, as it always did for an already-configured app.
-            remediationWasNeeded -> showReadyToMonitorAlert = true
+            remediationWasNeeded && confirmBeforeStart -> showReadyToMonitorAlert = true
 
             else -> {
                 flowInProgress = false
