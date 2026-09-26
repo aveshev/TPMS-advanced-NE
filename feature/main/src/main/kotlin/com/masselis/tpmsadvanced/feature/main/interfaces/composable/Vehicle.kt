@@ -69,7 +69,7 @@ private const val MAX_IMAGE_HEIGHT = .9f
  * both sides are limited by the width first on phones; this keeps a vehicle whose readouts are all
  * on one side (more width left for the image) from growing much bigger than the others.
  */
-private const val MAX_IMAGE_AREA = .53f
+private const val MAX_IMAGE_AREA = .5f
 private val READOUT_GAP = 8.dp
 private val SCREEN_MARGIN = 4.dp
 
