@@ -13,6 +13,8 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -32,8 +34,15 @@ import androidx.constraintlayout.compose.ConstraintLayoutBaseScope.HorizontalAnc
 import androidx.constraintlayout.compose.ConstraintLayoutScope
 import androidx.constraintlayout.compose.Dimension
 import com.masselis.tpmsadvanced.feature.main.R
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 import com.masselis.tpmsadvanced.core.ui.KeepScreenOn
+import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.KILO_PASCAL
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.PSI
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.FRONT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.REAR
@@ -74,8 +83,18 @@ private const val MAX_IMAGE_AREA = .5f
 private val READOUT_GAP = 8.dp
 private val SCREEN_MARGIN = 4.dp
 
-/** Widest plausible lines of a readout, per unit, see [TyreStat] */
-private val WIDEST_PRESSURES = listOf("888 kpa*", "8.88 bar*", "88.8 psi*")
+/**
+ * Widest pressure line of a readout in this unit, up to the 150 psi settings limit, see [TyreStat]
+ * and [com.masselis.tpmsadvanced.data.vehicle.model.Pressure.string]
+ */
+private val PressureUnit.widestReadout: String
+    get() = when (this) {
+        KILO_PASCAL -> "1034 kpa*"
+        BAR -> "8.88 bar*"
+        PSI -> "88.8 psi*"
+    }
+
+/** Widest plausible detail lines of a readout, see [TyreStat] */
 private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
 
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
@@ -100,7 +119,11 @@ public fun Vehicle(
     modifier: Modifier = Modifier,
 ) {
     KeepScreenOn()
-    val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP
+    val pressureUnit by component
+        .viewModel(component.key()) { it.VehicleSettingsViewModel() }
+        .pressureUnit
+        .collectAsState()
+    val readoutWidth = rememberWidestReadoutWidth(pressureUnit) + READOUT_GAP
     val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
     BoxWithConstraints(modifier) {
         val imageHeight = maxWidth
@@ -139,12 +162,12 @@ private val Location.readoutSide: SensorLocation.Side
 
 /** Width of the widest line a [TyreStat] can show, with the current font and font scale */
 @Composable
-private fun rememberWidestReadoutWidth(): Dp {
+private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit): Dp {
     val measurer = rememberTextMeasurer()
     val pressureStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
     val density = LocalDensity.current
-    return remember(measurer, pressureStyle, density) {
-        WIDEST_PRESSURES.map { measurer.measure(it, pressureStyle) }
+    return remember(measurer, pressureStyle, density, pressureUnit) {
+        listOf(measurer.measure(pressureUnit.widestReadout, pressureStyle))
             .plus(WIDEST_DETAILS.map { measurer.measure(it, pressureStyle.copy(fontSize = 16.sp)) })
             .maxOf { it.size.width }
             .let { with(density) { it.toDp() } }
