@@ -432,9 +432,9 @@ private fun TadpoleThreadWheeler(
             R.drawable.schema_tadpole_three_wheeler_top_view,
             "Image of your three-wheeler"
         )
-        WheelTrack(frontTrack, .27f)
-        val frontAxle = imageGuideline(.093f)
-        val rearAxle = imageGuideline(.805f)
+        WheelTrack(frontTrack, .4f)
+        val frontAxle = imageGuideline(.117f)
+        val rearAxle = imageGuideline(.851f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
@@ -449,7 +449,7 @@ private fun TadpoleThreadWheeler(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(frontLeft.top)
-                    end.linkTo(vehicleImage.start, 8.dp)
+                    end.linkTo(frontLeft.start, 8.dp)
                     // If not, the word "bar" for "1,50 bar" is not displayed 🤷
                     width = Dimension.value(100.dp)
                 }
@@ -476,7 +476,7 @@ private fun TadpoleThreadWheeler(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(frontRight.top)
-                    start.linkTo(vehicleImage.end, 8.dp)
+                    start.linkTo(frontRight.end, 8.dp)
                 }
             )
             BindSensorButton(
@@ -501,7 +501,7 @@ private fun TadpoleThreadWheeler(
                 location = this,
                 modifier = Modifier.constrainAs(rearStats) {
                     bottom.linkTo(tyreRear.bottom)
-                    start.linkTo(vehicleImage.end, 8.dp)
+                    start.linkTo(tyreRear.end, 8.dp)
                 }
             )
             BindSensorButton(
