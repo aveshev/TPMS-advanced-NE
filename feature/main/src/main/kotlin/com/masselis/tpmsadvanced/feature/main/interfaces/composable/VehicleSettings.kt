@@ -116,7 +116,7 @@ public fun VehicleSettings(
                     ?.joinToString(" · ")
                     .let { listOf(it ?: "No correction yet") }
                     .map(::AnnotatedString)
-                else listOf("Corrects sensors reading a few ${pressureUnit.symbol()} off", "Off")
+                else listOf("Corrects sensors reading a bit too high or too low", "No adjustment")
                     .map(::AnnotatedString),
                 checked = calibration,
                 onCheckedChange = { viewModel.pressureCalibration.value = it },

@@ -75,7 +75,7 @@ private fun VehicleCalibrationSettings(
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
     SettingsIntro(
-        "Some sensors read a few ${unit.symbol()} too high or too low. Once calibrated, the pressure they send is multiplied by the multiplier, then the offset is added, before being displayed and checked against the alerts.\n\nA calibrated pressure is marked with an asterisk, like ${example.withSymbol(unit)}*."
+        "Some sensors read a bit too high or too low. Once calibrated, the pressure they send is multiplied by the multiplier, then the offset is added, before being displayed and checked against the alerts.\n\nA calibrated pressure is marked with an asterisk, like ${example.withSymbol(unit)}*."
     )
     SettingsGroup(Modifier.padding(top = 24.dp)) {
         SwitchSettingsItem(
