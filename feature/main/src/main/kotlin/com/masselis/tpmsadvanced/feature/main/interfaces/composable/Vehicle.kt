@@ -45,6 +45,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /*
  * Every vehicle image is drawn on a 208:462 canvas, centered and taking `imageHeight` (0..1) of the
@@ -62,6 +63,13 @@ private const val IMAGE_RATIO = 208f / 462f
  */
 private const val MIN_IMAGE_HEIGHT = .45f
 private const val MAX_IMAGE_HEIGHT = .9f
+
+/*
+ * The image never covers more than this share of the available area. Vehicles with readouts on
+ * both sides are limited by the width first on phones; this keeps a vehicle whose readouts are all
+ * on one side (more width left for the image) from growing much bigger than the others.
+ */
+private const val MAX_IMAGE_AREA = .53f
 private val READOUT_GAP = 8.dp
 private val SCREEN_MARGIN = 4.dp
 
@@ -93,17 +101,20 @@ public fun Vehicle(
     KeepScreenOn()
     val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP
     BoxWithConstraints(modifier) {
-        // Sized for a readout column on each side for every vehicle so they all get the same size
+        // The motorcycle's readouts are all on its right: the image and the readouts are centered
+        // together, which leaves room for a single readout column instead of two
+        val isOneSided = component.vehicle.kind == Kind.MOTORCYCLE
         val imageHeight = maxWidth
-            .minus(readoutWidth * 2)
+            .minus(readoutWidth * if (isOneSided) 1 else 2)
             .minus(SCREEN_MARGIN * 2)
             .div(maxHeight * IMAGE_RATIO)
+            // (imageHeight * maxHeight)² * IMAGE_RATIO <= MAX_IMAGE_AREA * maxWidth * maxHeight
+            .coerceAtMost(sqrt(MAX_IMAGE_AREA * maxWidth.value / (IMAGE_RATIO * maxHeight.value)))
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
         val fill = Modifier.fillMaxSize()
         when (component.vehicle.kind) {
             Kind.CAR -> Car(imageHeight, snackbarHostState, fill)
             Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, fill)
-            // Its readouts are all on its right, centre the image and the readouts together
             Kind.MOTORCYCLE -> Motorcycle(
                 imageHeight,
                 snackbarHostState,
