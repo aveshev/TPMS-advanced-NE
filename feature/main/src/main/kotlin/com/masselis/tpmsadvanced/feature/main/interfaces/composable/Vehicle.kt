@@ -8,15 +8,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstrainScope
 import androidx.constraintlayout.compose.ConstrainedLayoutReference
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -47,13 +54,19 @@ import kotlin.math.roundToInt
 private const val IMAGE_RATIO = 208f / 462f
 
 /*
- * The image takes 70% of the height when readouts need the room on its sides (portrait) and grows
- * up to 90% when the screen is wide enough to fit the image plus [READOUTS_WIDTH] on each side
- * (landscape).
+ * The image is as tall as possible, up to [MAX_IMAGE_HEIGHT] of the height, while leaving room on
+ * each side for the widest readout text, its [READOUT_GAP] and a [SCREEN_MARGIN], so readouts are
+ * never cut by the screen edges. On narrow screens (portrait) the width decides, down to
+ * [MIN_IMAGE_HEIGHT].
  */
-private const val MIN_IMAGE_HEIGHT = .7f
+private const val MIN_IMAGE_HEIGHT = .45f
 private const val MAX_IMAGE_HEIGHT = .9f
-private val READOUTS_WIDTH = 110.dp
+private val READOUT_GAP = 8.dp
+private val SCREEN_MARGIN = 4.dp
+
+/** Widest plausible lines of a readout, per unit, see [TyreStat] */
+private val WIDEST_PRESSURES = listOf("888 kpa", "8.88 bar", "88.8 psi")
+private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "88 days")
 
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
 private const val TYRE_HEIGHT = .165f
@@ -77,8 +90,9 @@ public fun Vehicle(
     modifier: Modifier = Modifier,
 ) {
     KeepScreenOn()
+    val readoutWidth = rememberWidestReadoutWidth() + READOUT_GAP + SCREEN_MARGIN
     BoxWithConstraints(modifier) {
-        val imageHeight = ((maxWidth - READOUTS_WIDTH * 2) / (maxHeight * IMAGE_RATIO))
+        val imageHeight = ((maxWidth - readoutWidth * 2) / (maxHeight * IMAGE_RATIO))
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
         val fill = Modifier.fillMaxSize()
         when (component.vehicle.kind) {
@@ -88,6 +102,20 @@ public fun Vehicle(
             Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, fill)
             Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, fill)
         }
+    }
+}
+
+/** Width of the widest line a [TyreStat] can show, with the current font and font scale */
+@Composable
+private fun rememberWidestReadoutWidth(): Dp {
+    val measurer = rememberTextMeasurer()
+    val pressureStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
+    val density = LocalDensity.current
+    return remember(measurer, pressureStyle, density) {
+        WIDEST_PRESSURES.map { measurer.measure(it, pressureStyle) }
+            .plus(WIDEST_DETAILS.map { measurer.measure(it, pressureStyle.copy(fontSize = 16.sp)) })
+            .maxOf { it.size.width }
+            .let { with(density) { it.toDp() } }
     }
 }
 
