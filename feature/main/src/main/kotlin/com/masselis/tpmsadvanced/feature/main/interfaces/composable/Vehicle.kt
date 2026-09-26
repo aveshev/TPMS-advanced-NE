@@ -405,6 +405,7 @@ private fun TadpoleThreadWheeler(
     ConstraintLayout(modifier = modifier) {
         val (
             vehicleImage,
+            frontTrack,
             frontLeft,
             frontLeftStats,
             frontLeftBinding,
@@ -426,16 +427,29 @@ private fun TadpoleThreadWheeler(
                     height = Dimension.percent(.7f)
                 }
         )
+        // Spans between the centers of the two front wheels and is centered like the image.
+        // Tyres are centered on its edges so they stay on the drawn wheels whatever the
+        // screen width.
+        Box(
+            Modifier
+                .aspectRatio(.734f * 208f / 462f)
+                .constrainAs(frontTrack) {
+                    centerTo(parent)
+                    height = Dimension.percent(.7f)
+                }
+        )
         // The image is centered and takes 70% of the height, a wheel drawn at `y` (0..1) in the
         // image is at `.15f + .7f * y` in the parent.
         val frontAxle = createGuidelineFromTop(.15f + .7f * .306f)
-        val rearAxle = createGuidelineFromTop(.15f + .7f * .824f)
+        // The rear wheel is mostly hidden by the tail, the tyre ends where the wheel meets
+        // the licence plate holder instead of being centered on the axle.
+        val rearWheelEdge = createGuidelineFromTop(.15f + .7f * .842f)
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(frontLeft) {
-                    linkTo(vehicleImage.start, vehicleImage.end, bias = .065f)
+                    centerAround(frontTrack.start)
                     centerAround(frontAxle)
                     width = Dimension.value(30.dp)
                     height = Dimension.value(100.dp)
@@ -463,7 +477,7 @@ private fun TadpoleThreadWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(frontRight) {
-                    linkTo(vehicleImage.start, vehicleImage.end, bias = .935f)
+                    centerAround(frontTrack.end)
                     centerAround(frontAxle)
                     width = Dimension.value(30.dp)
                     height = Dimension.value(100.dp)
@@ -491,7 +505,7 @@ private fun TadpoleThreadWheeler(
                 modifier = Modifier
                     .constrainAs(tyreRear) {
                         centerHorizontallyTo(vehicleImage)
-                        centerAround(rearAxle)
+                        bottom.linkTo(rearWheelEdge)
                         width = Dimension.value(30.dp)
                         height = Dimension.value(100.dp)
                     }
@@ -524,6 +538,7 @@ private fun DeltaThreeWheeler(
     ConstraintLayout(modifier = modifier) {
         val (
             vehicleImage,
+            rearTrack,
             tyreFront,
             frontStats,
             frontBinding,
@@ -541,6 +556,17 @@ private fun DeltaThreeWheeler(
             modifier = Modifier
                 .aspectRatio(208f / 462f)
                 .constrainAs(vehicleImage) {
+                    centerTo(parent)
+                    height = Dimension.percent(.7f)
+                }
+        )
+        // Spans between the centers of the two rear fenders and is centered like the image.
+        // Tyres are centered on its edges so they stay on the drawn wheels whatever the
+        // screen width.
+        Box(
+            Modifier
+                .aspectRatio(.696f * 208f / 462f)
+                .constrainAs(rearTrack) {
                     centerTo(parent)
                     height = Dimension.percent(.7f)
                 }
@@ -582,7 +608,7 @@ private fun DeltaThreeWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearLeft) {
-                    linkTo(vehicleImage.start, vehicleImage.end, bias = .086f)
+                    centerAround(rearTrack.start)
                     centerAround(rearAxle)
                     width = Dimension.value(30.dp)
                     height = Dimension.value(100.dp)
@@ -609,7 +635,7 @@ private fun DeltaThreeWheeler(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.constrainAs(rearRight) {
-                    linkTo(vehicleImage.start, vehicleImage.end, bias = .914f)
+                    centerAround(rearTrack.end)
                     centerAround(rearAxle)
                     width = Dimension.value(30.dp)
                     height = Dimension.value(100.dp)
