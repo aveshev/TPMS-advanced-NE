@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -214,7 +215,12 @@ public fun TextSettingsItem(
     )
 }
 
-/** A [SettingsGroup] item choosing one of a few [options] with segmented buttons at its end */
+/**
+ * A [SettingsGroup] item choosing one of a few [options] with segmented buttons. The buttons sit at
+ * the item's end while the headline fits next to them on one line. Otherwise, as with a large font
+ * or display size, they go below it and take the item's whole width.
+ */
+@Suppress("LongMethod")
 @Composable
 public fun <T> SegmentedSettingsItem(
     headline: String,
@@ -223,23 +229,52 @@ public fun <T> SegmentedSettingsItem(
     onSelect: (T) -> Unit,
     label: (T) -> String,
     modifier: Modifier = Modifier,
-): Unit = Row(
-    verticalAlignment = Alignment.CenterVertically,
+): Unit = Layout(
+    contents = listOf(
+        { Text(headline, style = MaterialTheme.typography.bodyLarge) },
+        {
+            SingleChoiceSegmentedButtonRow {
+                options.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = option == selected,
+                        onClick = { onSelect(option) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        // The check mark would widen the selected segment, its fill already tells it apart
+                        icon = {},
+                        label = { Text(label(option)) },
+                    )
+                }
+            }
+        },
+    ),
     modifier = modifier
         .settingsItem(MaterialTheme.colorScheme.settingsItem)
         .padding(horizontal = 16.dp),
-) {
-    ItemTexts(headline, emptyList(), Modifier.padding(end = 16.dp))
-    SingleChoiceSegmentedButtonRow {
-        options.forEachIndexed { index, option ->
-            SegmentedButton(
-                selected = option == selected,
-                onClick = { onSelect(option) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                // The check mark would widen the selected segment, its fill already tells it apart
-                icon = {},
-                label = { Text(label(option)) },
-            )
+) { (headlineMeasurables, buttonsMeasurables), constraints ->
+    val headline = headlineMeasurables.single()
+    val buttons = buttonsMeasurables.single()
+    val width = constraints.maxWidth
+    val loose = constraints.copy(minWidth = 0, minHeight = 0)
+    val padding = 16.dp.roundToPx()
+    val sideBySide = headline.maxIntrinsicWidth(Constraints.Infinity) + padding +
+        buttons.maxIntrinsicWidth(Constraints.Infinity) <= width
+    if (sideBySide) {
+        val buttonsPlaceable = buttons.measure(loose)
+        val headlinePlaceable = headline.measure(loose.copy(maxWidth = width - padding - buttonsPlaceable.width))
+        val height = maxOf(headlinePlaceable.height + 2 * padding, buttonsPlaceable.height)
+        layout(width, height) {
+            headlinePlaceable.place(0, (height - headlinePlaceable.height) / 2)
+            buttonsPlaceable.place(width - buttonsPlaceable.width, (height - buttonsPlaceable.height) / 2)
+        }
+    } else {
+        val headlinePlaceable = headline.measure(loose)
+        // A fixed width spreads the segments evenly over the whole item
+        val buttonsPlaceable = buttons.measure(Constraints.fixedWidth(width))
+        // The buttons' touch target already pads them vertically, hence the smaller gaps around them
+        val gap = 8.dp.roundToPx()
+        layout(width, padding + headlinePlaceable.height + gap + buttonsPlaceable.height + gap) {
+            headlinePlaceable.place(0, padding)
+            buttonsPlaceable.place(0, padding + headlinePlaceable.height + gap)
         }
     }
 }
@@ -384,5 +419,26 @@ internal fun SettingsGroupPreview() {
             )
             SettingsItem { Text("Anything else") }
         }
+    }
+}
+
+@Preview(widthDp = 360, fontScale = 2f)
+@Composable
+internal fun SegmentedSettingsItemLargeFontPreview() {
+    SettingsGroup {
+        SegmentedSettingsItem(
+            headline = "Pressure in",
+            options = listOf("kPa", "bar", "psi"),
+            selected = "psi",
+            onSelect = {},
+            label = { it },
+        )
+        SegmentedSettingsItem(
+            headline = "Temperature in",
+            options = listOf("°C", "°F"),
+            selected = "°C",
+            onSelect = {},
+            label = { it },
+        )
     }
 }
