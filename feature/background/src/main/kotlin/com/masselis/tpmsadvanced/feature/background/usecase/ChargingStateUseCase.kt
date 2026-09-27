@@ -8,6 +8,7 @@ import android.os.BatteryManager.BATTERY_PLUGGED_DOCK
 import android.os.BatteryManager.BATTERY_PLUGGED_USB
 import android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS
 import android.os.BatteryManager.EXTRA_PLUGGED
+import androidx.core.content.ContextCompat.RECEIVER_EXPORTED
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.core.common.asFlow
 import kotlinx.coroutines.flow.Flow
@@ -31,7 +32,8 @@ internal class ChargingStateUseCase {
     private val filter = IntentFilter(ACTION_BATTERY_CHANGED)
 
     val state: Flow<State> = filter
-        .asFlow()
+        // Protected system broadcast, see asFlow()
+        .asFlow(RECEIVER_EXPORTED)
         // Sticky broadcast: registering without a receiver returns the current value immediately,
         // instead of waiting for the receiver's first delivery
         .onStart { appContext.registerReceiver(null, filter)?.let { emit(it) } }
