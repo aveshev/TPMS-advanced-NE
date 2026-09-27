@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
@@ -301,6 +303,62 @@ public fun RadioSettingsItem(
     ItemTexts(headline, emptyList())
 }
 
+/** A [SettingsGroup] item of a multiple choice list, the whole item toggles it */
+@Composable
+public fun CheckboxSettingsItem(
+    headline: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+): Unit = Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = modifier
+        .settingsItem(MaterialTheme.colorScheme.settingsItem)
+        .toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Checkbox,
+            onValueChange = onCheckedChange,
+        )
+        .padding(end = 16.dp),
+) {
+    Checkbox(
+        checked = checked,
+        onCheckedChange = null,
+        enabled = enabled,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
+    ItemTexts(headline, emptyList(), Modifier.enabledAlpha(enabled))
+}
+
+/**
+ * A [SettingsGroup] item showing or hiding the items following it, such as the less relevant
+ * choices of a list
+ */
+@Composable
+public fun ExpandSettingsItem(
+    headline: String,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+): Unit = Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = modifier
+        .settingsItem(MaterialTheme.colorScheme.settingsItem)
+        .clickable(onClick = onClick)
+        .padding(start = 16.dp, end = 8.dp),
+) {
+    ItemTexts(headline, emptyList(), headlineColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    Icon(
+        imageVector = ImageVector.vectorResource(R.drawable.chevron_right_24px),
+        contentDescription = if (expanded) "Hide $headline" else "Show $headline",
+        modifier = Modifier
+            .size(32.dp)
+            .rotate(if (expanded) -90f else 90f),
+    )
+}
+
 /** The explanation at the top of a settings page, above its first [SettingsSectionHeader] */
 @Composable
 public fun SettingsIntro(
@@ -310,6 +368,18 @@ public fun SettingsIntro(
     text = text,
     style = MaterialTheme.typography.bodyLarge,
     modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+)
+
+/** A short explanation between a [SettingsSectionHeader] and its [SettingsGroup] */
+@Composable
+public fun SettingsSectionNote(
+    text: String,
+    modifier: Modifier = Modifier,
+): Unit = Text(
+    text = text,
+    style = MaterialTheme.typography.bodyMedium,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier = modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
 )
 
 /** Headline and supporting text of an item, taking the row's remaining width */
@@ -409,6 +479,14 @@ internal fun SettingsGroupPreview() {
                 onClick = {},
             )
             RadioSettingsItem(headline = "Choice", selected = true, onClick = {})
+            CheckboxSettingsItem(headline = "Multiple choice", checked = true, onCheckedChange = {})
+            CheckboxSettingsItem(
+                headline = "Disabled multiple choice",
+                checked = true,
+                enabled = false,
+                onCheckedChange = {},
+            )
+            ExpandSettingsItem(headline = "More choices", expanded = false, onClick = {})
             TextSettingsItem(headline = "Page", supporting = "Current value", onClick = {}, opensPage = true)
             SegmentedSettingsItem(
                 headline = "Segments",

@@ -4,10 +4,12 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -30,11 +33,13 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LongParameterList")
 internal class ScanPolicyUseCase(
     private val appPreferences: AppPreferences,
     private val scanSuspensionUseCase: ScanSuspensionUseCase,
     private val chargingStateUseCase: ChargingStateUseCase,
     private val androidAutoUseCase: AndroidAutoUseCase,
+    private val bluetoothDevicesUseCase: BluetoothDevicesUseCase,
     scope: CoroutineScope,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
@@ -85,24 +90,65 @@ internal class ScanPolicyUseCase(
             scanSuspensionUseCase.suspensionReasons,
         ) { fulfilled, reasons ->
             decide(enabled, fulfilled, reasons)
+        }.flatMapLatest { decision ->
+            // Names the devices a Bluetooth condition holds for, the user reads them in the rationale
+            when {
+                decision is ScanDecision.Active && BLUETOOTH in decision.causes ->
+                    appPreferences
+                        .activateBluetoothDevices
+                        .connectedNames()
+                        .map { decision.copy(bluetoothDevices = it) }
+
+                decision is ScanDecision.Suspended && Reason.BLUETOOTH in decision.reasons ->
+                    appPreferences
+                        .suspendBluetoothDevices
+                        .connectedNames()
+                        .map { decision.copy(bluetoothDevices = it) }
+
+                else -> flowOf(decision)
+            }
         }
     }
 
+    /** The names of the connected devices among the selected ones */
+    private fun Flow<Set<String>>.connectedNames(): Flow<List<String>> =
+        combine(this, bluetoothDevicesUseCase.connected) { selected, connected ->
+            connected
+                .filter { it.address in selected }
+                .map { it.name }
+                .sortedBy { it.lowercase() }
+        }
+            // Empty only for the moment between a disconnection and the decision changing because
+            // of it: that stale decision isn't worth telling
+            .filter { it.isNotEmpty() }
+
     private fun enabledCauses(): Flow<Set<ActivateCause>> = combine(
         appPreferences.activateConditions,
-        appPreferences.activateOnCableCharging,
-        appPreferences.activateOnWirelessCharging,
-        appPreferences.activateOnAndroidAuto,
+        combine(
+            appPreferences.activateOnCableCharging,
+            appPreferences.activateOnWirelessCharging,
+            appPreferences.activateOnAndroidAuto,
+            appPreferences.activateOnBluetooth,
+            appPreferences.activateBluetoothDevices,
+        ) { cable, wireless, androidAuto, bluetooth, bluetoothDevices ->
+            buildSet {
+                if (cable) add(CABLE)
+                if (wireless) add(WIRELESS)
+                if (androidAuto) add(ANDROID_AUTO)
+                // Selected devices unpaired since then count too: the paired ones are unknown
+                // while Bluetooth is off, which must not turn this into "always" active. Leaving
+                // the device picker with none of them paired turns the condition off instead.
+                if (bluetooth && bluetoothDevices.isNotEmpty()) add(BLUETOOTH)
+            }
+        },
         appPreferences.stayActive,
-    ) { conditions, cable, wireless, androidAuto, stayActive ->
+    ) { conditions, selected, stayActive ->
         buildSet {
             // Nothing selected is the same as the conditions being off, which they are turned into
             // when leaving their page: the decision doesn't flicker through "idle" meanwhile.
             // "Stay active" only extends the others, it doesn't count.
-            if (conditions.not() || listOf(cable, wireless, androidAuto).none { it }) add(ALWAYS)
-            if (cable) add(CABLE)
-            if (wireless) add(WIRELESS)
-            if (androidAuto) add(ANDROID_AUTO)
+            if (conditions.not() || selected.isEmpty()) add(ALWAYS)
+            addAll(selected)
             if (stayActive) add(STAY_ACTIVE)
         }
     }
@@ -132,6 +178,16 @@ internal class ScanPolicyUseCase(
             }
             if (ANDROID_AUTO in enabled) {
                 add(androidAutoUseCase.connected.map { if (it) setOf(ANDROID_AUTO) else emptySet() })
+            }
+            if (BLUETOOTH in enabled) {
+                add(
+                    combine(
+                        appPreferences.activateBluetoothDevices,
+                        bluetoothDevicesUseCase.connected,
+                    ) { selected, connected ->
+                        if (connected.any { it.address in selected }) setOf(BLUETOOTH) else emptySet()
+                    }
+                )
             }
         }
         return if (sources.isEmpty()) flowOf(emptySet())

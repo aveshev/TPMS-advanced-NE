@@ -58,6 +58,14 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings/suspend_scan_conditions"
     }
 
+    data object ActivateBluetoothDevices : Path {
+        override fun toString(): String = "app_settings/activate_scan_conditions/bluetooth_devices"
+    }
+
+    data object SuspendBluetoothDevices : Path {
+        override fun toString(): String = "app_settings/suspend_scan_conditions/bluetooth_devices"
+    }
+
     @JvmInline
     value class BindingMethod(val vehicleUUID: UUID) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/binding_method"
@@ -84,6 +92,8 @@ internal sealed interface Path {
                 StayActiveDuration,
                 SuspendScanConditions,
                 ExceptedWifis,
+                ActivateBluetoothDevices,
+                SuspendBluetoothDevices,
             )
 
         @Suppress("NAME_SHADOWING")

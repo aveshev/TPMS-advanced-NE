@@ -13,11 +13,13 @@ import com.masselis.tpmsadvanced.BuildConfig
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateBluetoothDevices
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateScanConditions
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ExceptedWifis
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningDetails
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningSettings
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.StayActiveDuration
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendBluetoothDevices
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendScanConditions
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DemoModeSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
@@ -72,9 +74,10 @@ internal fun PersistentScanningDetailsSettings(
 @Composable
 internal fun ActivateScanConditionsSettings(
     openStayActiveDuration: () -> Unit,
+    openBluetoothDevices: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
-    ActivateScanConditions(openStayActiveDuration)
+    ActivateScanConditions(openStayActiveDuration, openBluetoothDevices)
 }
 
 @Composable
@@ -87,9 +90,10 @@ internal fun StayActiveDurationSettings(
 @Composable
 internal fun SuspendScanConditionsSettings(
     openExceptedWifis: () -> Unit,
+    openBluetoothDevices: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
-    SuspendScanConditions(openExceptedWifis)
+    SuspendScanConditions(openExceptedWifis, openBluetoothDevices)
 }
 
 @Composable
@@ -97,6 +101,20 @@ internal fun ExceptedWifisSettings(
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     ExceptedWifis()
+}
+
+@Composable
+internal fun ActivateBluetoothDevicesSettings(
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    ActivateBluetoothDevices()
+}
+
+@Composable
+internal fun SuspendBluetoothDevicesSettings(
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    SuspendBluetoothDevices()
 }
 
 @Composable

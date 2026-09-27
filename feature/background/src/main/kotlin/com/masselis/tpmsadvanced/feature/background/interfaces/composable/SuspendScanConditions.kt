@@ -28,14 +28,21 @@ import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCas
 @Composable
 public fun SuspendScanConditions(
     openExceptedWifis: () -> Unit,
+    openBluetoothDevices: () -> Unit,
     modifier: Modifier = Modifier,
-): Unit = SuspendScanConditions(openExceptedWifis, modifier, viewModel { PersistentScanningSettingsViewModel() })
+): Unit = SuspendScanConditions(
+    openExceptedWifis,
+    openBluetoothDevices,
+    modifier,
+    viewModel { PersistentScanningSettingsViewModel() },
+)
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Suppress("LongMethod")
 @Composable
 internal fun SuspendScanConditions(
     openExceptedWifis: () -> Unit,
+    openBluetoothDevices: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PersistentScanningSettingsViewModel = viewModel { PersistentScanningSettingsViewModel() },
 ) {
@@ -46,6 +53,9 @@ internal fun SuspendScanConditions(
     val suspendOnWifi by viewModel.suspendScanningOnWifi.collectAsState()
     val exceptionEnabled by viewModel.wifiExceptionEnabled.collectAsState()
     val exceptedSsids by viewModel.exceptedWifiSsids.collectAsState()
+    val bluetooth by viewModel.suspendBluetooth.enabled.collectAsState()
+    val bluetoothDevices by viewModel.suspendBluetooth.devices.collectAsState()
+    val paired by viewModel.pairedDevices.collectAsState(initial = emptyList())
     val wifiExceptionJourney = LocalWifiExceptionJourney.current
     val permissionState = rememberMultiplePermissionsState(viewModel.requiredWifiPermissions())
     // Keyed on the grant flag: WifiConnectionUseCase's NetworkCallback delivers redacted data
@@ -66,15 +76,8 @@ internal fun SuspendScanConditions(
         SettingsIntro(
             "Background scanning is suspended whenever any of the conditions below is true, even when an activate condition asks for it, so that no battery is spent while the vehicle is unlikely to be ridden. Scanning while the app is open is never affected."
         )
-        SettingsSectionHeader("Suspend scanning when")
+        SettingsSectionHeader("Suspend scanning when (WiFi)")
         SettingsGroup {
-            SwitchSettingsItem(
-                headline = "The phone is idle for a while",
-                supporting = "Screen off, not charging, no movement (Deep Doze)",
-                checked = suspendInDoze,
-                onCheckedChange = { viewModel.suspendScanningInDoze.value = it },
-                modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendInDoze),
-            )
             SwitchSettingsItem(
                 headline = "Connected to any WiFi",
                 checked = suspendOnWifi,
@@ -104,6 +107,30 @@ internal fun SuspendScanConditions(
                 enabled = suspendOnWifi && exceptionEnabled && ssid != null,
                 onCheckedChange = { ssid?.let(viewModel::toggleExceptedSsid) },
                 modifier = Modifier.testTag(PersistentScanningSettingsTags.currentWifiException),
+            )
+        }
+        SettingsSectionHeader("Suspend scanning when (other)")
+        SettingsGroup {
+            SwitchSettingsItem(
+                headline = "The phone is idle for a while",
+                supporting = "Screen off, not charging, no movement (Deep Doze)",
+                checked = suspendInDoze,
+                onCheckedChange = { viewModel.suspendScanningInDoze.value = it },
+                modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendInDoze),
+            )
+            SwitchNavigationSettingsItem(
+                headline = "Bluetooth device connected",
+                supporting = bluetoothDevicesSummary(paired, bluetoothDevices),
+                checked = bluetooth,
+                onClick = openBluetoothDevices,
+                // Turned on without any device to look for, the only sensible next step is to pick one
+                onCheckedChange = { enabled ->
+                    viewModel.suspendBluetooth.enabled.value = enabled
+                    if (enabled && paired.orEmpty().none { it.address in bluetoothDevices }) openBluetoothDevices()
+                },
+                // Devices can be removed from the list while the condition is off
+                openableWhenOff = true,
+                modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendOnBluetooth),
             )
         }
     }
