@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Pass [ContextCompat.RECEIVER_EXPORTED] for protected system broadcasts. Before API 33,
+ * [ContextCompat.RECEIVER_NOT_EXPORTED] guards the receiver with a permission that only the system
+ * server holds: the sticky replay on registration and broadcasts from other system processes (the
+ * Bluetooth ACL events) are dropped.
+ * Exporting is safe there: only the system can send a protected broadcast.
+ */
 @Suppress("MaxLineLength")
 public fun IntentFilter.asFlow(
     @ContextCompat.RegisterReceiverFlags flags: Int = ContextCompat.RECEIVER_NOT_EXPORTED

@@ -3,6 +3,7 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import android.content.IntentFilter
 import android.os.PowerManager
 import android.os.PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED
+import androidx.core.content.ContextCompat.RECEIVER_EXPORTED
 import androidx.core.content.getSystemService
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.core.common.asFlow
@@ -14,7 +15,8 @@ internal class DeviceIdleModeUseCase {
     private val powerManager = appContext.getSystemService<PowerManager>()!!
 
     val isDeviceIdle: Flow<Boolean> = IntentFilter(ACTION_DEVICE_IDLE_MODE_CHANGED)
-        .asFlow()
+        // Protected system broadcast, see asFlow()
+        .asFlow(RECEIVER_EXPORTED)
         .map { powerManager.isDeviceIdleMode }
         .onStart { emit(powerManager.isDeviceIdleMode) }
 }
