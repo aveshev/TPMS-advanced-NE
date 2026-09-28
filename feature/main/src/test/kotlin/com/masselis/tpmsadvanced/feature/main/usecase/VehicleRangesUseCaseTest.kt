@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Side
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -49,6 +50,7 @@ internal class VehicleRangesUseCaseTest {
             every { selectRearLowPressure(uuid) } returns null
             every { selectRearHighPressure(uuid) } returns null
             every { selectSeparateRearPressure(uuid) } returns false
+            every { selectLowBatteryVoltage(uuid) } returns 2.6f.volts
             coEvery { updateLowPressure(any(), any()) } returns Unit
             coEvery { updateHighPressure(any(), any()) } returns Unit
             coEvery { updateLowTemp(any(), any()) } returns Unit
@@ -57,6 +59,7 @@ internal class VehicleRangesUseCaseTest {
             coEvery { updateRearLowPressure(any(), any()) } returns Unit
             coEvery { updateRearHighPressure(any(), any()) } returns Unit
             coEvery { updateSeparateRearPressure(any(), any()) } returns Unit
+            coEvery { updateLowBatteryVoltage(any(), any()) } returns Unit
         }
     }
 

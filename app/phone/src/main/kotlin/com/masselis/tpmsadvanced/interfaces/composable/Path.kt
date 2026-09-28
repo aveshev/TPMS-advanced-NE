@@ -30,6 +30,11 @@ internal sealed interface Path {
         override fun toString(): String = "vehicle/$vehicleUUID/settings_temperature"
     }
 
+    @JvmInline
+    value class BatterySettings(val vehicleUUID: UUID) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/settings_battery"
+    }
+
     data object AppSettings : Path {
         override fun toString(): String = "app_settings"
     }
@@ -109,6 +114,7 @@ internal sealed interface Path {
                         "settings_pressure" -> PressureSettings(uuid)
                         "settings_temperature" -> TemperatureSettings(uuid)
                         "settings_calibration" -> CalibrationSettings(uuid)
+                        "settings_battery" -> BatterySettings(uuid)
                         "binding_method" -> BindingMethod(uuid)
                         "qrcode" -> QrCode(uuid)
                         "unlocated" -> Unlocated(uuid)

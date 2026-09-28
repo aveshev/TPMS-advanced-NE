@@ -161,6 +161,9 @@ internal fun VehicleHome(
                             openTemperature = {
                                 navController.navigate("${Path.TemperatureSettings(vehicleComponent.vehicle.uuid)}")
                             },
+                            openBattery = {
+                                navController.navigate("${Path.BatterySettings(vehicleComponent.vehicle.uuid)}")
+                            },
                             openBindingMethod = {
                                 navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
                             },
@@ -182,6 +185,11 @@ internal fun VehicleHome(
                     }
                     composable("${Path.TemperatureSettings(vehicleComponent.vehicle.uuid)}") {
                         TemperatureSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.BatterySettings(vehicleComponent.vehicle.uuid)}") {
+                        BatterySettings(
                             modifier = modifier
                         )
                     }
@@ -369,6 +377,7 @@ private fun TopAppBar(
                 is Path.PressureSettings -> Text(text = "Pressure")
                 is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.CalibrationSettings -> Text(text = "Pressure calibration")
+                is Path.BatterySettings -> Text(text = "Battery voltage")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
                 is Path.PersistentScanning -> Text(text = "Persistent scanning")
@@ -389,6 +398,7 @@ private fun TopAppBar(
                 is Path.PressureSettings,
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
+                is Path.BatterySettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,
@@ -461,6 +471,7 @@ private fun TopAppBar(
                 is Path.PressureSettings,
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
+                is Path.BatterySettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.PersistentScanning,
