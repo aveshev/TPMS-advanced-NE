@@ -111,13 +111,6 @@ internal fun SuspendScanConditions(
         }
         SettingsSectionHeader("Suspend scanning when (other)")
         SettingsGroup {
-            SwitchSettingsItem(
-                headline = "The phone is idle for a while",
-                supporting = "Screen off, not charging, no movement (Deep Doze)",
-                checked = suspendInDoze,
-                onCheckedChange = { viewModel.suspendScanningInDoze.value = it },
-                modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendInDoze),
-            )
             SwitchNavigationSettingsItem(
                 headline = "Bluetooth device connected",
                 supporting = bluetoothDevicesSummary(paired, bluetoothDevices),
@@ -131,6 +124,13 @@ internal fun SuspendScanConditions(
                 // Devices can be removed from the list while the condition is off
                 openableWhenOff = true,
                 modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendOnBluetooth),
+            )
+            SwitchSettingsItem(
+                headline = "The phone is idle for a while",
+                supporting = "Screen off, not charging, no movement (Deep Doze)",
+                checked = suspendInDoze,
+                onCheckedChange = { viewModel.suspendScanningInDoze.value = it },
+                modifier = Modifier.testTag(PersistentScanningSettingsTags.suspendInDoze),
             )
         }
     }

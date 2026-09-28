@@ -164,10 +164,11 @@ private fun activateSummary(
     bluetooth: Boolean,
     stayActiveMinutes: Int?,
 ): List<String> = listOfNotNull(
+    // Same order as their page
+    "Bluetooth".takeIf { bluetooth },
     "Cable charging".takeIf { cable },
     "Wireless charging".takeIf { wireless },
     "Android Auto".takeIf { androidAuto },
-    "Bluetooth".takeIf { bluetooth },
 )
     .takeIf { enabled && it.isNotEmpty() }
     ?.summary(then = stayActiveMinutes?.let { "then $it min" })
@@ -186,8 +187,8 @@ private fun suspendSummary(
 ): List<String> = listOfNotNull(
     // Same order as their page
     (if (wifiException) "WiFi, with exceptions" else "WiFi").takeIf { wifi },
-    "Phone idle".takeIf { doze },
     "Bluetooth".takeIf { bluetooth },
+    "Phone idle".takeIf { doze },
 )
     .takeIf { enabled && it.isNotEmpty() }
     ?.summary()

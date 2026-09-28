@@ -105,6 +105,16 @@ private fun ActivateScanConditions(
     )
     SettingsSectionHeader("Scan when")
     SettingsGroup {
+        SwitchNavigationSettingsItem(
+            headline = "Bluetooth device connected",
+            supporting = bluetoothSummary,
+            checked = bluetooth,
+            onCheckedChange = onBluetooth,
+            onClick = openBluetoothDevices,
+            // Devices can be removed from the list while the condition is off
+            openableWhenOff = true,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnBluetooth),
+        )
         SwitchSettingsItem(
             headline = "Charging with a cable",
             checked = cable,
@@ -122,16 +132,6 @@ private fun ActivateScanConditions(
             checked = androidAuto,
             onCheckedChange = onAndroidAuto,
             modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnAndroidAuto),
-        )
-        SwitchNavigationSettingsItem(
-            headline = "Bluetooth device connected",
-            supporting = bluetoothSummary,
-            checked = bluetooth,
-            onCheckedChange = onBluetooth,
-            onClick = openBluetoothDevices,
-            // Devices can be removed from the list while the condition is off
-            openableWhenOff = true,
-            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnBluetooth),
         )
     }
     SettingsSectionHeader("Afterwards")
