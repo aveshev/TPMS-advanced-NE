@@ -24,7 +24,8 @@ public class TyreDatabase internal constructor(
             tyre.temperature,
             tyre.battery,
             tyre.isAlarm,
-            vehicleId
+            vehicleId,
+            tyre.batteryVoltage,
         )
     }
 
@@ -35,8 +36,18 @@ public class TyreDatabase internal constructor(
         .latestByTyreLocationByVehicle(
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm ->
-            Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+            Tyre.Located(
+                timestamp,
+                rssi,
+                id,
+                pressure,
+                temperature,
+                battery,
+                isAlarm,
+                location,
+                batteryVoltage,
+            )
         }
         .asOneOrNull()
 }

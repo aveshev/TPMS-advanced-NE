@@ -10,8 +10,15 @@ public sealed interface Tyre : Parcelable {
     public val sensorId: Int
     public val pressure: Pressure
     public val temperature: Temperature
+
+    /** The battery byte as the sensor sent it, its unit depends on the sensor */
     public val battery: UShort
+
+    /** An alarm raised by the sensor itself, only Sysgration sensors send one */
     public val isAlarm: Boolean
+
+    /** Null for the sensors which don't report their battery as a voltage (Sysgration) */
+    public val batteryVoltage: Voltage?
 
     public sealed interface SensorInput : Tyre
 
@@ -23,7 +30,8 @@ public sealed interface Tyre : Parcelable {
         override val pressure: Pressure,
         override val temperature: Temperature,
         override val battery: UShort,
-        override val isAlarm: Boolean
+        override val isAlarm: Boolean,
+        override val batteryVoltage: Voltage? = null,
     ) : Tyre, SensorInput
 
     @Parcelize
@@ -36,6 +44,7 @@ public sealed interface Tyre : Parcelable {
         override val battery: UShort,
         override val isAlarm: Boolean,
         val location: Location,
+        override val batteryVoltage: Voltage? = null,
     ) : Tyre {
         public constructor(tyre: Tyre, location: Location) : this(
             tyre.timestamp,
@@ -45,7 +54,8 @@ public sealed interface Tyre : Parcelable {
             tyre.temperature,
             tyre.battery,
             tyre.isAlarm,
-            location
+            location,
+            tyre.batteryVoltage,
         )
     }
 
@@ -59,5 +69,6 @@ public sealed interface Tyre : Parcelable {
         override val battery: UShort,
         override val isAlarm: Boolean,
         val location: SensorLocation,
+        override val batteryVoltage: Voltage? = null,
     ) : Tyre, SensorInput
 }

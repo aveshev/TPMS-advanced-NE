@@ -8,6 +8,7 @@ import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.psi
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import java.util.UUID.fromString
 
 @Suppress("MagicNumber", "MaxLineLength")
@@ -38,7 +39,9 @@ internal data class RawPecham private constructor(
         pressure(),
         temperature(),
         battery(),
-        battery() < 26u // Mimics the alarm from the official app
+        // The low battery is reported through batteryVoltage, these sensors send no alarm
+        false,
+        battery().toFloat().div(10f).volts,
     )
 
     override fun equals(other: Any?): Boolean {

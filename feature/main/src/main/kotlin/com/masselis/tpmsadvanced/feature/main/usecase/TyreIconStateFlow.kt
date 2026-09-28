@@ -50,7 +50,8 @@ public class TyreIconStateFlow internal constructor(
     }
         .transformLatest { (atmosphere, highTemp, normalTemp, lowTemp, lowPressure, highPressure) ->
             emit(
-                if (atmosphere.pressure.hasPressure().not() ||
+                if (atmosphere.isSensorAlarm ||
+                    atmosphere.pressure.hasPressure().not() ||
                     atmosphere.pressure !in lowPressure..highPressure
                 )
                     State.Alerting

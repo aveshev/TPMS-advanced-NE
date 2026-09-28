@@ -47,7 +47,8 @@ public class TyreStatsStateFlow internal constructor(
         ))
     }
         .map { (atmosphere, highTemp, lowPressure, highPressure, pressureUnit, temperatureUnit, isCalibrated) ->
-            val isPressureAlert = atmosphere.pressure.hasPressure().not() ||
+            val isPressureAlert = atmosphere.isSensorAlarm ||
+                atmosphere.pressure.hasPressure().not() ||
                 atmosphere.pressure !in lowPressure..highPressure
             val isTemperatureAlert = atmosphere.temperature.celsius > highTemp.celsius
             if (isPressureAlert || isTemperatureAlert) State.Alerting(

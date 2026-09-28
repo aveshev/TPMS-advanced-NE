@@ -1,6 +1,5 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -20,8 +19,10 @@ public class TyreAtmosphereUseCase internal constructor(
             TyreAtmosphere(
                 record.timestamp,
                 record.sensorId,
-                if (record.isAlarm) 0f.kpa else record.pressure,
-                record.temperature
+                record.pressure,
+                record.temperature,
+                record.batteryVoltage,
+                record.isAlarm,
             )
         }
         .combine(calibrationUseCase.calibration) { atmosphere, calibration ->

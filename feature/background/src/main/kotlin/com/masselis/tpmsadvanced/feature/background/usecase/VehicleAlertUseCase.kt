@@ -46,7 +46,7 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
                 atmospheres
                     .withIndex()
                     .firstOrNull { (index, atmosphere) ->
-                        atmosphere.pressure !in pressureRanges[index]
+                        atmosphere.isSensorAlarm || atmosphere.pressure !in pressureRanges[index]
                     }
                     ?.let { (_, atmosphere) -> Alert.Pressure(atmosphere) }
                     ?: atmospheres

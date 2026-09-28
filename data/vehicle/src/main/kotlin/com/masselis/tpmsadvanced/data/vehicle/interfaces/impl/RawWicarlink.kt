@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import java.util.UUID.fromString
 import kotlin.math.roundToInt
 
@@ -36,7 +37,9 @@ internal data class RawWicarlink private constructor(
         pressure(),
         temperature(),
         voltage().times(10f).roundToInt().toUShort(),
-        voltage() <= 2.1, // Mimic the LYTPMS app
+        // The low battery is reported through batteryVoltage, these sensors send no alarm
+        false,
+        voltage().volts,
     )
 
     override fun equals(other: Any?): Boolean {
