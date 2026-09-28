@@ -40,11 +40,14 @@ internal fun TyreDisplaySettings(
 ) {
     val showSensorId by viewModel.showSensorId.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
+    val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
     TyreDisplaySettings(
         showSensorId = showSensorId,
         onShowSensorId = { viewModel.showSensorId.value = it },
         showTimeSinceUpdate = showTimeSinceUpdate,
         onShowTimeSinceUpdate = { viewModel.showTimeSinceUpdate.value = it },
+        showBatteryVoltage = showBatteryVoltage,
+        onShowBatteryVoltage = { viewModel.showBatteryVoltage.value = it },
         openTimeSinceUpdate = openTimeSinceUpdate,
         modifier = modifier,
         additionalItems = additionalItems,
@@ -57,6 +60,8 @@ private fun TyreDisplaySettings(
     onShowSensorId: (Boolean) -> Unit,
     showTimeSinceUpdate: Boolean,
     onShowTimeSinceUpdate: (Boolean) -> Unit,
+    showBatteryVoltage: Boolean,
+    onShowBatteryVoltage: (Boolean) -> Unit,
     openTimeSinceUpdate: () -> Unit,
     modifier: Modifier = Modifier,
     additionalItems: @Composable ColumnScope.() -> Unit = {},
@@ -69,6 +74,12 @@ private fun TyreDisplaySettings(
         // The page explains why a sensor can stay silent, which matters whether shown or not
         openableWhenOff = true,
         modifier = Modifier.testTag(TyreDisplaySettingsTags.showTimeSinceUpdate),
+    )
+    SwitchSettingsItem(
+        headline = "Battery voltage (even when not low)",
+        checked = showBatteryVoltage,
+        onCheckedChange = onShowBatteryVoltage,
+        modifier = Modifier.testTag(TyreDisplaySettingsTags.showBatteryVoltage),
     )
     SwitchSettingsItem(
         headline = "Sensor ID",
@@ -87,6 +98,8 @@ internal fun TyreDisplaySettingsPreview() {
         onShowSensorId = {},
         showTimeSinceUpdate = true,
         onShowTimeSinceUpdate = {},
+        showBatteryVoltage = false,
+        onShowBatteryVoltage = {},
         openTimeSinceUpdate = {},
     )
 }
@@ -95,5 +108,6 @@ internal fun TyreDisplaySettingsPreview() {
 internal object TyreDisplaySettingsTags {
     const val showSensorId = "TyreDisplaySettingsTags_showSensorId"
     const val showTimeSinceUpdate = "TyreDisplaySettingsTags_showTimeSinceUpdate"
+    const val showBatteryVoltage = "TyreDisplaySettingsTags_showBatteryVoltage"
     const val timeSinceUpdateDetails = "TyreDisplaySettingsTags_timeSinceUpdateDetails"
 }

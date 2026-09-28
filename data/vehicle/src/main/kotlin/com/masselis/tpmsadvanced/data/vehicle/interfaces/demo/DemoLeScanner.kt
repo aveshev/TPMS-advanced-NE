@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -23,6 +24,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             100u,
             false,
             SensorLocation.FRONT_LEFT,
+            3.1f.volts,
         ),
         Tyre.Unlocated(
             now(),
@@ -32,6 +34,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             15f.celsius,
             100u,
             false,
+            3.1f.volts,
         )
     )
 
@@ -45,6 +48,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             75u,
             false,
             SensorLocation.FRONT_RIGHT,
+            3f.volts,
         ),
         Tyre.Unlocated(
             now(),
@@ -54,6 +58,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             20f.celsius,
             75u,
             false,
+            3f.volts,
         )
     )
 
@@ -67,6 +72,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             50u,
             false,
             SensorLocation.REAR_LEFT,
+            2.9f.volts,
         ),
         Tyre.Unlocated(
             now(),
@@ -76,6 +82,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             35f.celsius,
             50u,
             false,
+            2.9f.volts,
         ),
     )
 
@@ -89,6 +96,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             25u,
             false,
             SensorLocation.REAR_RIGHT,
+            3f.volts,
         ),
         Tyre.Unlocated(
             now(),
@@ -98,6 +106,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             95f.celsius,
             25u,
             false,
+            3f.volts,
         )
     )
 

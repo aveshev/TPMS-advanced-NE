@@ -37,6 +37,7 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettin
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Companion.LOW_SOON_MARGIN
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -77,8 +78,8 @@ private fun VehicleBatterySettings(
             modifier = Modifier.fillMaxWidth(),
         ) {
             listOf(
-                Triple(lowVoltage + LowSoonMargin + LowSoonMargin, MaterialTheme.colorScheme.onSurface, "Normal"),
-                Triple(lowVoltage + LowSoonMargin, Orange, "Getting low"),
+                Triple(lowVoltage + LOW_SOON_MARGIN + LOW_SOON_MARGIN, MaterialTheme.colorScheme.onSurface, "Normal"),
+                Triple(lowVoltage + LOW_SOON_MARGIN, Orange, "Getting low"),
                 Triple(lowVoltage, MaterialTheme.colorScheme.error, "Low alarm"),
             ).forEach { (voltage, color, caption) ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -121,7 +122,8 @@ private fun VehicleBatterySettings(
         title = "Low voltage alarm",
         value = lowVoltage.volts,
         range = LowVoltageLimits,
-        step = LowSoonMargin.volts,
+        // The sensors report their voltage in steps of 0.1 V
+        step = VOLTAGE_STEP,
         unit = "V",
         format = { it.volts.numberString() },
         onConfirm = { onLowVoltage(it.volts); editing = false },
@@ -129,8 +131,7 @@ private fun VehicleBatterySettings(
     )
 }
 
-/** How far above the alarm a voltage is shown as getting low */
-private val LowSoonMargin = 0.1f.volts
+private const val VOLTAGE_STEP = 0.1f
 
 // Below 2 V the sensors stop sending before reporting it, above 3 V a fresh battery would alarm
 @Suppress("MagicNumber")

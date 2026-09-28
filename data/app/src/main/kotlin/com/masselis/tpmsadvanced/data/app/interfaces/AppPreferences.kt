@@ -29,6 +29,13 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_TIME_SINCE_UPDATE", newValue) }
     }
 
+    /** A voltage getting low or alarming is shown whatever this is set to */
+    public val showBatteryVoltage: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SHOW_BATTERY_VOLTAGE", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SHOW_BATTERY_VOLTAGE", newValue) }
+    }
+
     public val persistentScanning: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("PERSISTENT_SCANNING", false)
     ) { _, newValue ->

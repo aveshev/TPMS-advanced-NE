@@ -13,7 +13,12 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW_SOON
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.NORMAL
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -49,6 +55,7 @@ internal class TyreStatsStateFlowTest {
             every { highTemp } returns MutableStateFlow(90f.celsius)
             every { resolvedLowPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(1f.bar)
             every { resolvedHighPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(3f.bar)
+            every { lowBatteryVoltage } returns MutableStateFlow(2.6f.volts)
         }
         vehicleCalibrationUseCase = mockk {
             every { isEnabled } returns MutableStateFlow(false)
@@ -74,8 +81,9 @@ internal class TyreStatsStateFlowTest {
         temperature: Temperature,
         timestamp: Double = now(),
         sensorId: Int = 0,
+        batteryVoltage: Voltage? = null,
     ) = every { tyreAtmosphereUseCase.listen() }.returns(
-        flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature))
+        flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature, batteryVoltage))
     )
 
     @Test
@@ -139,6 +147,51 @@ internal class TyreStatsStateFlowTest {
             assertEquals(sensorId, state.sensorId)
 
             cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a sensor without a voltage has no battery`() = runTest {
+        setAtmosphere(2f.bar, 45f.celsius)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertNull(assertIs<State.Normal>(awaitItem()).battery)
+        }
+    }
+
+    @Test
+    fun `a voltage above the warning margin is normal`() = runTest {
+        setAtmosphere(2f.bar, 45f.celsius, batteryVoltage = 2.8f.volts)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertEquals(NORMAL, assertIs<State.Normal>(awaitItem()).battery?.level)
+        }
+    }
+
+    @Test
+    fun `a voltage within 0,1 V of the alarm is getting low`() = runTest {
+        setAtmosphere(2f.bar, 45f.celsius, batteryVoltage = 27.toFloat().div(10f).volts)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertEquals(LOW_SOON, assertIs<State.Normal>(awaitItem()).battery?.level)
+        }
+    }
+
+    @Test
+    fun `a low battery alarms without making the tyre alert`() = runTest {
+        setAtmosphere(2f.bar, 45f.celsius, batteryVoltage = 2.6f.volts)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertEquals(LOW, assertIs<State.Normal>(awaitItem()).battery?.level)
+        }
+    }
+
+    @Test
+    fun `keeps the battery of an alerting tyre`() = runTest {
+        setAtmosphere(0.8f.bar, 45f.celsius, batteryVoltage = 2.5f.volts)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertEquals(LOW, assertIs<State.Alerting>(awaitItem()).battery?.level)
         }
     }
 }
