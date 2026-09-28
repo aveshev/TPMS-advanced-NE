@@ -21,14 +21,17 @@ import com.masselis.tpmsadvanced.feature.background.ioc.Bindings.Companion.Persi
 
 /**
  * The page opened from the "Activate scan conditions" item of [PersistentScanningSettings], the
- * duration of "Stay active" being picked on its own page, opened through [openStayActiveDuration].
+ * duration of "Stay active" being picked on its own page, opened through [openStayActiveDuration],
+ * and the Bluetooth devices on another one, opened through [openBluetoothDevices].
  */
 @Composable
 public fun ActivateScanConditions(
     openStayActiveDuration: () -> Unit,
+    openBluetoothDevices: () -> Unit,
     modifier: Modifier = Modifier,
 ): Unit = ActivateScanConditions(
     openStayActiveDuration,
+    openBluetoothDevices,
     modifier,
     viewModel { PersistentScanningSettingsViewModel() },
 )
@@ -36,6 +39,7 @@ public fun ActivateScanConditions(
 @Composable
 internal fun ActivateScanConditions(
     openStayActiveDuration: () -> Unit,
+    openBluetoothDevices: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PersistentScanningSettingsViewModel = viewModel { PersistentScanningSettingsViewModel() },
 ) {
@@ -46,6 +50,9 @@ internal fun ActivateScanConditions(
     val cable by viewModel.activateOnCableCharging.collectAsState()
     val wireless by viewModel.activateOnWirelessCharging.collectAsState()
     val androidAuto by viewModel.activateOnAndroidAuto.collectAsState()
+    val bluetooth by viewModel.activateBluetooth.enabled.collectAsState()
+    val bluetoothDevices by viewModel.activateBluetooth.devices.collectAsState()
+    val paired by viewModel.pairedDevices.collectAsState(initial = emptyList())
     val stayActive by viewModel.stayActive.collectAsState()
     val stayActiveMinutes by viewModel.stayActiveMinutes.collectAsState()
     ActivateScanConditions(
@@ -55,6 +62,15 @@ internal fun ActivateScanConditions(
         onWireless = { viewModel.activateOnWirelessCharging.value = it },
         androidAuto = androidAuto,
         onAndroidAuto = { viewModel.activateOnAndroidAuto.value = it },
+        bluetooth = bluetooth,
+        bluetoothSummary = bluetoothDevicesSummary(paired, bluetoothDevices),
+        // Turned on without any device to look for, the only sensible next step is to pick one
+        onBluetooth = { enabled ->
+            viewModel.activateBluetooth.enabled.value = enabled
+            if (enabled && paired.orEmpty().none { it.address in bluetoothDevices }) openBluetoothDevices()
+        },
+        openBluetoothDevices = openBluetoothDevices,
+        bluetoothSelected = bluetooth && bluetoothDevices.isNotEmpty(),
         stayActive = stayActive,
         stayActiveMinutes = stayActiveMinutes,
         onStayActive = { viewModel.stayActive.value = it },
@@ -72,6 +88,11 @@ private fun ActivateScanConditions(
     onWireless: (Boolean) -> Unit,
     androidAuto: Boolean,
     onAndroidAuto: (Boolean) -> Unit,
+    bluetooth: Boolean,
+    bluetoothSummary: List<AnnotatedString>,
+    onBluetooth: (Boolean) -> Unit,
+    openBluetoothDevices: () -> Unit,
+    bluetoothSelected: Boolean,
     stayActive: Boolean,
     stayActiveMinutes: Int,
     onStayActive: (Boolean) -> Unit,
@@ -102,6 +123,16 @@ private fun ActivateScanConditions(
             onCheckedChange = onAndroidAuto,
             modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnAndroidAuto),
         )
+        SwitchNavigationSettingsItem(
+            headline = "Bluetooth device connected",
+            supporting = bluetoothSummary,
+            checked = bluetooth,
+            onCheckedChange = onBluetooth,
+            onClick = openBluetoothDevices,
+            // Devices can be removed from the list while the condition is off
+            openableWhenOff = true,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnBluetooth),
+        )
     }
     SettingsSectionHeader("Afterwards")
     SettingsGroup {
@@ -113,7 +144,7 @@ private fun ActivateScanConditions(
             ).map(::AnnotatedString),
             checked = stayActive,
             // Only extends the conditions above, meaningless without any of them
-            enabled = cable || wireless || androidAuto,
+            enabled = cable || wireless || androidAuto || bluetoothSelected,
             onCheckedChange = onStayActive,
             onClick = openStayActiveDuration,
             modifier = Modifier.testTag(PersistentScanningSettingsTags.stayActive),
@@ -132,6 +163,11 @@ internal fun ActivateScanConditionsPreview() {
         onWireless = {},
         androidAuto = true,
         onAndroidAuto = {},
+        bluetooth = true,
+        bluetoothSummary = listOf(AnnotatedString("ZEEKR-9DFD")),
+        onBluetooth = {},
+        openBluetoothDevices = {},
+        bluetoothSelected = true,
         stayActive = true,
         stayActiveMinutes = 10,
         onStayActive = {},

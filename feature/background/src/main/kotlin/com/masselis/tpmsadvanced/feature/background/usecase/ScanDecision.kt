@@ -1,17 +1,30 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 
 internal sealed interface ScanDecision {
 
-    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, STAY_ACTIVE, ALWAYS }
+    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, BLUETOOTH, STAY_ACTIVE, ALWAYS }
 
-    /** Background scanning is running, for at least one of [causes]. */
-    data class Active(val causes: Set<ActivateCause>) : ScanDecision
+    /**
+     * Background scanning is running, for at least one of [causes]. [bluetoothDevices] names the
+     * connected devices behind [ActivateCause.BLUETOOTH].
+     */
+    data class Active(
+        val causes: Set<ActivateCause>,
+        val bluetoothDevices: List<String> = emptyList(),
+    ) : ScanDecision
 
-    /** An activate condition holds but a suspend condition overrides it. */
-    data class Suspended(val reasons: Set<Reason>) : ScanDecision
+    /**
+     * An activate condition holds but a suspend condition overrides it. [bluetoothDevices] names
+     * the connected devices behind [Reason.BLUETOOTH].
+     */
+    data class Suspended(
+        val reasons: Set<Reason>,
+        val bluetoothDevices: List<String> = emptyList(),
+    ) : ScanDecision
 
     /** No enabled activate condition is fulfilled, there is nothing to scan for. */
     data object Idle : ScanDecision
@@ -39,7 +52,11 @@ internal fun ScanDecision.explanation(): String = when (this) {
     is ScanDecision.Active ->
         // Nothing to explain besides the user's own choice, the "due to" wording would sound odd
         if (ALWAYS in causes) "Background scanning is active because you chose it to be always active"
-        else "Background scanning is active due to ${causes.joinToString(", ") { it.label }}"
+        else "Background scanning is active due to ${
+            causes.joinToString(", ") {
+                if (it == BLUETOOTH) bluetoothDevices.connectedLabel() else it.label
+            }
+        }"
 
     is ScanDecision.Suspended ->
         "Background scanning is suspended due to ${
@@ -47,6 +64,7 @@ internal fun ScanDecision.explanation(): String = when (this) {
                 when (it) {
                     Reason.DOZE -> "the phone being idle (Doze)"
                     Reason.WIFI -> "WiFi being connected"
+                    Reason.BLUETOOTH -> bluetoothDevices.connectedLabel()
                 }
             }
         }"
@@ -68,6 +86,16 @@ private val ScanDecision.ActivateCause.label
         ScanDecision.ActivateCause.CABLE -> "charging with a cable"
         ScanDecision.ActivateCause.WIRELESS -> "charging wirelessly"
         ScanDecision.ActivateCause.ANDROID_AUTO -> "Android Auto being connected"
+        // Told with the devices' names, see connectedLabel()
+        BLUETOOTH -> "a Bluetooth device being connected"
         ScanDecision.ActivateCause.STAY_ACTIVE -> "staying active after the last activate condition ended"
         ALWAYS -> "the activate conditions being turned off"
     }
+
+/** "A being connected", "A and B being connected", "A, B and C being connected" */
+private fun List<String>.connectedLabel(): String = when (size) {
+    // The device disconnected in the meantime, its name is gone before the decision changes
+    0 -> "a Bluetooth device being connected"
+    1 -> "${single()} being connected"
+    else -> "${dropLast(1).joinToString(", ")} and ${last()} being connected"
+}

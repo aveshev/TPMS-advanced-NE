@@ -217,6 +217,9 @@ internal fun VehicleHome(
                             openStayActiveDuration = {
                                 navController.navigate("${Path.StayActiveDuration}")
                             },
+                            openBluetoothDevices = {
+                                navController.navigate("${Path.ActivateBluetoothDevices}")
+                            },
                             modifier = modifier
                         )
                     }
@@ -230,11 +233,24 @@ internal fun VehicleHome(
                             openExceptedWifis = {
                                 navController.navigate("${Path.ExceptedWifis}")
                             },
+                            openBluetoothDevices = {
+                                navController.navigate("${Path.SuspendBluetoothDevices}")
+                            },
                             modifier = modifier
                         )
                     }
                     composable("${Path.ExceptedWifis}") {
                         ExceptedWifisSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.ActivateBluetoothDevices}") {
+                        ActivateBluetoothDevicesSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.SuspendBluetoothDevices}") {
+                        SuspendBluetoothDevicesSettings(
                             modifier = modifier
                         )
                     }
@@ -360,6 +376,8 @@ private fun TopAppBar(
                 is Path.StayActiveDuration -> Text(text = "Stay active")
                 is Path.SuspendScanConditions -> Text(text = "Suspend scan conditions")
                 is Path.ExceptedWifis -> Text(text = "Excepted WiFis")
+                is Path.ActivateBluetoothDevices,
+                is Path.SuspendBluetoothDevices -> Text(text = "Bluetooth devices")
                 is Path.BindingMethod -> Text(text = "Binding method")
                 is Path.Unlocated -> Text(text = "Binding")
                 is Path.QrCode, null -> {}
@@ -378,6 +396,8 @@ private fun TopAppBar(
                 is Path.StayActiveDuration,
                 is Path.SuspendScanConditions,
                 is Path.ExceptedWifis,
+                is Path.ActivateBluetoothDevices,
+                is Path.SuspendBluetoothDevices,
                 is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated -> {
@@ -448,6 +468,8 @@ private fun TopAppBar(
                 is Path.StayActiveDuration,
                 is Path.SuspendScanConditions,
                 is Path.ExceptedWifis,
+                is Path.ActivateBluetoothDevices,
+                is Path.SuspendBluetoothDevices,
                 is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated,

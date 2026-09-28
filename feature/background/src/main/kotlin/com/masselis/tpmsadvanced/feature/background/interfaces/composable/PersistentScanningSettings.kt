@@ -55,12 +55,18 @@ internal fun PersistentScanningSettings(
     val cable by viewModel.activateOnCableCharging.collectAsState()
     val wireless by viewModel.activateOnWirelessCharging.collectAsState()
     val androidAuto by viewModel.activateOnAndroidAuto.collectAsState()
+    val activateBluetooth by viewModel.activateBluetooth.enabled.collectAsState()
+    val activateBluetoothDevices by viewModel.activateBluetooth.devices.collectAsState()
+    val bluetooth = activateBluetooth && activateBluetoothDevices.isNotEmpty()
     val stayActive by viewModel.stayActive.collectAsState()
     val stayActiveMinutes by viewModel.stayActiveMinutes.collectAsState()
     val suspendConditions by viewModel.suspendConditions.collectAsState()
     val doze by viewModel.suspendScanningInDoze.collectAsState()
     val wifi by viewModel.suspendScanningOnWifi.collectAsState()
     val wifiException by viewModel.wifiExceptionEnabled.collectAsState()
+    val suspendBluetooth by viewModel.suspendBluetooth.enabled.collectAsState()
+    val suspendBluetoothDevices by viewModel.suspendBluetooth.devices.collectAsState()
+    val suspendOnBluetooth = suspendBluetooth && suspendBluetoothDevices.isNotEmpty()
     PersistentScanningSettings(
         persistentScanning = persistentScanning,
         onPersistentScanning = { enabled ->
@@ -71,27 +77,28 @@ internal fun PersistentScanningSettings(
         // Leaving a conditions page with nothing selected turns its switch off, which only happens
         // once that page is gone: this page shows it that way from the start rather than flashing
         // "None selected" first
-        activateConditions = activateConditions && listOf(cable, wireless, androidAuto).any { it },
+        activateConditions = activateConditions && listOf(cable, wireless, androidAuto, bluetooth).any { it },
         // Turned on without any condition to use, the only sensible next step is to pick one. Leaving
         // the page without doing so turns it off again.
         onActivateConditions = { enabled ->
             viewModel.activateConditions.value = enabled
-            if (enabled && listOf(cable, wireless, androidAuto).none { it }) openActivateConditions()
+            if (enabled && listOf(cable, wireless, androidAuto, bluetooth).none { it }) openActivateConditions()
         },
         activateSummary = activateSummary(
             activateConditions,
             cable,
             wireless,
             androidAuto,
+            bluetooth,
             stayActiveMinutes.takeIf { stayActive },
         ),
         openActivateConditions = openActivateConditions,
-        suspendConditions = suspendConditions && listOf(doze, wifi).any { it },
+        suspendConditions = suspendConditions && listOf(doze, wifi, suspendOnBluetooth).any { it },
         onSuspendConditions = { enabled ->
             viewModel.suspendConditions.value = enabled
-            if (enabled && (doze || wifi).not()) openSuspendConditions()
+            if (enabled && listOf(doze, wifi, suspendOnBluetooth).none { it }) openSuspendConditions()
         },
-        suspendSummary = suspendSummary(suspendConditions, doze, wifi, wifiException),
+        suspendSummary = suspendSummary(suspendConditions, doze, wifi, wifiException, suspendOnBluetooth),
         openSuspendConditions = openSuspendConditions,
         modifier = modifier,
     )
@@ -154,11 +161,13 @@ private fun activateSummary(
     cable: Boolean,
     wireless: Boolean,
     androidAuto: Boolean,
+    bluetooth: Boolean,
     stayActiveMinutes: Int?,
 ): List<String> = listOfNotNull(
     "Cable charging".takeIf { cable },
     "Wireless charging".takeIf { wireless },
     "Android Auto".takeIf { androidAuto },
+    "Bluetooth".takeIf { bluetooth },
 )
     .takeIf { enabled && it.isNotEmpty() }
     ?.summary(then = stayActiveMinutes?.let { "then $it min" })
@@ -173,9 +182,12 @@ private fun suspendSummary(
     doze: Boolean,
     wifi: Boolean,
     wifiException: Boolean,
+    bluetooth: Boolean,
 ): List<String> = listOfNotNull(
-    "Phone idle".takeIf { doze },
+    // Same order as their page
     (if (wifiException) "WiFi, with exceptions" else "WiFi").takeIf { wifi },
+    "Phone idle".takeIf { doze },
+    "Bluetooth".takeIf { bluetooth },
 )
     .takeIf { enabled && it.isNotEmpty() }
     ?.summary()
@@ -183,7 +195,8 @@ private fun suspendSummary(
 
 private fun List<String>.summary(then: String? = null): List<String> = listOf(
     (this + listOfNotNull(then)).joinToString(", "),
-    "${first()} and more",
+    // "WiFi, with exceptions and more" would be ambiguous: the details are for the long version
+    "${first().substringBefore(",")} and more",
 )
 
 @Preview
@@ -220,6 +233,8 @@ internal object PersistentScanningSettingsTags {
     const val activateOnCable = "PersistentScanningSettingsTags_activateOnCable"
     const val activateOnWireless = "PersistentScanningSettingsTags_activateOnWireless"
     const val activateOnAndroidAuto = "PersistentScanningSettingsTags_activateOnAndroidAuto"
+    const val activateOnBluetooth = "PersistentScanningSettingsTags_activateOnBluetooth"
+    const val suspendOnBluetooth = "PersistentScanningSettingsTags_suspendOnBluetooth"
     const val stayActive = "PersistentScanningSettingsTags_stayActive"
     const val stayActiveDuration = "PersistentScanningSettingsTags_stayActiveDuration"
 }

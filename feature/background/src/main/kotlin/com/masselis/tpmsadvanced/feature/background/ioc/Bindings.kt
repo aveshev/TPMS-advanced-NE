@@ -7,6 +7,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Backgro
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
@@ -42,16 +43,24 @@ public interface Bindings {
     @SingleIn(AppScope::class)
     private fun wifiConnectionUseCase(): WifiConnectionUseCase = WifiConnectionUseCase()
 
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun bluetoothDevicesUseCase(): BluetoothDevicesUseCase =
+        BluetoothDevicesUseCase(GlobalScope + Dispatchers.Default)
+
     @Provides
     @SingleIn(AppScope::class)
     private fun scanSuspensionUseCase(
         appPreferences: AppPreferences,
         deviceIdleModeUseCase: DeviceIdleModeUseCase,
         wifiConnectionUseCase: WifiConnectionUseCase,
+        bluetoothDevicesUseCase: BluetoothDevicesUseCase,
     ): ScanSuspensionUseCase = ScanSuspensionUseCase(
         appPreferences,
         deviceIdleModeUseCase,
         wifiConnectionUseCase,
+        bluetoothDevicesUseCase,
     )
 
     @Provides
@@ -70,11 +79,13 @@ public interface Bindings {
         scanSuspensionUseCase: ScanSuspensionUseCase,
         chargingStateUseCase: ChargingStateUseCase,
         androidAutoUseCase: AndroidAutoUseCase,
+        bluetoothDevicesUseCase: BluetoothDevicesUseCase,
     ): ScanPolicyUseCase = ScanPolicyUseCase(
         appPreferences,
         scanSuspensionUseCase,
         chargingStateUseCase,
         androidAutoUseCase,
+        bluetoothDevicesUseCase,
         GlobalScope + Dispatchers.Default,
     )
 
@@ -96,11 +107,13 @@ public interface Bindings {
         appPreferences: AppPreferences,
         scanPolicyUseCase: ScanPolicyUseCase,
         wifiConnectionUseCase: WifiConnectionUseCase,
+        bluetoothDevicesUseCase: BluetoothDevicesUseCase,
         controller: MonitoringController,
     ): PersistentScanningSettingsViewModel = PersistentScanningSettingsViewModel(
         appPreferences,
         scanPolicyUseCase,
         wifiConnectionUseCase,
+        bluetoothDevicesUseCase,
         controller,
     )
 

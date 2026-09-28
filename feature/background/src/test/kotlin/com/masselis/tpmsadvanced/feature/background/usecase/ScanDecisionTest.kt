@@ -1,10 +1,12 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
 import org.junit.Test
@@ -130,6 +132,22 @@ internal class ScanDecisionTest {
         assertEquals(
             "Background scanning is suspended due to the phone being idle (Doze), WiFi being connected",
             ScanDecision.Suspended(setOf(DOZE, WIFI)).explanation()
+        )
+        assertEquals(
+            "Background scanning is active due to soundcore Liberty 5 being connected",
+            ScanDecision.Active(setOf(BLUETOOTH), bluetoothDevices = listOf("soundcore Liberty 5")).explanation()
+        )
+        assertEquals(
+            "Background scanning is active due to Car, Intercom and Watch being connected",
+            ScanDecision.Active(setOf(BLUETOOTH), bluetoothDevices = listOf("Car", "Intercom", "Watch")).explanation()
+        )
+        assertEquals(
+            "Background scanning is suspended due to Speaker and TV being connected",
+            ScanDecision.Suspended(setOf(Reason.BLUETOOTH), bluetoothDevices = listOf("Speaker", "TV")).explanation()
+        )
+        assertEquals(
+            "Background scanning is suspended due to a Bluetooth device being connected",
+            ScanDecision.Suspended(setOf(Reason.BLUETOOTH)).explanation()
         )
         assertEquals(
             "Background scanning is idle: no activate condition is currently fulfilled",

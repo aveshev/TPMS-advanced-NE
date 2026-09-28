@@ -90,7 +90,7 @@ internal class ServiceNotifier(
                     // service must call startForeground() shortly after being started — a
                     // silent flow here would starve that call if the app launches already
                     // suspended (e.g. opened while already in Doze).
-                    is ScanDecision.Suspended -> flowOf(Suspended(decision.reasons))
+                    is ScanDecision.Suspended -> flowOf(Suspended(decision))
                     ScanDecision.Idle -> flowOf(Idle)
                     is ScanDecision.Active -> combine(
                         vehicleListUseCase
@@ -171,7 +171,7 @@ internal class ServiceNotifier(
                             ScanFailure -> "The Android system reported an issue during the" +
                                     " bluetooth scan, TPMS Advanced must be restarted"
 
-                            is Suspended -> ScanDecision.Suspended(state.reasons).explanation()
+                            is Suspended -> state.decision.explanation()
                             Idle -> ScanDecision.Idle.explanation()
                         }
                     )
@@ -278,7 +278,7 @@ internal class ServiceNotifier(
 
         data object ScanFailure : State
 
-        data class Suspended(val reasons: Set<Reason>) : State
+        data class Suspended(val decision: ScanDecision.Suspended) : State
 
         data object Idle : State
     }

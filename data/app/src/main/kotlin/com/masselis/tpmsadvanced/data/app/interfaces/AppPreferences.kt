@@ -53,6 +53,23 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("ACTIVATE_ON_ANDROID_AUTO", newValue) }
     }
 
+    /** Scans while one of [activateBluetoothDevices] is connected */
+    public val activateOnBluetooth: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_BLUETOOTH", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_BLUETOOTH", newValue) }
+    }
+
+    /**
+     * Addresses of the Bluetooth devices picked for [activateOnBluetooth]. A device unpaired since
+     * then stays in the set, so that it comes back selected once paired again.
+     */
+    public val activateBluetoothDevices: MutableStateFlow<Set<String>> = observableStateFlow(
+        sharedPreferences.getStringSet("ACTIVATE_BLUETOOTH_DEVICES", emptySet())!!.toSet()
+    ) { _, newValue ->
+        sharedPreferences.edit { putStringSet("ACTIVATE_BLUETOOTH_DEVICES", newValue) }
+    }
+
     /** Keeps scanning for [stayActiveMinutes] once every activate condition has ended */
     public val stayActive: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("STAY_ACTIVE", false)
@@ -102,6 +119,20 @@ public class AppPreferences internal constructor(
         sharedPreferences.getStringSet("EXCEPTED_WIFI_SSIDS", emptySet())!!.toSet()
     ) { _, newValue ->
         sharedPreferences.edit { putStringSet("EXCEPTED_WIFI_SSIDS", newValue) }
+    }
+
+    /** Suspends scanning while one of [suspendBluetoothDevices] is connected */
+    public val suspendScanningOnBluetooth: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_ON_BLUETOOTH", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_ON_BLUETOOTH", newValue) }
+    }
+
+    /** Same as [activateBluetoothDevices], for [suspendScanningOnBluetooth] */
+    public val suspendBluetoothDevices: MutableStateFlow<Set<String>> = observableStateFlow(
+        sharedPreferences.getStringSet("SUSPEND_BLUETOOTH_DEVICES", emptySet())!!.toSet()
+    ) { _, newValue ->
+        sharedPreferences.edit { putStringSet("SUSPEND_BLUETOOTH_DEVICES", newValue) }
     }
 
     private val packageInfo

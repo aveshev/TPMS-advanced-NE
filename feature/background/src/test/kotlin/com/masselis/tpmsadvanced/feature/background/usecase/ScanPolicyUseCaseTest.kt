@@ -4,17 +4,20 @@ import app.cash.turbine.test
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase.State
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
+import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase.PairedDevice
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.time.Duration.Companion.minutes
@@ -31,11 +34,15 @@ internal class ScanPolicyUseCaseTest {
     private lateinit var activateOnCableCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnWirelessCharging: MutableStateFlow<Boolean>
     private lateinit var activateOnAndroidAuto: MutableStateFlow<Boolean>
+    private lateinit var activateOnBluetooth: MutableStateFlow<Boolean>
+    private lateinit var activateBluetoothDevices: MutableStateFlow<Set<String>>
     private lateinit var stayActive: MutableStateFlow<Boolean>
     private lateinit var stayActiveMinutes: MutableStateFlow<Int>
     private lateinit var suspensionReasons: MutableStateFlow<Set<Reason>>
     private lateinit var charging: MutableStateFlow<State>
     private lateinit var androidAuto: MutableStateFlow<Boolean>
+    private lateinit var bluetoothConnected: MutableStateFlow<Set<String>>
+    private lateinit var suspendBluetoothDevices: MutableStateFlow<Set<String>>
 
     context(scope: TestScope)
     private fun test() = ScanPolicyUseCase(
@@ -45,6 +52,9 @@ internal class ScanPolicyUseCaseTest {
             every { activateOnCableCharging } returns this@ScanPolicyUseCaseTest.activateOnCableCharging
             every { activateOnWirelessCharging } returns this@ScanPolicyUseCaseTest.activateOnWirelessCharging
             every { activateOnAndroidAuto } returns this@ScanPolicyUseCaseTest.activateOnAndroidAuto
+            every { activateOnBluetooth } returns this@ScanPolicyUseCaseTest.activateOnBluetooth
+            every { activateBluetoothDevices } returns this@ScanPolicyUseCaseTest.activateBluetoothDevices
+            every { suspendBluetoothDevices } returns this@ScanPolicyUseCaseTest.suspendBluetoothDevices
             every { stayActive } returns this@ScanPolicyUseCaseTest.stayActive
             every { stayActiveMinutes } returns this@ScanPolicyUseCaseTest.stayActiveMinutes
         },
@@ -53,6 +63,12 @@ internal class ScanPolicyUseCaseTest {
         },
         mockk<ChargingStateUseCase> { every { state } returns charging },
         mockk<AndroidAutoUseCase> { every { connected } returns androidAuto },
+        mockk<BluetoothDevicesUseCase> {
+            // Named after their address
+            every { connected } returns bluetoothConnected.map { addresses ->
+                addresses.map { PairedDevice(it, it, isAudio = true) }.toSet()
+            }
+        },
         scope.backgroundScope,
         scope.testScheduler.timeSource,
     )
@@ -64,11 +80,15 @@ internal class ScanPolicyUseCaseTest {
         activateOnCableCharging = MutableStateFlow(true)
         activateOnWirelessCharging = MutableStateFlow(true)
         activateOnAndroidAuto = MutableStateFlow(true)
+        activateOnBluetooth = MutableStateFlow(false)
+        activateBluetoothDevices = MutableStateFlow(emptySet())
         stayActive = MutableStateFlow(false)
         stayActiveMinutes = MutableStateFlow(10)
         suspensionReasons = MutableStateFlow(emptySet())
         charging = MutableStateFlow(State(cable = false, wireless = false))
         androidAuto = MutableStateFlow(false)
+        bluetoothConnected = MutableStateFlow(emptySet())
+        suspendBluetoothDevices = MutableStateFlow(emptySet())
     }
 
     @Test
@@ -193,6 +213,88 @@ internal class ScanPolicyUseCaseTest {
         suspensionReasons.value = setOf(Reason.DOZE)
         test().decision.test {
             assertEquals(ScanDecision.Suspended(setOf(Reason.DOZE)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `connecting a selected Bluetooth device activates scanning and disconnecting goes back to idle`() = runTest {
+        activateOnBluetooth.value = true
+        activateBluetoothDevices.value = setOf("CAR")
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+            bluetoothConnected.value = setOf("HEADPHONES", "CAR")
+            assertEquals(ScanDecision.Active(setOf(BLUETOOTH), bluetoothDevices = listOf("CAR")), awaitItem())
+            bluetoothConnected.value = setOf("HEADPHONES")
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `every selected Bluetooth device connected is named`() = runTest {
+        activateOnBluetooth.value = true
+        activateBluetoothDevices.value = setOf("INTERCOM", "CAR")
+        bluetoothConnected.value = setOf("INTERCOM", "CAR", "HEADPHONES")
+        test().decision.test {
+            assertEquals(
+                ScanDecision.Active(setOf(BLUETOOTH), bluetoothDevices = listOf("CAR", "INTERCOM")),
+                awaitItem()
+            )
+        }
+    }
+
+    @Test
+    fun `a Bluetooth suspension names the selected devices connected`() = runTest {
+        charging.value = State(cable = true, wireless = false)
+        suspendBluetoothDevices.value = setOf("SPEAKER")
+        bluetoothConnected.value = setOf("SPEAKER", "HEADPHONES")
+        suspensionReasons.value = setOf(Reason.BLUETOOTH)
+        test().decision.test {
+            assertEquals(
+                ScanDecision.Suspended(setOf(Reason.BLUETOOTH), bluetoothDevices = listOf("SPEAKER")),
+                awaitItem()
+            )
+        }
+    }
+
+    @Test
+    fun `a Bluetooth device that is not selected is ignored`() = runTest {
+        activateOnBluetooth.value = true
+        activateBluetoothDevices.value = setOf("CAR")
+        bluetoothConnected.value = setOf("HEADPHONES")
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a disabled Bluetooth condition is ignored`() = runTest {
+        activateBluetoothDevices.value = setOf("CAR")
+        bluetoothConnected.value = setOf("CAR")
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the Bluetooth condition alone is enough to not always scan`() = runTest {
+        activateOnCableCharging.value = false
+        activateOnWirelessCharging.value = false
+        activateOnAndroidAuto.value = false
+        activateOnBluetooth.value = true
+        activateBluetoothDevices.value = setOf("CAR")
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the Bluetooth condition without any device always scans, like when nothing is selected`() = runTest {
+        activateOnCableCharging.value = false
+        activateOnWirelessCharging.value = false
+        activateOnAndroidAuto.value = false
+        activateOnBluetooth.value = true
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(ALWAYS)), awaitItem())
         }
     }
 
