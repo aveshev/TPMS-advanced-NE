@@ -14,6 +14,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.PRIORITY_LOW
 import androidx.core.app.NotificationCompat.PRIORITY_MAX
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.NotificationCompat.PRIORITY_HIGH
+import androidx.core.app.NotificationManagerCompat.IMPORTANCE_HIGH
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_LOW
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_MAX
 import androidx.core.app.ServiceCompat
@@ -28,6 +30,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.LowBatteryAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
@@ -52,8 +55,10 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.scan
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -79,6 +84,12 @@ internal class ServiceNotifier(
             NotificationChannelCompat
                 .Builder(channelNameForAlerts, IMPORTANCE_MAX)
                 .setName("Monitor service when alerting")
+                .build()
+        )
+        notificationManager.createNotificationChannel(
+            NotificationChannelCompat
+                .Builder(channelNameForLowBattery, IMPORTANCE_HIGH)
+                .setName("Sensor battery low")
                 .build()
         )
 
@@ -128,18 +139,26 @@ internal class ServiceNotifier(
             .onStart { emit(NoAlert) }
             .catch { logger.e("Failed to listen for atmospheres", it); emit(ScanFailure) }
             .distinctUntilChanged()
-            .map { state ->
+            // A sensor battery doesn't recover by itself and its voltage can hover around the
+            // alarm: each sensor alerts once per service run, its later updates are silent
+            .scan(Triple<State?, Boolean, Set<Int>>(null, false, emptySet())) { (_, _, alerted), state ->
+                val sensorId = (state as? LowBatteryAlert)?.atmosphere?.sensorId
+                Triple(state, sensorId != null && sensorId in alerted, alerted + listOfNotNull(sensorId))
+            }
+            .mapNotNull { (state, isRepeat, _) -> state?.let { it to isRepeat } }
+            .map { (state, isRepeat) ->
                 NotificationCompat
                     .Builder(
                         appContext,
                         when (state) {
                             NoAlert, is Suspended, Idle -> channelNameWhenOk
                             is PressureAlert, is TemperatureAlert, ScanFailure -> channelNameForAlerts
+                            is LowBatteryAlert -> channelNameForLowBattery
                         }
                     )
                     .setSmallIcon(
                         when (state) {
-                            NoAlert, is Suspended, Idle -> R.drawable.car_tire
+                            NoAlert, is Suspended, Idle, is LowBatteryAlert -> R.drawable.car_tire
                             is PressureAlert, is TemperatureAlert, ScanFailure -> R.drawable.car_tire_alert
                         }
                     )
@@ -147,13 +166,16 @@ internal class ServiceNotifier(
                         when (state) {
                             NoAlert, is Suspended, Idle -> PRIORITY_LOW
                             is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
+                            is LowBatteryAlert -> PRIORITY_HIGH
                         }
                     )
+                    .setOnlyAlertOnce(isRepeat)
                     .setSubText(
                         when (state) {
                             NoAlert, is Suspended, Idle -> null
                             is PressureAlert -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
+                            is LowBatteryAlert -> state.vehicleName
                             ScanFailure -> null
                         }
                     )
@@ -167,6 +189,10 @@ internal class ServiceNotifier(
                             is TemperatureAlert -> "⚠️ A tyre reached the temperature of ${
                                 state.atmosphere.temperature.string(unitPreferences.temperature.value)
                             } !!!"
+
+                            is LowBatteryAlert -> "🔋 A sensor's battery is low: ${
+                                state.atmosphere.batteryVoltage?.string()
+                            }"
 
                             ScanFailure -> "The Android system reported an issue during the" +
                                     " bluetooth scan, TPMS Advanced must be restarted"
@@ -186,6 +212,7 @@ internal class ServiceNotifier(
 
                             is PressureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
                             is TemperatureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
+                            is LowBatteryAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
 
                             ScanFailure -> {
                                 // Nothing to do, the intent does nothing when clicked
@@ -195,7 +222,8 @@ internal class ServiceNotifier(
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert, is Suspended, Idle ->
+                            NoAlert, is PressureAlert, is TemperatureAlert, is LowBatteryAlert,
+                            is Suspended, Idle ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -276,6 +304,12 @@ internal class ServiceNotifier(
             val atmosphere: TyreAtmosphere,
         ) : State
 
+        data class LowBatteryAlert(
+            val vehicleUuid: UUID,
+            val vehicleName: String,
+            val atmosphere: TyreAtmosphere,
+        ) : State
+
         data object ScanFailure : State
 
         data class Suspended(val decision: ScanDecision.Suspended) : State
@@ -287,6 +321,7 @@ internal class ServiceNotifier(
     internal companion object {
         private const val channelNameWhenOk = "MONITOR_SERVICE_WHEN_OK"
         private const val channelNameForAlerts = "MONITOR_SERVICE_FOR_ALERT"
+        private const val channelNameForLowBattery = "MONITOR_SERVICE_FOR_LOW_BATTERY"
         private const val notificationId = 1
         private const val requestCode = 0
     }
@@ -294,7 +329,8 @@ internal class ServiceNotifier(
 
 /**
  * Picks what the notification must show for all monitored vehicles at once: a pressure alert wins
- * over a temperature alert, and ties are broken by the order of [alerts].
+ * over a temperature alert, which wins over a low battery, and ties are broken by the order of
+ * [alerts].
  */
 internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
     alerts
@@ -303,5 +339,8 @@ internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
         }
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.Temperature)?.let { TemperatureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
+        }
+        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
+            (alert as? Alert.LowBattery)?.let { LowBatteryAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
         ?: NoAlert

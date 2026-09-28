@@ -3,6 +3,8 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -18,6 +20,9 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
         data class Pressure(val atmosphere: TyreAtmosphere) : Alert
 
         data class Temperature(val atmosphere: TyreAtmosphere) : Alert
+
+        /** The least severe, only reported when no tyre alerts for its pressure or temperature */
+        data class LowBattery(val atmosphere: TyreAtmosphere) : Alert
     }
 
     @OptIn(FlowPreview::class)
@@ -42,7 +47,8 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
                     }
                 ) { it },
                 vehicleRangesUseCase.highTemp,
-            ) { atmospheres, pressureRanges, highTemp ->
+                vehicleRangesUseCase.lowBatteryVoltage,
+            ) { atmospheres, pressureRanges, highTemp, lowBatteryVoltage ->
                 atmospheres
                     .withIndex()
                     .firstOrNull { (index, atmosphere) ->
@@ -52,6 +58,14 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
                     ?: atmospheres
                         .firstOrNull { it.temperature > highTemp }
                         ?.let(Alert::Temperature)
+                    ?: atmospheres
+                        .firstOrNull { atmosphere ->
+                            atmosphere
+                                .batteryVoltage
+                                ?.let { Battery.of(it, lowBatteryVoltage).level == LOW }
+                                ?: false
+                        }
+                        ?.let(Alert::LowBattery)
                     ?: Alert.None
             }
         }
