@@ -64,6 +64,7 @@ public class TyreStatsStateFlow internal constructor(
                 isPressureAlert,
                 isTemperatureAlert,
                 isCalibrated,
+                atmosphere.flags,
                 pressureLoss,
             ) else State.Normal(
                 atmosphere.timestamp,
@@ -73,6 +74,7 @@ public class TyreStatsStateFlow internal constructor(
                 atmosphere.temperature,
                 temperatureUnit,
                 isCalibrated,
+                atmosphere.flags,
                 pressureLoss,
             )
         }
@@ -107,6 +109,8 @@ public class TyreStatsStateFlow internal constructor(
             public val temperatureUnit: TemperatureUnit,
             // The pressure was corrected by the vehicle's calibration, marked by an asterisk
             public val isPressureCalibrated: Boolean = false,
+            // The status byte of the last packet, see Tyre.flags
+            public val flags: UByte? = null,
             // An early leak warning, it never makes the tyre alert on its own
             public val pressureLoss: PressureLoss? = null,
         ) : State()
@@ -123,6 +127,7 @@ public class TyreStatsStateFlow internal constructor(
             public val isPressureAlert: Boolean,
             public val isTemperatureAlert: Boolean,
             public val isPressureCalibrated: Boolean = false,
+            public val flags: UByte? = null,
             public val pressureLoss: PressureLoss? = null,
         ) : State()
     }

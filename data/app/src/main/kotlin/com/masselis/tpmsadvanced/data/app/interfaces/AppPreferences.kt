@@ -23,6 +23,30 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_SENSOR_ID", newValue) }
     }
 
+    /**
+     * The switch of the debug options: while off, none of them is shown, whatever is selected.
+     * On by default when the sensor ID, the only one which predates it, was shown.
+     */
+    public val debugOptions: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("DEBUG_OPTIONS", sharedPreferences.getBoolean("SHOW_SENSOR_ID", false))
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("DEBUG_OPTIONS", newValue) }
+    }
+
+    /** Shows the status byte of the last packet under each tyre, bit by bit */
+    public val showSensorFlags: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SHOW_SENSOR_FLAGS", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SHOW_SENSOR_FLAGS", newValue) }
+    }
+
+    /** Shows the activities the phone detects, with their confidence, on the home screen */
+    public val showDetectedActivities: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SHOW_DETECTED_ACTIVITIES", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SHOW_DETECTED_ACTIVITIES", newValue) }
+    }
+
     public val showTimeSinceUpdate: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SHOW_TIME_SINCE_UPDATE", true)
     ) { _, newValue ->

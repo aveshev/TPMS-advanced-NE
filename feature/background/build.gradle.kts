@@ -20,6 +20,7 @@ dependencies {
     implementation(project(":feature:main"))
 
     implementation(libs.androidx.car.app)
+    implementation(libs.google.play.services.location)
 
     debugImplementation(project(":core:debug-ui"))
 
