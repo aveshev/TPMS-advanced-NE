@@ -70,14 +70,17 @@ internal data class RawWicarlink private constructor(
         }
 
         // Reversed engineered from the official LYTPMS app with the help of Claude
-        private object CRC {
+        internal object CRC {
             fun validate(bytes: ByteArray): Boolean {
-                val buf = ByteArray(14)
-                bytes.copyInto(buf, destinationOffset = 0, startIndex = 9, endIndex = 16)
-                bytes.copyInto(buf, destinationOffset = 7, startIndex = 19, endIndex = 26)
                 val expected = (((bytes[16].toInt() and 0xFF) shl 8) or (bytes[18].toInt() and 0xFF)) - bytes[17]
-                return crc16XMODEM(buf) == expected
+                return of(bytes) == expected
             }
+
+            /** The CRC of an advertisement, it covers bytes 9 to 15 and 19 to 25 */
+            fun of(bytes: ByteArray): Int = ByteArray(14)
+                .also { bytes.copyInto(it, destinationOffset = 0, startIndex = 9, endIndex = 16) }
+                .also { bytes.copyInto(it, destinationOffset = 7, startIndex = 19, endIndex = 26) }
+                .let { crc16XMODEM(it) }
 
             private fun crc16XMODEM(bytes: ByteArray): Int {
                 var crc = 0
