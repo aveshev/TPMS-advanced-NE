@@ -1,9 +1,9 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -15,31 +15,32 @@ import kotlinx.coroutines.flow.onEach
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 
 /**
- * The vehicle's early leak warning: a tyre losing [amount] within [window] warns before it reaches
- * the low pressure alert. Turning it off keeps [amount] and [window].
+ * The vehicle's early leak warning: a tyre losing pressure fast enough to fall to two thirds of the
+ * low pressure alert within [horizon], see [PressureLoss.Rule]. Turning it off keeps [horizon].
  */
 @OptIn(FlowPreview::class)
 public class VehiclePressureLossUseCase internal constructor(
     vehicle: Vehicle,
     scope: CoroutineScope,
     database: VehicleDatabase,
+    private val rangesUseCase: VehicleRangesUseCase,
 ) {
 
     public val isEnabled: MutableStateFlow<Boolean> =
         MutableStateFlow(database.selectPressureLoss(vehicle.uuid))
-    public val amount: MutableStateFlow<Pressure> =
-        MutableStateFlow(database.selectPressureLossAmount(vehicle.uuid))
-    public val window: MutableStateFlow<Duration> =
-        MutableStateFlow(database.selectPressureLossWindow(vehicle.uuid))
+    public val horizon: MutableStateFlow<Duration> =
+        MutableStateFlow(database.selectPressureLossHorizon(vehicle.uuid))
 
-    /** The rule checking the tyres, null while it's off */
-    public val rule: Flow<PressureLoss.Rule?> =
-        combine(isEnabled, amount, window) { enabled, amount, window ->
-            PressureLoss.Rule(amount, window).takeIf { enabled }
-        }
+    /** The rule checking the tyre at [location], null while it's off */
+    public fun rule(location: Location): Flow<PressureLoss.Rule?> = combine(
+        isEnabled,
+        horizon,
+        rangesUseCase.resolvedLowPressure(location),
+    ) { enabled, horizon, lowPressure ->
+        PressureLoss.Rule(lowPressure, horizon).takeIf { enabled }
+    }
 
     init {
         isEnabled
@@ -47,18 +48,13 @@ public class VehiclePressureLossUseCase internal constructor(
             .onEach { database.updatePressureLoss(it, vehicle.uuid) }
             .launchIn(scope)
 
-        amount
+        horizon
             .debounce(100.milliseconds)
-            .onEach { database.updatePressureLossAmount(it, vehicle.uuid) }
-            .launchIn(scope)
-
-        window
-            .debounce(100.milliseconds)
-            .onEach { database.updatePressureLossWindow(it, vehicle.uuid) }
+            .onEach { database.updatePressureLossHorizon(it, vehicle.uuid) }
             .launchIn(scope)
     }
 
     public companion object {
-        public val WINDOWS: List<Duration> = listOf(10.minutes, 30.minutes, 1.hours, 2.hours)
+        public val HORIZONS: List<Duration> = listOf(2.hours, 5.hours, 10.hours, 24.hours)
     }
 }

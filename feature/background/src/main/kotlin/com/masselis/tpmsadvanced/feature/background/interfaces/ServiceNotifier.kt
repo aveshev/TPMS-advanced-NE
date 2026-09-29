@@ -142,9 +142,9 @@ internal class ServiceNotifier(
             .onStart { emit(NoAlert) }
             .catch { logger.e("Failed to listen for atmospheres", it); emit(ScanFailure) }
             .distinctUntilChanged()
-            // A loss is checked again at each reading and can hover around the rule's amount: a loss
-            // starting before the latest reading already notified for its tyre is the same one, its
-            // updates are silent. Once pumped up, the next loss starts afresh and alerts again.
+            // A loss is checked again at each reading and can come and go around the rule's limit: once
+            // notified, a tyre's loss updates silently until it's pumped up, the next loss alerting
+            // again
             .scan(
                 Triple<State?, Boolean, Map<Pair<UUID, Location>, Double>>(null, false, emptyMap())
             ) { (_, _, notified), state ->
@@ -152,7 +152,7 @@ internal class ServiceNotifier(
                     ?.let { alert ->
                         Triple(
                             state,
-                            notified[alert.tyre]?.let { alert.loss.since <= it } ?: false,
+                            notified[alert.tyre]?.let { (alert.loss.refilledAt ?: 0.0) < it } ?: false,
                             notified + (alert.tyre to alert.loss.until),
                         )
                     }
@@ -205,10 +205,17 @@ internal class ServiceNotifier(
                             } !!!"
 
                             is PressureLossAlert -> buildString {
+                                val unit = unitPreferences.pressure.value
                                 append("📉 ")
                                 appendLoc(state.location, capitalized = true)
-                                append(" lost ${state.loss.amount.string(unitPreferences.pressure.value)}")
-                                append(" in ${state.loss.duration.inWholeMinutes.coerceAtLeast(1)} min")
+                                append(" is losing ${state.loss.perHour.string(unit)}/h, down to ")
+                                append(state.loss.flatMark.string(unit))
+                                state.loss
+                                    .timeToFlat
+                                    .inWholeMinutes
+                                    .takeIf { it >= MINUTES_PER_HOUR }
+                                    ?.let { append(" in about ${(it + MINUTES_PER_HOUR / 2) / MINUTES_PER_HOUR} h") }
+                                    ?: append(" in less than an hour")
                             }
 
                             ScanFailure -> "The Android system reported an issue during the" +
@@ -345,6 +352,7 @@ internal class ServiceNotifier(
         private const val channelNameForPressureLoss = "MONITOR_SERVICE_FOR_PRESSURE_LOSS"
         private const val notificationId = 1
         private const val requestCode = 0
+        private const val MINUTES_PER_HOUR = 60L
     }
 }
 

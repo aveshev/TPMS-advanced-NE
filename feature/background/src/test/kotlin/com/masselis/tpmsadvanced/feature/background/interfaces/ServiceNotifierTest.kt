@@ -22,7 +22,7 @@ internal class ServiceNotifierTest {
 
     private val atmosphere = TyreAtmosphere(0.0, 1, 1f.bar, 20f.celsius)
     private val otherAtmosphere = TyreAtmosphere(0.0, 2, 3f.bar, 90f.celsius)
-    private val loss = PressureLoss(0.3f.bar, 0.0, 600.0)
+    private val loss = PressureLoss(0.1f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar)
 
     private fun vehicle(vehicleName: String, vehicleUuid: UUID = UUID.randomUUID()) =
         mockk<Vehicle> {

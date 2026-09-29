@@ -72,8 +72,7 @@ public fun VehicleSettings(
     val offset by viewModel.pressureOffset.collectAsState()
     val multiplier by viewModel.pressureMultiplier.collectAsState()
     val pressureLoss by viewModel.pressureLoss.collectAsState()
-    val pressureLossAmount by viewModel.pressureLossAmount.collectAsState()
-    val pressureLossWindow by viewModel.pressureLossWindow.collectAsState()
+    val pressureLossHorizon by viewModel.pressureLossHorizon.collectAsState()
     val calibrationValues = PressureCalibration(offset, multiplier)
     // Leaving the calibration page without any adjustment turns it off, which only happens once
     // that page is gone: this page shows it that way from the start rather than flashing it on
@@ -104,12 +103,7 @@ public fun VehicleSettings(
             )
             SwitchNavigationSettingsItem(
                 headline = "Pressure loss",
-                supporting = listOf(
-                    AnnotatedString(
-                        "${pressureLossAmount.numberString(pressureUnit)} ${pressureUnit.symbol()} " +
-                            "within ${pressureLossWindow.windowLabel()}"
-                    )
-                ),
+                supporting = listOf(AnnotatedString("⅔ of the low alert within ${pressureLossHorizon.horizonLabel()}")),
                 checked = pressureLoss,
                 onCheckedChange = { viewModel.pressureLoss.value = it },
                 onClick = openPressureLoss,

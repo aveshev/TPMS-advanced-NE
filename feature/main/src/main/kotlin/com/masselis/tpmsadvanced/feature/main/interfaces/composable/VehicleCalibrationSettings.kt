@@ -116,7 +116,7 @@ private fun VehicleCalibrationSettings(
             title = "Offset",
             value = calibration.offset.convert(unit),
             range = OffsetLimit.let { (-it).convert(unit)..it.convert(unit) },
-            step = unit.fineStep,
+            step = unit.offsetStep,
             unit = unit.symbol(),
             format = { it.toPressure(unit).numberString(unit) },
             onConfirm = { onOffset(it.toPressure(unit)); editing = null },
@@ -158,12 +158,9 @@ internal fun Pressure.signedWithSymbol(unit: PressureUnit) =
 
 internal fun Float.multiplierString() = "×%.2f".format(this)
 
-/**
- * Finer than the alert range's steps, for a calibration correcting a few units at most and a
- * pressure loss
- */
+/** Finer than the alert range's steps, a calibration corrects a few units at most */
 @Suppress("MagicNumber")
-internal val PressureUnit.fineStep: Float
+private val PressureUnit.offsetStep: Float
     get() = when (this) {
         KILO_PASCAL -> 5f
         BAR -> 0.05f

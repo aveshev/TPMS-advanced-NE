@@ -161,7 +161,7 @@ private fun TyreStat(
         // An early leak warning, in orange and still: it's less urgent than the alerts
         if (pressureLoss != null && pressure != null) {
             Text(
-                "↓${pressureLoss.amount.string(pressure.second)}",
+                "↓${pressureLoss.perHour.string(pressure.second)}/h",
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 fontSize = 16.sp,
@@ -439,7 +439,7 @@ internal fun TyreStatPressureLossPreview() {
             PressureUnit.BAR,
             30f.celsius,
             TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.25f.bar, 0.0, 720.0),
+            pressureLoss = PressureLoss(0.12f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar),
         ),
         showTimeSinceUpdate = false,
     )

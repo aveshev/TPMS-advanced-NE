@@ -1,3 +1,3 @@
 ALTER TABLE Vehicle ADD pressureLoss INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE Vehicle ADD pressureLossAmount REAL NOT NULL DEFAULT 20;
-ALTER TABLE Vehicle ADD pressureLossMinutes INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE Vehicle ADD pressureLossHours INTEGER NOT NULL DEFAULT 10;
+CREATE INDEX IF NOT EXISTS tyre_vehicle_location_timestamp ON Tyre(vehicleId, location, timestamp);

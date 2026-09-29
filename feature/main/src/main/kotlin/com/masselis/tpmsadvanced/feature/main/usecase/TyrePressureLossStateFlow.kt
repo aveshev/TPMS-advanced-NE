@@ -23,7 +23,7 @@ import kotlin.time.DurationUnit.SECONDS
 
 /**
  * The tyre's early leak warning, null while it isn't losing pressure or the vehicle's
- * [VehiclePressureLossUseCase] is off. The readings of the longest window are kept in memory,
+ * [VehiclePressureLossUseCase] is off. The readings of [PressureLoss.Rule.LOOKBACK] are kept in memory,
  * starting with the stored ones so a restarted app or service doesn't forget a loss in progress.
  * They're kept as read, the calibration being applied to all of them at once: changing it can't
  * look like a loss.
@@ -62,7 +62,7 @@ public class TyrePressureLossStateFlow internal constructor(
         .combine(calibrationUseCase.calibration) { history, calibration ->
             history.map { it.toAtmosphere(calibration) }
         }
-        .combine(pressureLossUseCase.rule) { history, rule -> rule?.detect(history) }
+        .combine(pressureLossUseCase.rule(location)) { history, rule -> rule?.detect(history) }
         .flowOn(Dispatchers.Default)
         .catch {
             Logger.withTag("TyrePressureLossStateFlow").e("Failed to check the pressure loss", it)
@@ -72,9 +72,6 @@ public class TyrePressureLossStateFlow internal constructor(
 ) : StateFlow<PressureLoss?> by stateFlow {
 
     private companion object {
-        private val HISTORY_SECONDS = VehiclePressureLossUseCase
-            .WINDOWS
-            .max()
-            .toDouble(SECONDS)
+        private val HISTORY_SECONDS = PressureLoss.Rule.LOOKBACK.toDouble(SECONDS)
     }
 }

@@ -24,8 +24,7 @@ internal interface VehicleSettingsViewModel {
     val pressureMultiplier: MutableStateFlow<Float>
 
     val pressureLoss: MutableStateFlow<Boolean>
-    val pressureLossAmount: MutableStateFlow<Pressure>
-    val pressureLossWindow: MutableStateFlow<Duration>
+    val pressureLossHorizon: MutableStateFlow<Duration>
 
     val highTemp: MutableStateFlow<Temperature>
     val normalTemp: MutableStateFlow<Temperature>

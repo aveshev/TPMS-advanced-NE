@@ -36,8 +36,7 @@ internal class VehicleSettingsViewModelImpl(
     override val pressureMultiplier = vehicleCalibrationUseCase.multiplier
 
     override val pressureLoss = vehiclePressureLossUseCase.isEnabled
-    override val pressureLossAmount = vehiclePressureLossUseCase.amount
-    override val pressureLossWindow = vehiclePressureLossUseCase.window
+    override val pressureLossHorizon = vehiclePressureLossUseCase.horizon
 
     override val highTemp = vehicleRangesUseCase.highTemp
     override val normalTemp = vehicleRangesUseCase.normalTemp

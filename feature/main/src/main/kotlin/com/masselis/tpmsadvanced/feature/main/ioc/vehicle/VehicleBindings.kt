@@ -54,8 +54,9 @@ public interface VehicleBindings {
     private fun vehiclePressureLossUseCase(
         vehicle: Vehicle,
         @VehicleLifecycle scope: CoroutineScope,
-        database: VehicleDatabase
-    ): VehiclePressureLossUseCase = VehiclePressureLossUseCase(vehicle, scope, database)
+        database: VehicleDatabase,
+        rangesUseCase: VehicleRangesUseCase,
+    ): VehiclePressureLossUseCase = VehiclePressureLossUseCase(vehicle, scope, database, rangesUseCase)
 
     @Provides
     private fun vehicleSettingsViewModelImpl(

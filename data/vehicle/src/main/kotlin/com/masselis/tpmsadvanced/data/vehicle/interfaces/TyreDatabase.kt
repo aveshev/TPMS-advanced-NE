@@ -56,4 +56,24 @@ public class TyreDatabase internal constructor(
             Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
         }
         .asList()
+
+    /**
+     * Keeps the readings of [location] below [CAP], about 1 MB with its index: once over it, the
+     * oldest are deleted down to [KEPT] so this doesn't have to run at every insert.
+     */
+    public suspend fun prune(location: Location, vehicleId: UUID): Unit = withContext(IO) {
+        queries.transaction {
+            queries
+                .countByTyreLocationByVehicle(vehicleId, location)
+                .executeAsOne()
+                .takeIf { it > CAP }
+                ?.also { queries.keepLatestByTyreLocationByVehicle(vehicleId, location, KEPT) }
+        }
+    }
+
+    public companion object {
+        /** A reading takes about 123 bytes, index included */
+        public const val CAP: Long = 8_000
+        public const val KEPT: Long = 6_000
+    }
 }

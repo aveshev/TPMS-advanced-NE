@@ -14,7 +14,7 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.hours
 
 @Suppress("TooManyFunctions")
 public class VehicleDatabase internal constructor(database: Database) {
@@ -126,20 +126,12 @@ public class VehicleDatabase internal constructor(database: Database) {
             queries.updatePressureLoss(enabled, uuid)
         }
 
-    public fun selectPressureLossAmount(vehicleId: UUID): Pressure =
-        queries.selectPressureLossAmountByVehicleId(vehicleId).executeAsOne()
+    public fun selectPressureLossHorizon(vehicleId: UUID): Duration =
+        queries.selectPressureLossHoursByVehicleId(vehicleId).executeAsOne().hours
 
-    public suspend fun updatePressureLossAmount(amount: Pressure, uuid: UUID): Unit =
+    public suspend fun updatePressureLossHorizon(horizon: Duration, uuid: UUID): Unit =
         withContext(IO) {
-            queries.updatePressureLossAmount(amount, uuid)
-        }
-
-    public fun selectPressureLossWindow(vehicleId: UUID): Duration =
-        queries.selectPressureLossMinutesByVehicleId(vehicleId).executeAsOne().minutes
-
-    public suspend fun updatePressureLossWindow(window: Duration, uuid: UUID): Unit =
-        withContext(IO) {
-            queries.updatePressureLossMinutes(window.inWholeMinutes, uuid)
+            queries.updatePressureLossHours(horizon.inWholeHours, uuid)
         }
 
     public fun selectLowTemp(vehicleId: UUID): Temperature =
@@ -207,12 +199,11 @@ public class VehicleDatabase internal constructor(database: Database) {
             Pressure,
             Double,
             Boolean,
-            Pressure,
             Long,
         ) -> Vehicle =
             // The pressure calibration and loss are only read by the vehicle scope's own queries
             { uuid, name, _, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, _,
-              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _, _, _, _ ->
+              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _, _, _ ->
                 Vehicle(
                     uuid,
                     kind,
