@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.Fraction
 import com.masselis.tpmsadvanced.core.ui.restartApp
 import com.masselis.tpmsadvanced.core.ui.viewModel
@@ -52,8 +53,11 @@ import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow.State
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private val evaluator = ArgbEvaluator()
+
+private val logger = Logger.withTag("Tyre")
 
 @Suppress("LongMethod")
 @Composable
@@ -67,7 +71,7 @@ internal fun Tyre(
         .let { viewModel(it.keyed()) { it.TyreIconViewModel() } },
 ) {
     val state by viewModel.stateFlow.collectAsState()
-    Tyre(state, snackbarHostState, modifier)
+    Tyre(state, snackbarHostState, modifier, logName = "$location")
 }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "MaxLineLength")
@@ -76,6 +80,8 @@ internal fun Tyre(
     state: State,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    // Names the tyre in the logs, null for the demo tyres which aren't logged
+    logName: String? = null,
 ) {
     var isVisible by remember { mutableStateOf(true) }
     if (state is State.Alerting) {
@@ -89,9 +95,21 @@ internal fun Tyre(
         }
     } else
         isVisible = true
+    // Traces #35, a tyre not drawn at all, whose cause is unknown. The drawn state, to compare with
+    // TyreIconStateFlow's logs, and a warning when the tyre stays hidden longer than a blink phase.
+    val isHidden = state is State.Alerting && isVisible.not()
+    if (logName != null) {
+        LaunchedEffect(state) { logger.d { "$logName drawn as $state" } }
+        LaunchedEffect(isHidden) {
+            if (isHidden) {
+                delay(1.seconds)
+                logger.w { "$logName hidden for over 1 s, blinking is stuck. State: $state" }
+            }
+        }
+    }
     Box(
         modifier
-            .alpha(if (state !is State.Alerting || isVisible) 1f else 0f)
+            .alpha(if (isHidden) 0f else 1f)
             .clip(RoundedCornerShape(percent = 20))
             .aspectRatio(15f / 40f)
             .run {
