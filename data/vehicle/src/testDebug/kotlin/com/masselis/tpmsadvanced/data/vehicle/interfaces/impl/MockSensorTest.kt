@@ -15,8 +15,10 @@ import org.junit.Test
 import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @Suppress("MagicNumber")
@@ -86,6 +88,10 @@ internal class MockSensorTest {
                 )
                 assertEquals(reading.celsius, tyre.temperature.celsius, 0.01f, "$sensor $reading")
                 reading.battery?.let { assertEquals(it.toUShort(), tyre.battery, "$sensor $reading") }
+                if (sensor == SYSGRATION) assertNull(tyre.batteryVoltage, "$sensor $reading")
+                else reading.battery?.let {
+                    assertEquals(it / 10f, assertNotNull(tyre.batteryVoltage).volts, 0.05f, "$sensor $reading")
+                }
                 if (sensor != PECHAM && sensor != BEKUBEE_KY) assertEquals(reading.id, tyre.sensorId, "$sensor $reading")
             }
         }
@@ -102,12 +108,14 @@ internal class MockSensorTest {
     }
 
     @Test
-    fun `a low battery raises the alarm of the sensors that don't advertise one`() {
-        listOf(PECHAM, WICARLINK, BEKUBEE_TPMS).forEach { sensor ->
+    fun `a low battery is reported as a voltage, not as an alarm`() {
+        listOf(PECHAM, BEKUBEE_KY, WICARLINK, BEKUBEE_TPMS).forEach { sensor ->
             sensor
                 .advertisement(reading(kpa = 200f, celsius = 20f, battery = 20))
-                .decoded()
-                .let { assertTrue(it!!.asTyre().isAlarm, "$sensor") }
+                .decoded()!!
+                .asTyre()
+                .also { assertFalse(it.isAlarm, "$sensor") }
+                .also { assertEquals(2f, assertNotNull(it.batteryVoltage, "$sensor").volts, 0.05f, "$sensor") }
         }
     }
 
