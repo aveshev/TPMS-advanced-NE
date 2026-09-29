@@ -61,8 +61,18 @@ public class TyreDatabase internal constructor(
             sensorId,
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm ->
-            Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+            Tyre.Located(
+                timestamp,
+                rssi,
+                id,
+                pressure,
+                temperature,
+                battery,
+                isAlarm,
+                location,
+                batteryVoltage,
+            )
         }
         .asOneOrNull()
 }
