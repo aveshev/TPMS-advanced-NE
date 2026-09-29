@@ -42,16 +42,14 @@ public class TyreDatabase internal constructor(
         }
         .asOneOrNull()
 
-    /** The records of [location] from [since] onwards, oldest first */
-    public fun sinceByTyreLocationByVehicle(
+    /** All the stored records of [location], oldest first, at most [CAP] of them */
+    public fun allByTyreLocationByVehicle(
         location: Location,
         vehicleId: UUID,
-        since: Double,
     ): QueryList<Tyre.Located> = queries
-        .sinceByTyreLocationByVehicle(
+        .allByTyreLocationByVehicle(
             location,
             vehicleId,
-            since,
         ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm ->
             Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
         }

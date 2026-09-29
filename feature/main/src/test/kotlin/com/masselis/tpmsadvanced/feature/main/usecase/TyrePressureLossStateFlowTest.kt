@@ -54,7 +54,7 @@ internal class TyrePressureLossStateFlowTest {
         Wheel(FRONT_LEFT),
         mockk<TyreDatabase> {
             // any() can't match the Location value classes
-            every { sinceByTyreLocationByVehicle(Wheel(FRONT_LEFT), VEHICLE_UUID, any()) } returns mockk {
+            every { allByTyreLocationByVehicle(Wheel(FRONT_LEFT), VEHICLE_UUID) } returns mockk {
                 every { execute() } returns stored
             }
         },
@@ -89,7 +89,7 @@ internal class TyrePressureLossStateFlowTest {
         listened = listOf(record(12, 150f))
         val loss = test().awaitLoss()
         assertNotNull(loss)
-        // The fastest loss, from the latest cold reading
+        // Spread over the time parked, since the last reading before it
         assertEquals(START + SECONDS_PER_HOUR, loss.since)
     }
 

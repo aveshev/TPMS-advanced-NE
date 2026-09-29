@@ -32,10 +32,10 @@ WHERE location = ? AND Vehicle.uuid = ?
 ORDER BY timestamp DESC
 LIMIT 1;
 
-sinceByTyreLocationByVehicle:
+allByTyreLocationByVehicle:
 SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm FROM Tyre
 INNER JOIN Vehicle ON Tyre.vehicleId = Vehicle.uuid
-WHERE location = ? AND Vehicle.uuid = ? AND timestamp >= ?
+WHERE location = ? AND Vehicle.uuid = ?
 ORDER BY timestamp ASC;
 
 countByTyreLocationByVehicle:

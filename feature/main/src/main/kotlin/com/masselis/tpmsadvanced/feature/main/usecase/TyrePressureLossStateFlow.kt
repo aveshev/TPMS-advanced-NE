@@ -1,7 +1,6 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
 import co.touchlab.kermit.Logger
-import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
@@ -16,17 +15,18 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
-import kotlin.time.DurationUnit.SECONDS
 
 /**
  * The tyre's early leak warning, null while it isn't losing pressure or the vehicle's
- * [VehiclePressureLossUseCase] is off. The readings of [PressureLoss.Rule.LOOKBACK] are kept in memory,
- * starting with the stored ones so a restarted app or service doesn't forget a loss in progress.
- * They're kept as read, the calibration being applied to all of them at once: changing it can't
- * look like a loss.
+ * [VehiclePressureLossUseCase] is off. The [PressureLoss.Tracker] starts from the stored readings,
+ * so a restarted app or service doesn't forget a loss in progress, then follows the live ones.
+ * Changing the calibration, the low pressure alert or the warning's settings starts it over from
+ * the stored readings, which stay as read: changing the calibration can't look like a loss.
  */
 @Suppress("OPT_IN_TO_INHERITANCE", "LongParameterList")
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,40 +38,35 @@ public class TyrePressureLossStateFlow internal constructor(
     calibrationUseCase: VehicleCalibrationUseCase,
     pressureLossUseCase: VehiclePressureLossUseCase,
     scope: CoroutineScope,
-    stateFlow: StateFlow<PressureLoss?> = flow {
-        tyreDatabase
-            .sinceByTyreLocationByVehicle(location, vehicle.uuid, now() - HISTORY_SECONDS)
-            .execute()
-            // Only the latest sensor, another one may have been bound here before
-            .let { stored -> stored.filter { it.sensorId == stored.last().sensorId } }
-            .also { emit(it) }
-    }
-        .flowOn(Dispatchers.IO)
-        .flatMapLatest { stored ->
-            listenTyreUseCase
-                .listen()
-                .runningFold(stored) { history, record ->
-                    history
-                        // The listened flow starts with the latest stored record
-                        .plus(record)
-                        .distinct()
-                        .filter { it.sensorId == record.sensorId }
-                        .filter { it.timestamp >= record.timestamp - HISTORY_SECONDS }
+    stateFlow: StateFlow<PressureLoss?> = combine(
+        calibrationUseCase.calibration,
+        pressureLossUseCase.rule(location),
+    ) { calibration, rule -> calibration to rule }
+        .flatMapLatest { (calibration, rule) ->
+            rule
+                ?.let {
+                    flow { emit(tyreDatabase.allByTyreLocationByVehicle(location, vehicle.uuid).execute()) }
+                        .flowOn(Dispatchers.IO)
+                        .map { stored ->
+                            stored.fold(PressureLoss.Tracker()) { tracker, record ->
+                                tracker.next(record.toAtmosphere(calibration), rule)
+                            }
+                        }
+                        .flatMapLatest { tracker ->
+                            listenTyreUseCase
+                                .listen()
+                                .runningFold(tracker) { tracker, record ->
+                                    tracker.next(record.toAtmosphere(calibration), rule)
+                                }
+                        }
+                        .map { it.loss }
                 }
+                ?: flowOf(null)
         }
-        .combine(calibrationUseCase.calibration) { history, calibration ->
-            history.map { it.toAtmosphere(calibration) }
-        }
-        .combine(pressureLossUseCase.rule(location)) { history, rule -> rule?.detect(history) }
         .flowOn(Dispatchers.Default)
         .catch {
             Logger.withTag("TyrePressureLossStateFlow").e("Failed to check the pressure loss", it)
             emit(null)
         }
         .stateIn(scope, WhileSubscribed(), null),
-) : StateFlow<PressureLoss?> by stateFlow {
-
-    private companion object {
-        private val HISTORY_SECONDS = PressureLoss.Rule.LOOKBACK.toDouble(SECONDS)
-    }
-}
+) : StateFlow<PressureLoss?> by stateFlow
