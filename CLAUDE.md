@@ -73,6 +73,15 @@ Before `installDebug`, check the branch contains the squash: `git merge-base --i
 ### Demo Mode
 No build flavors — a single build. Demo mode (used for Play Store screenshots/testing) is a runtime setting toggled from the app's settings screen, backed by `ScannerDatabase.isDemo` in `data/vehicle`.
 
+### Mock BLE packets
+Debug builds accept raw BLE advertisements over adb, merged into the real scan so they go through the same scan filters and decoders as over-the-air packets (`data/vehicle/src/debug/.../MockAdvertisements.kt`; the release source set is a no-op):
+
+```bash
+adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.masselis.tpmsadvanced --es bytes <hex> --es address AA:BB:CC:DD:EE:01 --ei rssi -60
+```
+
+`address` and `rssi` are optional. The app must be scanning (main screen open, or the background service running) with Bluetooth on. `adb logcat -s MockAdvertisements BluetoothLeScannerImpl` shows why a packet was dropped, or the decoded `Sensor content`. Real sensors' bytes are logged the same way (`Sensor found during scan`), so a real packet can be captured and replayed; the decoder unit tests in `data/vehicle/src/test` also hold captured samples per brand.
+
 ### Convention Plugins
 Reusable Gradle config lives in `buildSrc/src/main/kotlin/` as convention plugins (`android-app`, `android-lib`, `compose`, `detekt`, `gitflow`, `monitor-resource`). Apply these to new modules rather than duplicating config.
 
