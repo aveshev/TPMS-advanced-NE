@@ -4,6 +4,8 @@ import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -30,7 +32,13 @@ internal class VehicleAlertUseCase(
 
         data class Pressure(val atmosphere: TyreAtmosphere) : Alert
 
+        /** Raised by the sensor itself (Sysgration), maybe a leak the pressure doesn't show yet */
+        data class SensorAlarm(val atmosphere: TyreAtmosphere) : Alert
+
         data class Temperature(val atmosphere: TyreAtmosphere) : Alert
+
+        /** The least severe, only reported when no tyre alerts for its pressure or temperature */
+        data class LowBattery(val atmosphere: TyreAtmosphere) : Alert
     }
 
     @OptIn(FlowPreview::class)
@@ -54,7 +62,8 @@ internal class VehicleAlertUseCase(
             }
         ) { it },
         vehicleRangesUseCase.highTemp,
-    ) { atmospheres, pressureRanges, highTemp ->
+        vehicleRangesUseCase.lowBatteryVoltage,
+    ) { atmospheres, pressureRanges, highTemp, lowBatteryVoltage ->
         atmospheres
             .withIndex()
             .mapNotNull { (index, atmosphere) -> atmosphere?.let { index to it } }
@@ -63,8 +72,19 @@ internal class VehicleAlertUseCase(
                     .firstOrNull { (index, atmosphere) -> atmosphere.pressure !in pressureRanges[index] }
                     ?.let { (_, atmosphere) -> Alert.Pressure(atmosphere) }
                     ?: reported
+                        .firstOrNull { (_, atmosphere) -> atmosphere.isSensorAlarm }
+                        ?.let { (_, atmosphere) -> Alert.SensorAlarm(atmosphere) }
+                    ?: reported
                         .firstOrNull { (_, atmosphere) -> atmosphere.temperature > highTemp }
                         ?.let { (_, atmosphere) -> Alert.Temperature(atmosphere) }
+                    ?: reported
+                        .firstOrNull { (_, atmosphere) ->
+                            atmosphere
+                                .batteryVoltage
+                                ?.let { Battery.of(it, lowBatteryVoltage).level == LOW }
+                                ?: false
+                        }
+                        ?.let { (_, atmosphere) -> Alert.LowBattery(atmosphere) }
                     ?: Alert.None
             }
     }

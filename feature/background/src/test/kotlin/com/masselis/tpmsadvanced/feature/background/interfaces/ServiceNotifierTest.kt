@@ -4,8 +4,10 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.LowBatteryAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.SensorAlarm
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
 import io.mockk.every
@@ -87,5 +89,53 @@ internal class ServiceNotifierTest {
             )
         )
         assertEquals(PressureAlert(uuid, "Car", atmosphere), state)
+    }
+
+    @Test
+    fun `a low battery is reported when no tyre alerts`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.None,
+                vehicle("Bike", uuid) to Alert.LowBattery(atmosphere),
+            )
+        )
+        assertEquals(LowBatteryAlert(uuid, "Bike", atmosphere), state)
+    }
+
+    @Test
+    fun `a temperature alert wins over a low battery of an earlier vehicle`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.LowBattery(atmosphere),
+                vehicle("Bike", uuid) to Alert.Temperature(otherAtmosphere),
+            )
+        )
+        assertEquals(TemperatureAlert(uuid, "Bike", otherAtmosphere), state)
+    }
+
+    @Test
+    fun `a sensor alarm wins over a temperature alert`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.Temperature(otherAtmosphere),
+                vehicle("Bike", uuid) to Alert.SensorAlarm(atmosphere),
+            )
+        )
+        assertEquals(SensorAlarm(uuid, "Bike", atmosphere), state)
+    }
+
+    @Test
+    fun `a pressure alert wins over a sensor alarm`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.SensorAlarm(atmosphere),
+                vehicle("Bike", uuid) to Alert.Pressure(otherAtmosphere),
+            )
+        )
+        assertEquals(PressureAlert(uuid, "Bike", otherAtmosphere), state)
     }
 }

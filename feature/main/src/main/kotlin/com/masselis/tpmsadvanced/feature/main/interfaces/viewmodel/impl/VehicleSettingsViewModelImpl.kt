@@ -39,6 +39,8 @@ internal class VehicleSettingsViewModelImpl(
 
     override val temperatureUnit = unitPreferences.temperature.asStateFlow()
 
+    override val lowBatteryVoltage = vehicleRangesUseCase.lowBatteryVoltage
+
     override fun setRearOverrideEnabled(enabled: Boolean): Unit =
         vehicleRangesUseCase.setRearOverrideEnabled(enabled)
 

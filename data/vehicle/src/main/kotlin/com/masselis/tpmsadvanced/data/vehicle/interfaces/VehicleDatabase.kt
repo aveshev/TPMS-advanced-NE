@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.data.vehicle.Database
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -116,6 +117,14 @@ public class VehicleDatabase internal constructor(database: Database) {
             queries.updatePressureMultiplier(multiplier.toDouble(), uuid)
         }
 
+    public fun selectLowBatteryVoltage(vehicleId: UUID): Voltage =
+        queries.selectLowBatteryVoltageByVehicleId(vehicleId).executeAsOne()
+
+    public suspend fun updateLowBatteryVoltage(voltage: Voltage, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updateLowBatteryVoltage(voltage, uuid)
+        }
+
     public fun selectLowTemp(vehicleId: UUID): Temperature =
         queries.selectLowTempByVehicleId(vehicleId).executeAsOne()
 
@@ -180,10 +189,12 @@ public class VehicleDatabase internal constructor(database: Database) {
             Boolean,
             Pressure,
             Double,
+            Voltage,
         ) -> Vehicle =
-            // The pressure calibration is only read by the vehicle scope's own queries
+            // The pressure calibration and the low battery voltage are only read by the vehicle
+            // scope's own queries
             { uuid, name, _, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, _,
-              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _ ->
+              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _, _ ->
                 Vehicle(
                     uuid,
                     kind,

@@ -40,14 +40,15 @@ import kotlinx.coroutines.delay
 
 /**
  * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
- * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding and
- * [openCalibration] the pressure calibration.
+ * [openPressure], [openTemperature] and [openBattery]. [openBindingMethod] opens the sensor binding
+ * and [openCalibration] the pressure calibration.
  */
 @Suppress("LongMethod", "MaxLineLength")
 @Composable
 public fun VehicleSettings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
+    openBattery: () -> Unit,
     openBindingMethod: () -> Unit,
     openCalibration: () -> Unit,
     modifier: Modifier = Modifier,
@@ -67,6 +68,7 @@ public fun VehicleSettings(
     val lowTemp by viewModel.lowTemp.collectAsState()
     val normalTemp by viewModel.normalTemp.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
+    val lowBatteryVoltage by viewModel.lowBatteryVoltage.collectAsState()
     val calibration by viewModel.pressureCalibration.collectAsState()
     val offset by viewModel.pressureOffset.collectAsState()
     val multiplier by viewModel.pressureMultiplier.collectAsState()
@@ -97,6 +99,13 @@ public fun VehicleSettings(
                     "Hot ${highTemp.numberString(temperatureUnit)} ${temperatureUnit.symbol()}",
                 onClick = openTemperature,
                 opensPage = true,
+            )
+            TextSettingsItem(
+                headline = "Battery voltage",
+                supporting = "Low voltage alarm ${lowBatteryVoltage.string()}",
+                onClick = openBattery,
+                opensPage = true,
+                modifier = Modifier.testTag(VehicleSettingsTags.battery),
             )
         }
         if (backgroundSettings !== backgroundSettingsPlaceholder) {
@@ -203,6 +212,7 @@ internal fun RenameVehicleDialogPreview() {
 @Suppress("ConstPropertyName")
 internal object VehicleSettingsTags {
     const val bindSensors = "VehicleSettingsTags_bindSensors"
+    const val battery = "VehicleSettingsTags_battery"
     const val calibration = "VehicleSettingsTags_calibration"
 }
 

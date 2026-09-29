@@ -24,8 +24,8 @@ public data class PressureCalibration(
         get() = hasOffset || hasMultiplier
 
     /**
-     * A pressure of 0, which is how an alarming or flat tyre is reported, is left as is so an
-     * [offset] never hides it. A correction below 0 is clamped to 0 for the same reason.
+     * A pressure of 0, which is how a flat tyre is reported, is left as is so an [offset] never
+     * hides it. A correction below 0 is clamped to 0 for the same reason.
      */
     public fun applyTo(pressure: Pressure): Pressure = pressure
         .takeIf { it.hasPressure() }

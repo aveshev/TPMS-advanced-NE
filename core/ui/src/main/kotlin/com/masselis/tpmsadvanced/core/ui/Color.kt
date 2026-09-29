@@ -69,3 +69,6 @@ public val md_theme_dark_surfaceTintColor: Color = Color(0xFF81DB74)
 
 
 public val seed: Color = Color(0xFF5FB755)
+
+/** A warning below the theme's error: a suspended scan, a sensor battery getting low */
+public val Orange: Color = Color(0xFFFF9800)

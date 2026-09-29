@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 internal class TyreAtmosphereUseCaseTest {
 
@@ -68,11 +69,14 @@ internal class TyreAtmosphereUseCaseTest {
     }
 
     @Test
-    fun `keeps an alarm at zero whatever the offset`() = runTest {
+    fun `keeps the read pressure when the sensor raises an alarm`() = runTest {
         setTyre(200f.kpa, isAlarm = true)
         calibration.value = PressureCalibration(10f.kpa, 1f)
         test().listen().test {
-            assertEquals(0f.kpa, awaitItem().pressure)
+            awaitItem().also {
+                assertEquals(210f.kpa, it.pressure)
+                assertTrue(it.isSensorAlarm)
+            }
             cancelAndIgnoreRemainingEvents()
         }
     }

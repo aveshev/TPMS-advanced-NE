@@ -1,5 +1,6 @@
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure;
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature;
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage;
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind;
 import java.util.UUID;
 import kotlin.Boolean;
@@ -20,7 +21,8 @@ CREATE TABLE Vehicle(
     separateRearPressure INTEGER AS Boolean NOT NULL DEFAULT 0,
     pressureCalibration INTEGER AS Boolean NOT NULL DEFAULT 0,
     pressureOffset REAL AS Pressure NOT NULL DEFAULT 0,
-    pressureMultiplier REAL NOT NULL DEFAULT 1
+    pressureMultiplier REAL NOT NULL DEFAULT 1,
+    lowBatteryVoltage REAL AS Voltage NOT NULL DEFAULT 2.6
 );
 
 -- This succession of triggers ensure there is always exactly 1 car with isFavourite set to 1
@@ -129,6 +131,12 @@ SELECT pressureMultiplier FROM Vehicle WHERE uuid = ?;
 
 updatePressureMultiplier:
 UPDATE Vehicle SET pressureMultiplier = ? WHERE uuid = ?;
+
+selectLowBatteryVoltageByVehicleId:
+SELECT lowBatteryVoltage FROM Vehicle WHERE uuid = ?;
+
+updateLowBatteryVoltage:
+UPDATE Vehicle SET lowBatteryVoltage = ? WHERE uuid = ?;
 
 selectLowTempByVehicleId:
 SELECT lowTemp FROM Vehicle WHERE uuid = ?;
