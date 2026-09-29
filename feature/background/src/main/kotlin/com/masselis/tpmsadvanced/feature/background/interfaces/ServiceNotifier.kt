@@ -407,7 +407,8 @@ internal class ServiceNotifier(
 /**
  * Picks what the notification must show for all monitored vehicles at once, the most severe first:
  * a pressure alert, a sensor's own alarm, a temperature alert, a tyre losing pressure, then a low
- * battery. Ties are broken by the order of [alerts].
+ * battery. Among tyres losing pressure, the one reaching its flat mark first wins. Other ties are
+ * broken by the order of [alerts].
  */
 internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
     alerts
@@ -420,9 +421,12 @@ internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.Temperature)?.let { TemperatureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
-        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
-            (alert as? Alert.PressureLoss)?.let { PressureLossAlert(vehicle.uuid, vehicle.name, it.location, it.loss) }
-        }
+        ?: alerts
+            .mapNotNull { (vehicle, alert) ->
+                (alert as? Alert.PressureLoss)
+                    ?.let { PressureLossAlert(vehicle.uuid, vehicle.name, it.location, it.loss) }
+            }
+            .minByOrNull { it.loss.flatAt }
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.LowBattery)?.let { LowBatteryAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }

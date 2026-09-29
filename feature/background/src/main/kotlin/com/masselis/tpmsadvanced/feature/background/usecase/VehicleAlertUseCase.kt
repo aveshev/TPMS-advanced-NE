@@ -90,11 +90,11 @@ internal class VehicleAlertUseCase(
                     ?: reported
                         .firstOrNull { (_, atmosphere) -> atmosphere.temperature > highTemp }
                         ?.let { (_, atmosphere) -> Alert.Temperature(atmosphere) }
+                    // The tyre reaching its flat mark first
                     ?: locations
                         .zip(losses)
-                        .firstNotNullOfOrNull { (location, loss) ->
-                            loss?.let { Alert.PressureLoss(location, it) }
-                        }
+                        .mapNotNull { (location, loss) -> loss?.let { Alert.PressureLoss(location, it) } }
+                        .minByOrNull { it.loss.flatAt }
                     ?: reported
                         .firstOrNull { (_, atmosphere) ->
                             atmosphere

@@ -147,6 +147,17 @@ internal class VehicleAlertUseCaseTest {
         }
     }
 
+    @Test
+    fun `reports the tyre reaching its flat mark first`() = runTest {
+        val sooner = loss.copy(flatAt = 20_000.0)
+        atmospheres.getValue(Wheel(FRONT_LEFT)).emit(atmosphere(200f))
+        losses.getValue(Wheel(FRONT_RIGHT)).value = loss
+        losses.getValue(Axle(REAR)).value = sooner
+        test().alert.test {
+            assertEquals(Alert.PressureLoss(Axle(REAR), sooner), awaitItem())
+        }
+    }
+
     private companion object {
         val loss = PressureLoss(10f.kpa, 0.0, 3600.0, 36_000.0, 100f.kpa)
     }

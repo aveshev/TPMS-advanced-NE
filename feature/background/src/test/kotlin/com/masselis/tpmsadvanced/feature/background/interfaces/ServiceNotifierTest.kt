@@ -179,4 +179,17 @@ internal class ServiceNotifierTest {
         )
         assertEquals(PressureLossAlert(uuid, "Bike", Wheel(REAR_LEFT), loss), state)
     }
+
+    @Test
+    fun `the tyre reaching its flat mark first is reported`() {
+        val uuid = UUID.randomUUID()
+        val sooner = loss.copy(flatAt = 20_000.0)
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.PressureLoss(Wheel(REAR_LEFT), loss),
+                vehicle("Bike", uuid) to Alert.PressureLoss(Wheel(REAR_LEFT), sooner),
+            )
+        )
+        assertEquals(PressureLossAlert(uuid, "Bike", Wheel(REAR_LEFT), sooner), state)
+    }
 }
