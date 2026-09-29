@@ -28,3 +28,10 @@ INNER JOIN Vehicle ON Tyre.vehicleId = Vehicle.uuid
 WHERE location = ? AND Vehicle.uuid = ?
 ORDER BY timestamp DESC
 LIMIT 1;
+
+latestBySensorByTyreLocationByVehicle:
+SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm FROM Tyre
+INNER JOIN Vehicle ON Tyre.vehicleId = Vehicle.uuid
+WHERE Tyre.id = ? AND location = ? AND Vehicle.uuid = ?
+ORDER BY timestamp DESC
+LIMIT 1;

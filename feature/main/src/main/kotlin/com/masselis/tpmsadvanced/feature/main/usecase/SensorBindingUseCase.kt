@@ -18,6 +18,9 @@ internal interface SensorBindingUseCase {
     fun boundSensor(): StateFlow<Sensor?>
     fun boundVehicle(sensor: Sensor): Flow<Vehicle?>
 
+    /** `true` when the sensor [sensorId] is bound to any location of any vehicle */
+    fun isBound(sensorId: Int): Boolean
+
     suspend fun bind(sensor: Sensor)
 
     class Impl(
@@ -39,6 +42,9 @@ internal interface SensorBindingUseCase {
             .selectBySensorId(sensor.id)
             .asFlow()
 
+        override fun isBound(sensorId: Int): Boolean =
+            sensorDatabase.selectById(sensorId).execute() != null
+
         override suspend fun bind(sensor: Sensor) =
             sensorDatabase.upsert(sensor, currentVehicle.uuid)
     }
@@ -46,6 +52,7 @@ internal interface SensorBindingUseCase {
     object NoOp : SensorBindingUseCase {
         override fun boundSensor(): StateFlow<Sensor?> = MutableStateFlow(null)
         override fun boundVehicle(sensor: Sensor): Flow<Vehicle?> = MutableStateFlow(null)
+        override fun isBound(sensorId: Int): Boolean = false
         override suspend fun bind(sensor: Sensor) {}
     }
 }
