@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -29,7 +31,9 @@ import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.core.ui.warning
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
@@ -80,6 +84,8 @@ private fun TyreStat(
     showBatteryVoltage: Boolean = false,
     showSensorFlags: Boolean = false,
     modifier: Modifier = Modifier,
+    // Lets a preview show the pressure loss phase of the pressure line
+    startWithPressureLoss: Boolean = false,
 ) {
     val (pressure, temperature) = when (val state = state) {
         State.NotDetected -> null to null
@@ -143,6 +149,17 @@ private fun TyreStat(
         }
     } else
         isVisible = true
+    // A tyre losing pressure alternates its pressure line between the pressure and the loss rate
+    var showsPressureLoss by remember { mutableStateOf(startWithPressureLoss) }
+    if (pressureLoss != null) {
+        LaunchedEffect(Unit) {
+            repeat(Int.MAX_VALUE) {
+                delay(PRESSURE_LOSS_PHASE)
+                showsPressureLoss = showsPressureLoss.not()
+            }
+        }
+    } else
+        showsPressureLoss = false
     val alignment = remember {
         when (location) {
             is Location.Axle -> Alignment.Start
@@ -157,19 +174,31 @@ private fun TyreStat(
             }
         }
     }
+    val pressureText = pressure
+        ?.let { (value, unit) -> value.string(unit) }
+        // Explained on the vehicle's calibration page
+        ?.let { if (isPressureCalibrated) "$it*" else it }
+        ?: "-.--"
+    val pressureLossText = pressureLoss
+        ?.let { loss -> pressure?.let { (_, unit) -> loss.rateString(unit) } }
     Column(modifier = modifier) {
         Text(
-            pressure
-                ?.let { (value, unit) -> value.string(unit) }
-                // Explained on the vehicle's calibration page
-                ?.let { if (isPressureCalibrated) "$it*" else it }
-                ?: "-.--",
+            pressureLossText?.takeIf { showsPressureLoss } ?: pressureText,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            color = pressureColor,
+            color = when {
+                pressureLossText != null && showsPressureLoss -> MaterialTheme.colorScheme.warning
+                else -> pressureColor
+            },
             modifier = Modifier
                 .align(alignment)
-                .alpha(if (isPressureAlert.not() || isVisible) 1f else 0f),
+                // Alternating with the loss rate already draws the eye, the pressure doesn't blink
+                .alpha(if (isPressureAlert.not() || pressureLossText != null || isVisible) 1f else 0f)
+                .run {
+                    pressureLossText
+                        ?.let { loss -> clearAndSetSemantics { contentDescription = "$pressureText, losing $loss" } }
+                        ?: this
+                },
         )
 
         Text(
@@ -182,18 +211,6 @@ private fun TyreStat(
                 .align(alignment)
                 .alpha(if (isTemperatureAlert.not() || isVisible) 1f else 0f),
         )
-
-        // An early leak warning, in orange and still: it's less urgent than the alerts
-        if (pressureLoss != null && pressure != null) {
-            Text(
-                "↓${pressureLoss.perHour.string(pressure.second)}/h",
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                fontSize = 16.sp,
-                color = Orange,
-                modifier = Modifier.align(alignment),
-            )
-        }
 
         if (showTimeSinceUpdate && timestamp != null) {
             Text(
@@ -281,6 +298,15 @@ private fun TyreStat(
 }
 
 private const val UNSET_FLAG_ALPHA = 0.3f
+
+/** "↓1.1 psi/h", capped at [MAX_SHOWN_PRESSURE_LOSS] to fit the readout, see [Vehicle] */
+private fun PressureLoss.rateString(unit: PressureUnit) =
+    "↓${minOf(perHour, MAX_SHOWN_PRESSURE_LOSS).string(unit)}/h"
+
+/** Far faster than any leak the low pressure alert doesn't already cover */
+private val MAX_SHOWN_PRESSURE_LOSS: Pressure = 999f.kpa
+
+private val PRESSURE_LOSS_PHASE = 1.5.seconds
 
 // Re-emits on every tier boundary crossed (each minute, then each hour, then each day) so the
 // label stays live without waiting for a new sensor packet. A new `timestamp` (new packet)
@@ -619,6 +645,47 @@ internal fun TyreStatPressureLossPreview() {
             30f.celsius,
             TemperatureUnit.CELSIUS,
             pressureLoss = PressureLoss(0.12f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar),
+        ),
+        showTimeSinceUpdate = false,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatPressureLossRatePreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            pressureLoss = PressureLoss(0.12f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar),
+        ),
+        showTimeSinceUpdate = false,
+        startWithPressureLoss = true,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatPressureAlertingLossPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Alerting(
+            0.0,
+            0,
+            1.4f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            isPressureAlert = true,
+            isTemperatureAlert = false,
+            pressureLoss = PressureLoss(0.3f.bar, 0.0, 3600.0, 7200.0, 1.3f.bar),
         ),
         showTimeSinceUpdate = false,
     )
