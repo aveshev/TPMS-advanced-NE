@@ -38,12 +38,9 @@ internal fun TyreDisplaySettings(
     additionalItems: @Composable ColumnScope.() -> Unit = {},
     viewModel: TyreDisplaySettingsViewModel = viewModel { TyreDisplaySettingsViewModel() },
 ) {
-    val showSensorId by viewModel.showSensorId.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
     val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
     TyreDisplaySettings(
-        showSensorId = showSensorId,
-        onShowSensorId = { viewModel.showSensorId.value = it },
         showTimeSinceUpdate = showTimeSinceUpdate,
         onShowTimeSinceUpdate = { viewModel.showTimeSinceUpdate.value = it },
         showBatteryVoltage = showBatteryVoltage,
@@ -56,8 +53,6 @@ internal fun TyreDisplaySettings(
 
 @Composable
 private fun TyreDisplaySettings(
-    showSensorId: Boolean,
-    onShowSensorId: (Boolean) -> Unit,
     showTimeSinceUpdate: Boolean,
     onShowTimeSinceUpdate: (Boolean) -> Unit,
     showBatteryVoltage: Boolean,
@@ -82,12 +77,6 @@ private fun TyreDisplaySettings(
         onCheckedChange = onShowBatteryVoltage,
         modifier = Modifier.testTag(TyreDisplaySettingsTags.showBatteryVoltage),
     )
-    SwitchSettingsItem(
-        headline = "Sensor ID",
-        checked = showSensorId,
-        onCheckedChange = onShowSensorId,
-        modifier = Modifier.testTag(TyreDisplaySettingsTags.showSensorId),
-    )
     additionalItems()
 }
 
@@ -95,8 +84,6 @@ private fun TyreDisplaySettings(
 @Composable
 internal fun TyreDisplaySettingsPreview() {
     TyreDisplaySettings(
-        showSensorId = true,
-        onShowSensorId = {},
         showTimeSinceUpdate = true,
         onShowTimeSinceUpdate = {},
         showBatteryVoltage = false,
@@ -107,7 +94,6 @@ internal fun TyreDisplaySettingsPreview() {
 
 @Suppress("ConstPropertyName")
 internal object TyreDisplaySettingsTags {
-    const val showSensorId = "TyreDisplaySettingsTags_showSensorId"
     const val showTimeSinceUpdate = "TyreDisplaySettingsTags_showTimeSinceUpdate"
     const val showBatteryVoltage = "TyreDisplaySettingsTags_showBatteryVoltage"
     const val timeSinceUpdateDetails = "TyreDisplaySettingsTags_timeSinceUpdateDetails"

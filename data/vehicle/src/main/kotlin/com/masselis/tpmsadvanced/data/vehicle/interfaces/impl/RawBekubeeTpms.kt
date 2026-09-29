@@ -16,6 +16,7 @@ import kotlin.math.roundToInt
 @Suppress("MagicNumber")
 internal data class RawBekubeeTpms private constructor(
     private val rssi: Int,
+    private val companyId: Int,
     private val manufacturerData: ByteArray,
 ) : Raw {
 
@@ -36,6 +37,9 @@ internal data class RawBekubeeTpms private constructor(
         .toFloat()
         .celsius
 
+    // The company ID changes with the state of the sensor, see invoke()
+    fun flags() = (companyId and 0xFF).toUByte()
+
     // Returns 2.97 for 2.97 volts
     fun voltage() = (manufacturerData[0].toInt() and 0xFF) * 0.01f + 1.22f
 
@@ -49,6 +53,7 @@ internal data class RawBekubeeTpms private constructor(
         // The low battery is reported through batteryVoltage, these sensors send no alarm
         false,
         voltage().volts,
+        flags(),
     )
 
     override fun equals(other: Any?): Boolean {
@@ -58,11 +63,13 @@ internal data class RawBekubeeTpms private constructor(
         other as RawBekubeeTpms
 
         if (rssi != other.rssi) return false
+        if (companyId != other.companyId) return false
         return manufacturerData.contentEquals(other.manufacturerData)
     }
 
     override fun hashCode(): Int {
         var result = rssi
+        result = 31 * result + companyId
         result = 31 * result + manufacturerData.contentHashCode()
         return result
     }
@@ -80,13 +87,10 @@ internal data class RawBekubeeTpms private constructor(
             // This sensor advertises the same payload shape under different company IDs depending
             // on its state (observed 0x0002 when mounted with a valid pressure reading, 0x0006 when
             // unplugged/idle).
-            val manufacturerData = scanRecord.manufacturerSpecificData
+            return scanRecord.manufacturerSpecificData
                 ?.takeIf { it.size > 0 }
-                ?.valueAt(0)
-                ?.takeIf { it.size >= MIN_MANUFACTURER_DATA_LENGTH }
-                ?: return null
-
-            return RawBekubeeTpms(scanResult.rssi, manufacturerData)
+                ?.takeIf { it.valueAt(0).size >= MIN_MANUFACTURER_DATA_LENGTH }
+                ?.let { RawBekubeeTpms(scanResult.rssi, it.keyAt(0), it.valueAt(0)) }
         }
     }
 }

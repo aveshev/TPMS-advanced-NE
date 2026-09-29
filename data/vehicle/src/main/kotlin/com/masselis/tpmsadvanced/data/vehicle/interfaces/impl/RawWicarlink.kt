@@ -30,6 +30,9 @@ internal data class RawWicarlink private constructor(
 
     fun temperature() = ((data[13].toInt() and 0xFF) - 55).toFloat().celsius
 
+    // Its bit 0 is the 9th bit of the pressure, the others are unknown
+    fun flags() = data[17].toUByte()
+
     override fun asTyre(): Tyre.SensorInput = Tyre.Unlocated(
         now(),
         rssi,
@@ -40,6 +43,7 @@ internal data class RawWicarlink private constructor(
         // The low battery is reported through batteryVoltage, these sensors send no alarm
         false,
         voltage().volts,
+        flags(),
     )
 
     override fun equals(other: Any?): Boolean {

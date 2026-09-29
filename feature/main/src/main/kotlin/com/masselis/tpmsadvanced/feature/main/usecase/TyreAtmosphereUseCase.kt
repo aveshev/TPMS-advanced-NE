@@ -23,6 +23,7 @@ public class TyreAtmosphereUseCase internal constructor(
                 record.temperature,
                 record.batteryVoltage,
                 record.isAlarm,
+                record.flags,
             )
         }
         .combine(calibrationUseCase.calibration) { atmosphere, calibration ->

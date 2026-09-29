@@ -20,6 +20,13 @@ public sealed interface Tyre : Parcelable {
     /** Null for the sensors which don't report their battery as a voltage (Sysgration) */
     public val batteryVoltage: Voltage?
 
+    /**
+     * The status byte of the packet, as broadcast: shown for debugging, since what most of its
+     * bits mean is unknown. null when the sensor has no such byte, or when this tyre was read from
+     * the database, which doesn't store it.
+     */
+    public val flags: UByte?
+
     public sealed interface SensorInput : Tyre
 
     @Parcelize
@@ -32,6 +39,7 @@ public sealed interface Tyre : Parcelable {
         override val battery: UShort,
         override val isAlarm: Boolean,
         override val batteryVoltage: Voltage? = null,
+        override val flags: UByte? = null,
     ) : Tyre, SensorInput
 
     @Parcelize
@@ -45,6 +53,7 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         val location: Location,
         override val batteryVoltage: Voltage? = null,
+        override val flags: UByte? = null,
     ) : Tyre {
         public constructor(tyre: Tyre, location: Location) : this(
             tyre.timestamp,
@@ -56,6 +65,7 @@ public sealed interface Tyre : Parcelable {
             tyre.isAlarm,
             location,
             tyre.batteryVoltage,
+            tyre.flags,
         )
     }
 
@@ -70,5 +80,6 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         val location: SensorLocation,
         override val batteryVoltage: Voltage? = null,
+        override val flags: UByte? = null,
     ) : Tyre, SensorInput
 }

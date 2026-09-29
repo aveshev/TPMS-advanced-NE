@@ -12,4 +12,6 @@ public data class TyreAtmosphere(
     val batteryVoltage: Voltage? = null,
     /** See [Tyre.isAlarm], the pressure and temperature are still the ones the sensor read */
     val isSensorAlarm: Boolean = false,
+    // See Tyre.flags
+    val flags: UByte? = null,
 ) : Parcelable

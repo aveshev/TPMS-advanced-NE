@@ -4,8 +4,10 @@ import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.DetectedActivitiesViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
+import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
@@ -74,6 +76,12 @@ public interface Bindings {
     @OptIn(DelicateCoroutinesApi::class)
     @Provides
     @SingleIn(AppScope::class)
+    private fun activityRecognitionUseCase(): ActivityRecognitionUseCase =
+        ActivityRecognitionUseCase(GlobalScope + Dispatchers.Default)
+
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
     private fun scanPolicyUseCase(
         appPreferences: AppPreferences,
         scanSuspensionUseCase: ScanSuspensionUseCase,
@@ -117,6 +125,12 @@ public interface Bindings {
         controller,
     )
 
+    @Provides
+    private fun detectedActivitiesViewModel(
+        appPreferences: AppPreferences,
+        activityRecognitionUseCase: ActivityRecognitionUseCase,
+    ): DetectedActivitiesViewModel = DetectedActivitiesViewModel(appPreferences, activityRecognitionUseCase)
+
     public val featureBackgroundInternal: Internal
 
     @Inject
@@ -126,6 +140,7 @@ public interface Bindings {
         internal val backgroundViewModel: () -> BackgroundViewModel,
         internal val persistentScanningViewModel: () -> PersistentScanningViewModel,
         internal val persistentScanningSettingsViewModel: () -> PersistentScanningSettingsViewModel,
+        internal val detectedActivitiesViewModel: () -> DetectedActivitiesViewModel,
     )
 
     public companion object : Bindings by appGraph as Bindings {

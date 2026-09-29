@@ -43,6 +43,10 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings/time_since_last_update"
     }
 
+    data object Debug : Path {
+        override fun toString(): String = "app_settings/debug"
+    }
+
     data object PersistentScanning : Path {
         override fun toString(): String = "app_settings/persistent_scanning"
     }
@@ -92,6 +96,7 @@ internal sealed interface Path {
             get() = listOf(
                 AppSettings,
                 TimeSinceUpdate,
+                Debug,
                 PersistentScanning,
                 ActivateScanConditions,
                 StayActiveDuration,

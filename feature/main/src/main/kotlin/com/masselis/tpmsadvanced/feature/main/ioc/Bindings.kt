@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DebugSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DemoModeSwitchViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PreconditionsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreDisplaySettingsViewModel
@@ -51,6 +52,10 @@ public interface Bindings {
     private fun tyreDisplaySettingsViewModel(appPreferences: AppPreferences): TyreDisplaySettingsViewModel =
         TyreDisplaySettingsViewModel(appPreferences)
 
+    @Provides
+    private fun debugSettingsViewModel(appPreferences: AppPreferences): DebugSettingsViewModel =
+        DebugSettingsViewModel(appPreferences)
+
     @SingleIn(AppScope::class)
     @Provides
     private fun vehicleComponentCacheUseCase(
@@ -73,6 +78,7 @@ public interface Bindings {
         internal val vehicleComponentCache: () -> VehicleComponentCacheUseCase,
         internal val preconditionsViewModel: () -> PreconditionsViewModel,
         internal val tyreDisplaySettingsViewModel: () -> TyreDisplaySettingsViewModel,
+        internal val debugSettingsViewModel: () -> DebugSettingsViewModel,
         internal val currentVehicleDropdownViewModel: CurrentVehicleDropdownViewModelImpl.Factory,
         internal val demoModeSwitchViewModel: () -> DemoModeSwitchViewModel
     )
@@ -81,6 +87,7 @@ public interface Bindings {
         internal val vehicleComponentCache get() = featureMainInternal.vehicleComponentCache()
         internal fun PreconditionsViewModel() = featureMainInternal.preconditionsViewModel()
         internal fun TyreDisplaySettingsViewModel() = featureMainInternal.tyreDisplaySettingsViewModel()
+        internal fun DebugSettingsViewModel() = featureMainInternal.debugSettingsViewModel()
         internal val CurrentVehicleDropdownViewModel
             get() = featureMainInternal.currentVehicleDropdownViewModel
 

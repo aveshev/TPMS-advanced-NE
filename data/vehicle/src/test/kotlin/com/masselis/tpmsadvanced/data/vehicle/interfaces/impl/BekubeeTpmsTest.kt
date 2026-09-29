@@ -69,4 +69,23 @@ internal class BekubeeTpmsTest {
                 )
             }
     }
+
+    @Test
+    fun `flags are the low byte of the company ID`() {
+        listOf(0x0002, 0x0006)
+            .map { companyId ->
+                RawBekubeeTpms(
+                    mockScanResult(
+                        mockScanRecord = mockScanRecord(
+                            mockDeviceName = "TPMS",
+                            containsServiceUuids = true,
+                            mockManufacturerData = samples.last().hexToByteArray(),
+                            mockCompanyId = companyId,
+                        )
+                    )
+                )
+            }
+            .map { it?.asTyre()?.flags }
+            .also { assertEquals(listOf<UByte?>(0x02u, 0x06u), it) }
+    }
 }

@@ -84,8 +84,9 @@ internal class TyreStatsStateFlowTest {
         sensorId: Int = 0,
         batteryVoltage: Voltage? = null,
         isSensorAlarm: Boolean = false,
+        flags: UByte? = null,
     ) = every { tyreAtmosphereUseCase.listen() }.returns(
-        flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature, batteryVoltage, isSensorAlarm))
+        flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature, batteryVoltage, isSensorAlarm, flags))
     )
 
     @Test
@@ -207,6 +208,26 @@ internal class TyreStatsStateFlowTest {
                 assertFalse(it.isPressureAlert)
                 assertFalse(it.isTemperatureAlert)
                 assertEquals(2f.bar, it.pressure)
+            }
+        }
+    }
+
+    @Test
+    fun `preserves the flags, alerting or not`() = runTest {
+        setAtmosphere(2f.bar, 25f.celsius, flags = 0x83u)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            awaitItem().also {
+                assertIs<State.Normal>(it)
+                assertEquals(0x83u.toUByte(), it.flags)
+            }
+        }
+        setAtmosphere(0.5f.bar, 25f.celsius, flags = 0x01u)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            awaitItem().also {
+                assertIs<State.Alerting>(it)
+                assertEquals(0x01u.toUByte(), it.flags)
             }
         }
     }
