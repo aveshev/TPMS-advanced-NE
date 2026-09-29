@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.VehicleCalibrationSettings
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.VehiclePressureLossSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.VehiclePressureSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.VehicleSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.VehicleTemperatureSettings
@@ -13,6 +14,7 @@ import com.masselis.tpmsadvanced.interfaces.composable.SettingsTag.vehicle
 internal fun Settings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
+    openPressureLoss: () -> Unit,
     openBindingMethod: () -> Unit,
     openCalibration: () -> Unit,
     modifier: Modifier = Modifier
@@ -20,6 +22,7 @@ internal fun Settings(
     VehicleSettings(
         openPressure = openPressure,
         openTemperature = openTemperature,
+        openPressureLoss = openPressureLoss,
         openBindingMethod = openBindingMethod,
         openCalibration = openCalibration,
         // backgroundSettings = { AutomaticBackgroundSettings(it) }
@@ -39,6 +42,13 @@ internal fun CalibrationSettings(
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     VehicleCalibrationSettings()
+}
+
+@Composable
+internal fun PressureLossSettings(
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    VehiclePressureLossSettings()
 }
 
 @Composable

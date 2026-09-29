@@ -26,6 +26,11 @@ internal sealed interface Path {
     }
 
     @JvmInline
+    value class PressureLossSettings(val vehicleUUID: UUID) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/settings_pressure_loss"
+    }
+
+    @JvmInline
     value class TemperatureSettings(val vehicleUUID: UUID) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/settings_temperature"
     }
@@ -109,6 +114,7 @@ internal sealed interface Path {
                         "settings_pressure" -> PressureSettings(uuid)
                         "settings_temperature" -> TemperatureSettings(uuid)
                         "settings_calibration" -> CalibrationSettings(uuid)
+                        "settings_pressure_loss" -> PressureLossSettings(uuid)
                         "binding_method" -> BindingMethod(uuid)
                         "qrcode" -> QrCode(uuid)
                         "unlocated" -> Unlocated(uuid)

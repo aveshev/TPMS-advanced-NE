@@ -8,6 +8,7 @@ import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit.CELSIUS
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
@@ -39,6 +40,7 @@ internal class TyreStatsStateFlowTest {
     private lateinit var vehicleRangesUseCase: VehicleRangesUseCase
     private lateinit var vehicleCalibrationUseCase: VehicleCalibrationUseCase
     private lateinit var unitPreferences: UnitPreferences
+    private lateinit var pressureLoss: MutableStateFlow<PressureLoss?>
 
     @Before
     fun setup() {
@@ -57,6 +59,7 @@ internal class TyreStatsStateFlowTest {
             every { pressure } returns MutableStateFlow(BAR)
             every { temperature } returns MutableStateFlow(CELSIUS)
         }
+        pressureLoss = MutableStateFlow(null)
     }
 
     context(scope: TestScope)
@@ -64,6 +67,17 @@ internal class TyreStatsStateFlowTest {
         tyreAtmosphereUseCase,
         vehicleRangesUseCase,
         vehicleCalibrationUseCase,
+        // Only its state flow is used, TyrePressureLossStateFlowTest covers how it's computed
+        TyrePressureLossStateFlow(
+            mockk(),
+            Wheel(FRONT_LEFT),
+            mockk(),
+            mockk(),
+            mockk(),
+            mockk(),
+            scope.backgroundScope,
+            pressureLoss,
+        ),
         Wheel(FRONT_LEFT),
         unitPreferences,
         scope.backgroundScope,
@@ -119,6 +133,20 @@ internal class TyreStatsStateFlowTest {
             awaitItem().also {
                 assertIs<State.Normal>(it)
                 assertTrue(it.isPressureCalibrated)
+            }
+        }
+    }
+
+    @Test
+    fun `shows a pressure loss without alerting`() = runTest {
+        val loss = PressureLoss(0.3f.bar, 0.0, 600.0)
+        pressureLoss.value = loss
+        setAtmosphere(2f.bar, 45f.celsius)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            awaitItem().also {
+                assertIs<State.Normal>(it)
+                assertEquals(loss, it.pressureLoss)
             }
         }
     }

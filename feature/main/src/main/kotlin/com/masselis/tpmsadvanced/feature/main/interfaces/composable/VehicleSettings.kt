@@ -40,14 +40,15 @@ import kotlinx.coroutines.delay
 
 /**
  * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
- * [openPressure] and [openTemperature]. [openBindingMethod] opens the sensor binding and
- * [openCalibration] the pressure calibration.
+ * [openPressure], [openTemperature] and [openPressureLoss]. [openBindingMethod] opens the sensor
+ * binding and [openCalibration] the pressure calibration.
  */
 @Suppress("LongMethod", "MaxLineLength")
 @Composable
 public fun VehicleSettings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
+    openPressureLoss: () -> Unit,
     openBindingMethod: () -> Unit,
     openCalibration: () -> Unit,
     modifier: Modifier = Modifier,
@@ -70,6 +71,9 @@ public fun VehicleSettings(
     val calibration by viewModel.pressureCalibration.collectAsState()
     val offset by viewModel.pressureOffset.collectAsState()
     val multiplier by viewModel.pressureMultiplier.collectAsState()
+    val pressureLoss by viewModel.pressureLoss.collectAsState()
+    val pressureLossAmount by viewModel.pressureLossAmount.collectAsState()
+    val pressureLossWindow by viewModel.pressureLossWindow.collectAsState()
     val calibrationValues = PressureCalibration(offset, multiplier)
     // Leaving the calibration page without any adjustment turns it off, which only happens once
     // that page is gone: this page shows it that way from the start rather than flashing it on
@@ -97,6 +101,21 @@ public fun VehicleSettings(
                     "Hot ${highTemp.numberString(temperatureUnit)} ${temperatureUnit.symbol()}",
                 onClick = openTemperature,
                 opensPage = true,
+            )
+            SwitchNavigationSettingsItem(
+                headline = "Pressure loss",
+                supporting = listOf(
+                    AnnotatedString(
+                        "${pressureLossAmount.numberString(pressureUnit)} ${pressureUnit.symbol()} " +
+                            "within ${pressureLossWindow.windowLabel()}"
+                    )
+                ),
+                checked = pressureLoss,
+                onCheckedChange = { viewModel.pressureLoss.value = it },
+                onClick = openPressureLoss,
+                // The page explains what counts as a loss, which matters before turning it on
+                openableWhenOff = true,
+                modifier = Modifier.testTag(VehicleSettingsTags.pressureLoss),
             )
         }
         if (backgroundSettings !== backgroundSettingsPlaceholder) {
@@ -204,6 +223,7 @@ internal fun RenameVehicleDialogPreview() {
 internal object VehicleSettingsTags {
     const val bindSensors = "VehicleSettingsTags_bindSensors"
     const val calibration = "VehicleSettingsTags_calibration"
+    const val pressureLoss = "VehicleSettingsTags_pressureLoss"
 }
 
 private val backgroundSettingsPlaceholder: @Composable (VehicleComponent) -> Unit = {}

@@ -13,6 +13,8 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 @Suppress("TooManyFunctions")
 public class VehicleDatabase internal constructor(database: Database) {
@@ -116,6 +118,30 @@ public class VehicleDatabase internal constructor(database: Database) {
             queries.updatePressureMultiplier(multiplier.toDouble(), uuid)
         }
 
+    public fun selectPressureLoss(vehicleId: UUID): Boolean =
+        queries.selectPressureLossByVehicleId(vehicleId).executeAsOne()
+
+    public suspend fun updatePressureLoss(enabled: Boolean, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updatePressureLoss(enabled, uuid)
+        }
+
+    public fun selectPressureLossAmount(vehicleId: UUID): Pressure =
+        queries.selectPressureLossAmountByVehicleId(vehicleId).executeAsOne()
+
+    public suspend fun updatePressureLossAmount(amount: Pressure, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updatePressureLossAmount(amount, uuid)
+        }
+
+    public fun selectPressureLossWindow(vehicleId: UUID): Duration =
+        queries.selectPressureLossMinutesByVehicleId(vehicleId).executeAsOne().minutes
+
+    public suspend fun updatePressureLossWindow(window: Duration, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updatePressureLossMinutes(window.inWholeMinutes, uuid)
+        }
+
     public fun selectLowTemp(vehicleId: UUID): Temperature =
         queries.selectLowTempByVehicleId(vehicleId).executeAsOne()
 
@@ -180,10 +206,13 @@ public class VehicleDatabase internal constructor(database: Database) {
             Boolean,
             Pressure,
             Double,
+            Boolean,
+            Pressure,
+            Long,
         ) -> Vehicle =
-            // The pressure calibration is only read by the vehicle scope's own queries
+            // The pressure calibration and loss are only read by the vehicle scope's own queries
             { uuid, name, _, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, _,
-              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _ ->
+              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _, _, _, _ ->
                 Vehicle(
                     uuid,
                     kind,

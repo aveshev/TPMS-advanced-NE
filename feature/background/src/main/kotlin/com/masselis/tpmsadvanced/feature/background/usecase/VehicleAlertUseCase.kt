@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import kotlinx.coroutines.FlowPreview
@@ -18,6 +19,12 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
         data class Pressure(val atmosphere: TyreAtmosphere) : Alert
 
         data class Temperature(val atmosphere: TyreAtmosphere) : Alert
+
+        /** An early leak warning, only reported when no tyre alerts for its pressure or temperature */
+        data class PressureLoss(
+            val location: Location,
+            val loss: com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss,
+        ) : Alert
     }
 
     @OptIn(FlowPreview::class)
@@ -42,7 +49,8 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
                     }
                 ) { it },
                 vehicleRangesUseCase.highTemp,
-            ) { atmospheres, pressureRanges, highTemp ->
+                combine(comps.map { it.tyrePressureLossStateFlow }) { it.toList() },
+            ) { atmospheres, pressureRanges, highTemp, losses ->
                 atmospheres
                     .withIndex()
                     .firstOrNull { (index, atmosphere) ->
@@ -52,6 +60,11 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
                     ?: atmospheres
                         .firstOrNull { it.temperature > highTemp }
                         ?.let(Alert::Temperature)
+                    ?: locations
+                        .zip(losses)
+                        .firstNotNullOfOrNull { (location, loss) ->
+                            loss?.let { Alert.PressureLoss(location, it) }
+                        }
                     ?: Alert.None
             }
         }

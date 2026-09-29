@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.data.vehicle.model
 
 import android.os.Parcelable
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlinx.parcelize.Parcelize
 
@@ -60,4 +61,19 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         val location: SensorLocation,
     ) : Tyre, SensorInput
+}
+
+/**
+ * The atmosphere shown for this record: an alarm reads as no pressure at all, and [calibration]
+ * corrects the pressure when the vehicle has one.
+ */
+public fun Tyre.toAtmosphere(calibration: PressureCalibration?): TyreAtmosphere = TyreAtmosphere(
+    timestamp,
+    sensorId,
+    if (isAlarm) 0f.kpa else pressure,
+    temperature,
+).let { atmosphere ->
+    calibration
+        ?.let { atmosphere.copy(pressure = it.applyTo(atmosphere.pressure)) }
+        ?: atmosphere
 }

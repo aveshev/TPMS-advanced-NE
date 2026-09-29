@@ -7,6 +7,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Duration
 
 internal interface VehicleSettingsViewModel {
     val vehicle: StateFlow<Vehicle>
@@ -21,6 +22,10 @@ internal interface VehicleSettingsViewModel {
     val pressureCalibration: MutableStateFlow<Boolean>
     val pressureOffset: MutableStateFlow<Pressure>
     val pressureMultiplier: MutableStateFlow<Float>
+
+    val pressureLoss: MutableStateFlow<Boolean>
+    val pressureLossAmount: MutableStateFlow<Pressure>
+    val pressureLossWindow: MutableStateFlow<Duration>
 
     val highTemp: MutableStateFlow<Temperature>
     val normalTemp: MutableStateFlow<Temperature>

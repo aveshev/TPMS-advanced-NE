@@ -1,3 +1,6 @@
+// One preview per state variant
+@file:Suppress("TooManyFunctions")
+
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
@@ -18,10 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.common.now
+import com.masselis.tpmsadvanced.core.ui.Orange
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
@@ -90,6 +95,11 @@ private fun TyreStat(
         is State.Normal -> state.isPressureCalibrated
         is State.Alerting -> state.isPressureCalibrated
     }
+    val pressureLoss = when (state) {
+        State.NotDetected -> null
+        is State.Normal -> state.pressureLoss
+        is State.Alerting -> state.pressureLoss
+    }
     val isPressureAlert = state is State.Alerting && state.isPressureAlert
     val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
@@ -147,6 +157,18 @@ private fun TyreStat(
                 .align(alignment)
                 .alpha(if (isTemperatureAlert.not() || isVisible) 1f else 0f),
         )
+
+        // An early leak warning, in orange and still: it's less urgent than the alerts
+        if (pressureLoss != null && pressure != null) {
+            Text(
+                "↓${pressureLoss.amount.string(pressure.second)}",
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                fontSize = 16.sp,
+                color = Orange,
+                modifier = Modifier.align(alignment),
+            )
+        }
 
         if (showTimeSinceUpdate && timestamp != null) {
             Text(
@@ -401,5 +423,24 @@ internal fun TyreStatTimeSinceUpdateDaysPreview() {
             TemperatureUnit.CELSIUS
         ),
         showTimeSinceUpdate = true,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatPressureLossPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            pressureLoss = PressureLoss(0.25f.bar, 0.0, 720.0),
+        ),
+        showTimeSinceUpdate = false,
     )
 }

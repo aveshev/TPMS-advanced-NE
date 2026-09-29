@@ -1,10 +1,9 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
+import com.masselis.tpmsadvanced.data.vehicle.model.toAtmosphere
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 
 /**
  * The tyre's atmosphere, its pressure being corrected by the vehicle's calibration so the display,
@@ -16,17 +15,7 @@ public class TyreAtmosphereUseCase internal constructor(
 ) {
     public fun listen(): Flow<TyreAtmosphere> = listenTyreUseCase
         .listen()
-        .map { record ->
-            TyreAtmosphere(
-                record.timestamp,
-                record.sensorId,
-                if (record.isAlarm) 0f.kpa else record.pressure,
-                record.temperature
-            )
-        }
-        .combine(calibrationUseCase.calibration) { atmosphere, calibration ->
-            calibration
-                ?.let { atmosphere.copy(pressure = it.applyTo(atmosphere.pressure)) }
-                ?: atmosphere
+        .combine(calibrationUseCase.calibration) { record, calibration ->
+            record.toAtmosphere(calibration)
         }
 }
