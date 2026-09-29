@@ -80,7 +80,7 @@ Debug builds accept raw BLE advertisements over adb, merged into the real scan s
 adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.masselis.tpmsadvanced --es bytes <hex> --es address AA:BB:CC:DD:EE:01 --ei rssi -60
 ```
 
-`address` and `rssi` are optional. The app must be scanning (main screen open, or the background service running) with Bluetooth on. `adb logcat -s MockAdvertisements BluetoothLeScannerImpl` shows why a packet was dropped, or the decoded `Sensor content`. Real sensors' bytes are logged the same way (`Sensor found during scan`), so a real packet can be captured and replayed; the decoder unit tests in `data/vehicle/src/test` also hold captured samples per brand.
+`address` and `rssi` are optional, but Pecham and Bekubee KY derive the sensor ID from the address, so keep it fixed across packets meant to come from one sensor (other brands read the ID from the bytes). Mock sensors can be bound through the normal binding screens. The app must be scanning (main screen open, or the background service running) with Bluetooth on. `adb logcat -s MockAdvertisements BluetoothLeScannerImpl` shows why a packet was dropped, or the decoded `Sensor content`. Real sensors' bytes are logged the same way (`Sensor found during scan`), so a real packet can be captured and replayed; the decoder unit tests in `data/vehicle/src/test` also hold captured samples per brand.
 
 ### Convention Plugins
 Reusable Gradle config lives in `buildSrc/src/main/kotlin/` as convention plugins (`android-app`, `android-lib`, `compose`, `detekt`, `gitflow`, `monitor-resource`). Apply these to new modules rather than duplicating config.
