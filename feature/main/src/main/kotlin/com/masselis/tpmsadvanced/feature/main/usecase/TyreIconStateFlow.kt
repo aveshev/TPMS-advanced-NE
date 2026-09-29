@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.parcelize.Parcelize
@@ -96,6 +97,9 @@ public class TyreIconStateFlow internal constructor(
             Logger.withTag("TyreIconStateFlow").e("Failed to listen for atmosphere", it)
             emit(State.DetectionIssue)
         }
+        // Traces #35, a tyre not drawn at all: what the icon was told to show, compared to what
+        // Tyre logs it drew
+        .onEach { Logger.withTag("TyreIconStateFlow").d { "$location: $it" } }
         .stateIn(scope, WhileSubscribed(), State.NotDetected),
 ) : StateFlow<State> by stateFlow {
 
