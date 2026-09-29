@@ -46,6 +46,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @SuppressLint("MissingPermission")
+@Suppress("MaxLineLength")
 internal class BluetoothLeScannerImpl(
     private val context: Context
 ) : BluetoothLeScanner {
@@ -84,7 +85,7 @@ internal class BluetoothLeScannerImpl(
             awaitCancellation()
         }
         leScanner.startScan(
-            SERVICES.map { ScanFilter.Builder().setServiceUuid(it).build() },
+            FILTERS,
             ScanSettings
                 .Builder()
                 .setScanMode(mode)
@@ -100,15 +101,16 @@ internal class BluetoothLeScannerImpl(
             }
         }
     }.flowOn(Dispatchers.Main) // System's BluetoothLeScanner class as issues if called on a background thread
+        .withMockAdvertisements(context, FILTERS)
         .mapNotNull {
-            logger.v("Sensor found during scan")
+            logger.v { "Sensor found during scan. Address: ${it.device.address}, scan bytes: ${it.scanRecord?.bytes?.toHexString()}" }
             RawPecham(it)
                 ?: RawBekubeeKy(it)
                 ?: RawWicarlink(it)
                 ?: RawBekubeeTpms(it)
                 ?: RawSysgration(it)
                 ?: run {
-                    logger.d("Sensor not parsed. Scan bytes: ${it.scanRecord?.bytes}")
+                    logger.d { "Sensor not parsed. Scan bytes: ${it.scanRecord?.bytes?.toHexString()}" }
                     null
                 }
         }
@@ -146,12 +148,12 @@ internal class BluetoothLeScannerImpl(
 
     @OptIn(ExperimentalUnsignedTypes::class)
     companion object {
-        private val SERVICES = listOf(
+        private val FILTERS = listOf(
             RawSysgration.SERVICE_UUID,
             RawPecham.SERVICE_UUID,
             RawWicarlink.SERVICE_UUID,
             RawBekubeeKy.SERVICE_UUID,
             RawBekubeeTpms.SERVICE_UUID
-        )
+        ).map { ScanFilter.Builder().setServiceUuid(it).build() }
     }
 }
