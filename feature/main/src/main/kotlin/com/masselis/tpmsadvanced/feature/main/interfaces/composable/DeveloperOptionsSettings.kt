@@ -43,8 +43,9 @@ internal fun DeveloperOptionsSettings(
         DemoModeSettingsItem()
         SwitchNavigationSettingsItem(
             headline = "Debug",
+            // Also while off: what turning it on would show
             supporting = selected
-                .takeIf { debugOptions && it.isNotEmpty() }
+                .takeIf { it.isNotEmpty() }
                 ?.let { listOf(it.joinToString(", "), "${it.first()} and more") }
                 .orEmpty()
                 .map(::AnnotatedString),

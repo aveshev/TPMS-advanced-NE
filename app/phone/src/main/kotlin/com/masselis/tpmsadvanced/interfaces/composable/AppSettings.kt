@@ -55,15 +55,15 @@ internal fun AppSettings(
         openSuspendConditions = openSuspendScanConditions,
         modifier = Modifier.testTag(persistentScanning),
     )
-    SettingsSectionHeader("About")
-    SettingsGroup {
-        TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
-    }
     SettingsSectionHeader("Developer options")
     DeveloperOptionsSettings(
         openDebug = openDebug,
         modifier = Modifier.testTag(developerOptions),
     )
+    SettingsSectionHeader("About")
+    SettingsGroup {
+        TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
+    }
 }
 
 @Composable
