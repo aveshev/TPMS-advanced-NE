@@ -110,7 +110,7 @@ internal class BluetoothLeScannerImpl(
                 ?: RawBekubeeTpms(it)
                 ?: RawSysgration(it)
                 ?: run {
-                    logger.d("Sensor not parsed. Scan bytes: ${it.scanRecord?.bytes?.toHexString()}")
+                    logger.d { "Sensor not parsed. Scan bytes: ${it.scanRecord?.bytes?.toHexString()}" }
                     null
                 }
         }
