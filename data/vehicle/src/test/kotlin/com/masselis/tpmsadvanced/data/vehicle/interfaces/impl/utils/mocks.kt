@@ -17,6 +17,7 @@ internal fun mockScanRecord(
     containsServiceUuids: Boolean = true,
     mockAdvertiseFlags: Int = 0x06,
     mockManufacturerData: ByteArray = byteArrayOf(),
+    mockCompanyId: Int = 0x0002,
     mockBytes: ByteArray = byteArrayOf(),
 ): ScanRecord = mockk {
     every { deviceName } returns mockDeviceName
@@ -30,6 +31,7 @@ internal fun mockScanRecord(
     every { manufacturerSpecificData } returns mockk {
         every { size() } returns 1
         every { valueAt(0) } returns mockManufacturerData
+        every { keyAt(0) } returns mockCompanyId
     }
     every { bytes } returns mockBytes
 }

@@ -1,0 +1,16 @@
+<!-- A phone leaning to the side. Monochrome, meant to be tinted -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:pivotX="12"
+        android:pivotY="12"
+        android:rotation="-30">
+        <path
+            android:fillColor="#000000"
+            android:fillType="evenOdd"
+            android:pathData="M7,2h10v20h-10zM9,4v14h6v-14z" />
+    </group>
+</vector>

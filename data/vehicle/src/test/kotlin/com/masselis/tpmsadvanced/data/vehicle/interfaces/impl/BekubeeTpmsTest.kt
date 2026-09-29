@@ -3,6 +3,7 @@ package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanRecord
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanResult
 import org.junit.Test
+import kotlin.test.assertEquals
 
 @OptIn(ExperimentalStdlibApi::class)
 internal class BekubeeTpmsTest {
@@ -56,5 +57,24 @@ internal class BekubeeTpmsTest {
             .map { it.asTyre() }
             .onEach(::println)
             .also { assert(it.size == samples.size) }
+    }
+
+    @Test
+    fun `flags are the low byte of the company ID`() {
+        listOf(0x0002, 0x0006)
+            .map { companyId ->
+                RawBekubeeTpms(
+                    mockScanResult(
+                        mockScanRecord = mockScanRecord(
+                            mockDeviceName = "TPMS",
+                            containsServiceUuids = true,
+                            mockManufacturerData = samples.last().hexToByteArray(),
+                            mockCompanyId = companyId,
+                        )
+                    )
+                )
+            }
+            .map { it?.asTyre()?.flags }
+            .also { assertEquals(listOf<UByte?>(0x02u, 0x06u), it) }
     }
 }

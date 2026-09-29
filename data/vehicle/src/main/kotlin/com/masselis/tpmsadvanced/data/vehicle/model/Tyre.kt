@@ -13,6 +13,13 @@ public sealed interface Tyre : Parcelable {
     public val battery: UShort
     public val isAlarm: Boolean
 
+    /**
+     * The status byte of the packet, as broadcast: shown for debugging, since what most of its
+     * bits mean is unknown. null when the sensor has no such byte, or when this tyre was read from
+     * the database, which doesn't store it.
+     */
+    public val flags: UByte?
+
     public sealed interface SensorInput : Tyre
 
     @Parcelize
@@ -23,7 +30,8 @@ public sealed interface Tyre : Parcelable {
         override val pressure: Pressure,
         override val temperature: Temperature,
         override val battery: UShort,
-        override val isAlarm: Boolean
+        override val isAlarm: Boolean,
+        override val flags: UByte? = null,
     ) : Tyre, SensorInput
 
     @Parcelize
@@ -36,6 +44,7 @@ public sealed interface Tyre : Parcelable {
         override val battery: UShort,
         override val isAlarm: Boolean,
         val location: Location,
+        override val flags: UByte? = null,
     ) : Tyre {
         public constructor(tyre: Tyre, location: Location) : this(
             tyre.timestamp,
@@ -45,7 +54,8 @@ public sealed interface Tyre : Parcelable {
             tyre.temperature,
             tyre.battery,
             tyre.isAlarm,
-            location
+            location,
+            tyre.flags,
         )
     }
 
@@ -59,5 +69,6 @@ public sealed interface Tyre : Parcelable {
         override val battery: UShort,
         override val isAlarm: Boolean,
         val location: SensorLocation,
+        override val flags: UByte? = null,
     ) : Tyre, SensorInput
 }

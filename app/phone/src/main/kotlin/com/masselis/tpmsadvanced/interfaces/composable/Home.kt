@@ -62,6 +62,7 @@ import androidx.navigation.compose.rememberNavController
 import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.Spotlight
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.DetectedActivitiesIndicator
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
@@ -199,6 +200,14 @@ internal fun VehicleHome(
                             openSuspendScanConditions = {
                                 navController.navigate("${Path.SuspendScanConditions}")
                             },
+                            openDebug = {
+                                navController.navigate("${Path.Debug}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.Debug}") {
+                        DebugSettingsPage(
                             modifier = modifier
                         )
                     }
@@ -371,6 +380,7 @@ private fun TopAppBar(
                 is Path.CalibrationSettings -> Text(text = "Pressure calibration")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
+                is Path.Debug -> Text(text = "Debug")
                 is Path.PersistentScanning -> Text(text = "Persistent scanning")
                 is Path.ActivateScanConditions -> Text(text = "Activate scan conditions")
                 is Path.StayActiveDuration -> Text(text = "Stay active")
@@ -391,6 +401,7 @@ private fun TopAppBar(
                 is Path.CalibrationSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
+                is Path.Debug,
                 is Path.PersistentScanning,
                 is Path.ActivateScanConditions,
                 is Path.StayActiveDuration,
@@ -413,7 +424,10 @@ private fun TopAppBar(
                     )
                 }
 
-                is Path.Home, null -> {}
+                // What the phone detects it is doing, when asked for in the debug settings
+                is Path.Home -> DetectedActivitiesIndicator()
+
+                null -> {}
             }
         },
         actions = {
@@ -463,6 +477,7 @@ private fun TopAppBar(
                 is Path.CalibrationSettings,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
+                is Path.Debug,
                 is Path.PersistentScanning,
                 is Path.ActivateScanConditions,
                 is Path.StayActiveDuration,

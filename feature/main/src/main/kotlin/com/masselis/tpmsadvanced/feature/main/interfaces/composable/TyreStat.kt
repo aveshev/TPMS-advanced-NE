@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
@@ -14,7 +16,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.common.now
@@ -50,8 +56,9 @@ internal fun TyreStat(
 ) {
     val state by viewModel.stateFlow.collectAsState()
     val showSensorId by viewModel.showSensorId.collectAsState()
+    val showSensorFlags by viewModel.showSensorFlags.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
-    TyreStat(location, state, showSensorId, showTimeSinceUpdate, modifier)
+    TyreStat(location, state, showSensorId, showTimeSinceUpdate, showSensorFlags, modifier)
 }
 
 @Suppress("NAME_SHADOWING", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
@@ -61,6 +68,7 @@ private fun TyreStat(
     state: State,
     showSensorId: Boolean = false,
     showTimeSinceUpdate: Boolean = true,
+    showSensorFlags: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val (pressure, temperature) = when (val state = state) {
@@ -84,6 +92,11 @@ private fun TyreStat(
         State.NotDetected -> null
         is State.Normal -> state.timestamp
         is State.Alerting -> state.timestamp
+    }
+    val flags = when (state) {
+        State.NotDetected -> null
+        is State.Normal -> state.flags
+        is State.Alerting -> state.flags
     }
     val isPressureCalibrated = when (state) {
         State.NotDetected -> false
@@ -178,8 +191,29 @@ private fun TyreStat(
                 modifier = Modifier.align(alignment),
             )
         }
+
+        // Bit 0 first, the bits which are not set in the last packet greyed out
+        if (flags != null && showSensorFlags) {
+            Text(
+                text = buildAnnotatedString {
+                    repeat(Byte.SIZE_BITS) { bit ->
+                        withStyle(
+                            if ((flags.toInt() shr bit) and 1 == 1) SpanStyle(fontWeight = FontWeight.Bold)
+                            else SpanStyle(color = onSurfaceColor.copy(alpha = UNSET_FLAG_ALPHA))
+                        ) { append("$bit") }
+                    }
+                },
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                color = onSurfaceColor,
+                modifier = Modifier.align(alignment),
+            )
+        }
     }
 }
+
+private const val UNSET_FLAG_ALPHA = 0.3f
 
 // Re-emits on every tier boundary crossed (each minute, then each hour, then each day) so the
 // label stays live without waiting for a new sensor packet. A new `timestamp` (new packet)
@@ -401,5 +435,26 @@ internal fun TyreStatTimeSinceUpdateDaysPreview() {
             TemperatureUnit.CELSIUS
         ),
         showTimeSinceUpdate = true,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatFlagsPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0x562D00,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            flags = 0x83u,
+        ),
+        showSensorId = true,
+        showTimeSinceUpdate = false,
+        showSensorFlags = true,
     )
 }

@@ -21,7 +21,8 @@ public class TyreAtmosphereUseCase internal constructor(
                 record.timestamp,
                 record.sensorId,
                 if (record.isAlarm) 0f.kpa else record.pressure,
-                record.temperature
+                record.temperature,
+                record.flags,
             )
         }
         .combine(calibrationUseCase.calibration) { atmosphere, calibration ->

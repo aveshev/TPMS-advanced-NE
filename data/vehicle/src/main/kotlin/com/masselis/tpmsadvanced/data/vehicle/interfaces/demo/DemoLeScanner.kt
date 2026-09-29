@@ -23,6 +23,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             100u,
             false,
             SensorLocation.FRONT_LEFT,
+            0x01u,
         ),
         Tyre.Unlocated(
             now(),
@@ -45,6 +46,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             75u,
             false,
             SensorLocation.FRONT_RIGHT,
+            0x05u,
         ),
         Tyre.Unlocated(
             now(),
@@ -67,6 +69,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             50u,
             false,
             SensorLocation.REAR_LEFT,
+            0x40u,
         ),
         Tyre.Unlocated(
             now(),
@@ -89,6 +92,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             25u,
             false,
             SensorLocation.REAR_RIGHT,
+            0x83u,
         ),
         Tyre.Unlocated(
             now(),
