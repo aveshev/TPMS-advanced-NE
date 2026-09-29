@@ -25,8 +25,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.common.now
-import com.masselis.tpmsadvanced.core.ui.Orange
 import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.core.ui.warning
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
@@ -230,7 +230,7 @@ private fun TyreStat(
                 fontSize = 16.sp,
                 color = when (battery.level) {
                     NORMAL -> onSurfaceColor
-                    LOW_SOON -> Orange
+                    LOW_SOON -> MaterialTheme.colorScheme.warning
                     LOW -> errorColor
                 },
                 modifier = Modifier

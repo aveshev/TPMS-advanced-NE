@@ -70,8 +70,7 @@ public val md_theme_dark_surfaceTintColor: Color = Color(0xFF81DB74)
 
 public val seed: Color = Color(0xFF5FB755)
 
-/**
- * A warning below the theme's error: a suspended scan, a sensor battery getting low, a tyre losing
- * pressure
- */
-public val Orange: Color = Color(0xFFFF9800)
+// A warning below the theme's error, which Material 3 has no role for, see ColorScheme.warning.
+// The dark one is pale like the dark error, so the error still reads as the more severe one.
+public val md_theme_light_warning: Color = Color(0xFFFF9800)
+public val md_theme_dark_warning: Color = Color(0xFFFFB870)
