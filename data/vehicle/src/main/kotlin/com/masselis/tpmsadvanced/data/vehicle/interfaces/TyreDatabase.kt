@@ -50,4 +50,19 @@ public class TyreDatabase internal constructor(
             )
         }
         .asOneOrNull()
+
+    /** Same as [latestByTyreLocationByVehicle], only among the records of the sensor [sensorId] */
+    public fun latestBySensorByTyreLocationByVehicle(
+        sensorId: Int,
+        location: Location,
+        vehicleId: UUID
+    ): QueryOneOrNull<Tyre.Located> = queries
+        .latestBySensorByTyreLocationByVehicle(
+            sensorId,
+            location,
+            vehicleId
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm ->
+            Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
+        }
+        .asOneOrNull()
 }
