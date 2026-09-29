@@ -177,10 +177,11 @@ private fun TyreStat(
             )
         }
 
-        // The pressure and temperature above stay as the sensor read them
+        // The sensor's own alarm, its meaning isn't documented but a leak is the likely one. The
+        // pressure and temperature above stay as the sensor read them.
         if (isSensorAlarm) {
             Text(
-                "Sensor alarm",
+                "Leaking?",
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 fontSize = 16.sp,

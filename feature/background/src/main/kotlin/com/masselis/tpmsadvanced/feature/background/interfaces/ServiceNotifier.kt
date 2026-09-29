@@ -189,7 +189,7 @@ internal class ServiceNotifier(
                                 state.atmosphere.pressure.string(unitPreferences.pressure.value)
                             } !!!"
 
-                            is SensorAlarm -> "⚠️ A tyre sensor raised an alarm !!!"
+                            is SensorAlarm -> "⚠️ A tyre may be leaking !!!"
 
                             is TemperatureAlert -> "⚠️ A tyre reached the temperature of ${
                                 state.atmosphere.temperature.string(unitPreferences.temperature.value)
