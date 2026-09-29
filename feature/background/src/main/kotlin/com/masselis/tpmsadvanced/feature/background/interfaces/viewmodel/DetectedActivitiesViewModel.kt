@@ -6,6 +6,8 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionU
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase.Activity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -22,7 +24,10 @@ internal class DetectedActivitiesViewModel(
 
     /** null while nothing is to be shown, empty until the first sample arrives */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val topActivities: Flow<List<Activity>?> = showDetectedActivities
+    val topActivities: Flow<List<Activity>?> = appPreferences.debugOptions
+        // Only shown while the switch of the debug options is on
+        .combine(showDetectedActivities, Boolean::and)
+        .distinctUntilChanged()
         .flatMapLatest { shown ->
             if (shown && activityRecognitionUseCase.isPermitted()) {
                 activityRecognitionUseCase

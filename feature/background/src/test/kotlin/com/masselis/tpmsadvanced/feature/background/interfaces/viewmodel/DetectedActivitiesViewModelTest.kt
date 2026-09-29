@@ -20,12 +20,14 @@ import kotlin.test.assertNull
 
 internal class DetectedActivitiesViewModelTest {
 
+    private lateinit var debugOptions: MutableStateFlow<Boolean>
     private lateinit var showDetectedActivities: MutableStateFlow<Boolean>
     private lateinit var permitted: MutableStateFlow<Boolean>
     private lateinit var probableActivities: MutableSharedFlow<List<Activity>>
 
     private fun test() = DetectedActivitiesViewModel(
         mockk<AppPreferences> {
+            every { debugOptions } returns this@DetectedActivitiesViewModelTest.debugOptions
             every { showDetectedActivities } returns this@DetectedActivitiesViewModelTest.showDetectedActivities
         },
         mockk<ActivityRecognitionUseCase> {
@@ -36,6 +38,7 @@ internal class DetectedActivitiesViewModelTest {
 
     @Before
     fun setup() {
+        debugOptions = MutableStateFlow(true)
         showDetectedActivities = MutableStateFlow(true)
         permitted = MutableStateFlow(true)
         probableActivities = MutableSharedFlow()
@@ -69,6 +72,16 @@ internal class DetectedActivitiesViewModelTest {
             assertEquals(emptyList(), awaitItem())
             showDetectedActivities.value = false
             assertNull(awaitItem())
+        }
+    }
+
+    @Test
+    fun `nothing is shown while the debug options are off`() = runTest {
+        debugOptions.value = false
+        test().topActivities.test {
+            assertNull(awaitItem())
+            debugOptions.value = true
+            assertEquals(emptyList(), awaitItem())
         }
     }
 

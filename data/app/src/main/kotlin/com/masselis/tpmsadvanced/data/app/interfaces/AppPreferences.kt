@@ -23,6 +23,16 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_SENSOR_ID", newValue) }
     }
 
+    /**
+     * The switch of the debug options: while off, none of them is shown, whatever is selected.
+     * On by default when the sensor ID, the only one which predates it, was shown.
+     */
+    public val debugOptions: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("DEBUG_OPTIONS", sharedPreferences.getBoolean("SHOW_SENSOR_ID", false))
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("DEBUG_OPTIONS", newValue) }
+    }
+
     /** Shows the status byte of the last packet under each tyre, bit by bit */
     public val showSensorFlags: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SHOW_SENSOR_FLAGS", false)

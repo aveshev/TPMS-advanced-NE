@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.masselis.tpmsadvanced.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
@@ -23,11 +25,11 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.composable.StayAc
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendBluetoothDevices
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendScanConditions
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DebugSettings
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DemoModeSettings
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DeveloperOptionsSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
 import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettingsItems
-import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.debug
+import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.developerOptions
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
 
@@ -37,6 +39,7 @@ internal fun AppSettings(
     openPersistentScanning: () -> Unit,
     openActivateScanConditions: () -> Unit,
     openSuspendScanConditions: () -> Unit,
+    openDebug: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     SettingsSectionHeader("Display")
@@ -52,17 +55,22 @@ internal fun AppSettings(
         openSuspendConditions = openSuspendScanConditions,
         modifier = Modifier.testTag(persistentScanning),
     )
-    SettingsSectionHeader("Demo")
-    DemoModeSettings()
     SettingsSectionHeader("About")
     SettingsGroup {
         TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
     }
-    SettingsSectionHeader("Debug")
-    DebugSettings(
-        modifier = Modifier.testTag(debug),
-        additionalItems = { DetectedActivitiesSettingsItem() },
+    SettingsSectionHeader("Developer options")
+    DeveloperOptionsSettings(
+        openDebug = openDebug,
+        modifier = Modifier.testTag(developerOptions),
     )
+}
+
+@Composable
+internal fun DebugSettingsPage(
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    DebugSettings(additionalItems = { DetectedActivitiesSettingsItem() })
 }
 
 @Composable
@@ -139,5 +147,5 @@ internal fun SettingsPage(
 internal object AppSettingsTag {
     const val tyreDisplay = "AppSettingsTag_tyreDisplay"
     const val persistentScanning = "AppSettingsTag_persistentScanning"
-    const val debug = "AppSettingsTag_debug"
+    const val developerOptions = "AppSettingsTag_developerOptions"
 }
