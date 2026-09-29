@@ -15,16 +15,19 @@ import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateBluetoothDevices
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateScanConditions
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.DetectedActivitiesSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ExceptedWifis
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningDetails
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningSettings
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.StayActiveDuration
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendBluetoothDevices
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendScanConditions
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DebugSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DemoModeSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
 import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettingsItems
+import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.debug
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
 
@@ -55,6 +58,11 @@ internal fun AppSettings(
     SettingsGroup {
         TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
     }
+    SettingsSectionHeader("Debug")
+    DebugSettings(
+        modifier = Modifier.testTag(debug),
+        additionalItems = { DetectedActivitiesSettingsItem() },
+    )
 }
 
 @Composable
@@ -131,4 +139,5 @@ internal fun SettingsPage(
 internal object AppSettingsTag {
     const val tyreDisplay = "AppSettingsTag_tyreDisplay"
     const val persistentScanning = "AppSettingsTag_persistentScanning"
+    const val debug = "AppSettingsTag_debug"
 }

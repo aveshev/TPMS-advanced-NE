@@ -23,6 +23,20 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_SENSOR_ID", newValue) }
     }
 
+    /** Shows the status byte of the last packet under each tyre, bit by bit */
+    public val showSensorFlags: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SHOW_SENSOR_FLAGS", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SHOW_SENSOR_FLAGS", newValue) }
+    }
+
+    /** Shows the activities the phone detects, with their confidence, on the home screen */
+    public val showDetectedActivities: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SHOW_DETECTED_ACTIVITIES", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SHOW_DETECTED_ACTIVITIES", newValue) }
+    }
+
     public val showTimeSinceUpdate: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SHOW_TIME_SINCE_UPDATE", true)
     ) { _, newValue ->

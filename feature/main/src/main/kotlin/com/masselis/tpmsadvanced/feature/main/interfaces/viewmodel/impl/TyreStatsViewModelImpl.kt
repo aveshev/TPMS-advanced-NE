@@ -10,5 +10,6 @@ internal class TyreStatsViewModelImpl(
     appPreferences: AppPreferences,
 ) : ViewModel(), TyreStatsViewModel {
     override val showSensorId = appPreferences.showSensorId
+    override val showSensorFlags = appPreferences.showSensorFlags
     override val showTimeSinceUpdate = appPreferences.showTimeSinceUpdate
 }

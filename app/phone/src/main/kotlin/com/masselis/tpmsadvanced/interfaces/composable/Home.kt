@@ -62,6 +62,7 @@ import androidx.navigation.compose.rememberNavController
 import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.Spotlight
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.DetectedActivitiesIndicator
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
@@ -413,7 +414,10 @@ private fun TopAppBar(
                     )
                 }
 
-                is Path.Home, null -> {}
+                // What the phone detects it is doing, when asked for in the debug settings
+                is Path.Home -> DetectedActivitiesIndicator()
+
+                null -> {}
             }
         },
         actions = {

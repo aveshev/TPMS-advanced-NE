@@ -31,6 +31,9 @@ internal data class RawPecham private constructor(
 
     fun temperature() = data[2].toFloat().celsius
 
+    // The only byte of the payload which isn't decoded, probably the status of the sensor
+    fun flags() = data[0].toUByte()
+
     override fun asTyre() = Tyre.Unlocated(
         now(),
         rssi,
@@ -38,7 +41,8 @@ internal data class RawPecham private constructor(
         pressure(),
         temperature(),
         battery(),
-        battery() < 26u // Mimics the alarm from the official app
+        battery() < 26u, // Mimics the alarm from the official app
+        flags(),
     )
 
     override fun equals(other: Any?): Boolean {
