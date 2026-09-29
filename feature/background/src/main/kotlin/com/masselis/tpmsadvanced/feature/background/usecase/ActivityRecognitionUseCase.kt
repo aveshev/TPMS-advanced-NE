@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import android.Manifest.permission.ACTIVITY_RECOGNITION
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.app.PendingIntent.FLAG_MUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
@@ -50,6 +51,9 @@ internal class ActivityRecognitionUseCase(scope: CoroutineScope) {
      * Shared: the updates are registered with one PendingIntent, so a second collector of its own
      * would remove the registration of the first one when it stops.
      */
+    // Only collected once isPermitted(), and a SecurityException from a revoked permission is
+    // caught by the runCatching below: lint cannot see either
+    @SuppressLint("MissingPermission")
     val probableActivities: SharedFlow<List<Activity>> = callbackFlow {
         val action = "${appContext.packageName}.ACTIVITY_RECOGNITION_UPDATE"
         // The system fills the intent in when it delivers, so the PendingIntent has to be mutable
