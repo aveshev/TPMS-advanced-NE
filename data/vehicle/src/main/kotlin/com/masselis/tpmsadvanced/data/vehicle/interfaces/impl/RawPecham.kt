@@ -87,7 +87,7 @@ internal data class RawPecham private constructor(
             return RawPecham(result.device.address, result.rssi, data)
         }
 
-        private object CRC {
+        internal object CRC {
             fun isValid(scanRecord: ScanRecord): Boolean {
                 val dataWithCRC = scanRecord.bytes
                 val (highByteIndex, lowByteIndex) = bytes(
@@ -95,6 +95,10 @@ internal data class RawPecham private constructor(
                 )
                 return auchCRCHi[highByteIndex] == dataWithCRC[15] && auchCRCLo[lowByteIndex] == dataWithCRC[16]
             }
+
+            /** The 2 CRC bytes for the first 15 bytes of an advertisement, used by MockSensor */
+            fun of(dataWithoutCRC: ByteArray): ByteArray = bytes(dataWithoutCRC)
+                .let { (highByteIndex, lowByteIndex) -> byteArrayOf(auchCRCHi[highByteIndex], auchCRCLo[lowByteIndex]) }
 
             private fun bytes(dataWithoutCRC: ByteArray): Pair<Int, Int> =
                 calculate(data = dataWithoutCRC)

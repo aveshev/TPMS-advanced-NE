@@ -73,6 +73,21 @@ Before `installDebug`, check the branch contains the squash: `git merge-base --i
 ### Demo Mode
 No build flavors — a single build. Demo mode (used for Play Store screenshots/testing) is a runtime setting toggled from the app's settings screen, backed by `ScannerDatabase.isDemo` in `data/vehicle`.
 
+### Mock BLE packets
+Debug builds accept BLE advertisements over adb, merged into the real scan so they go through the same scan filters and decoders as over-the-air packets (`data/vehicle/src/debug/.../MockAdvertisements.kt`; the release source set is a no-op). Either have the app encode a reading (`MockSensor.kt`, round-trip tested against the decoders), or replay raw bytes:
+
+```bash
+adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.masselis.tpmsadvanced --es brand pecham --ef kpa 230 --ef celsius 21 --ei battery 30 --es address AA:BB:CC:DD:EE:01
+adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.masselis.tpmsadvanced --es bytes <hex>
+```
+
+- `brand`: `pecham`, `bekubee_ky`, `wicarlink`, `bekubee_tpms` or `sysgration`. `kpa` is required; `celsius`, `battery` (decivolts, except Sysgration), `id` and `rssi` are optional. Sysgration also takes `wheel` (`FL`/`FR`/`RL`/`RR`) and `alarm` (`--ez`); `flags` (`--ei`, 0 to 255) sets each brand's raw status byte, see `MockSensor`'s KDoc.
+- Pecham and Bekubee KY derive the sensor ID from `address`, so keep it fixed across packets meant to come from one sensor (the others use `id`; Sysgration IDs are multiples of 256).
+- Values are checked against what each format can carry, and numbers can be sent with `--ei` or `--ef`. A value sent with the wrong flag is rejected, not defaulted.
+- Mock sensors bind through the normal screens: unlocated ones (all but Sysgration) on "Bind sensor one by one", Sysgration on the main screen at the wheel it advertises. Any reading with an alarm shows 0 psi (`TyreAtmosphereUseCase`), and for every brand but Sysgration the alarm means a low battery.
+
+The app must be scanning (main screen open, or the background service running) with Bluetooth on. `adb logcat -s MockAdvertisements BluetoothLeScannerImpl` shows why a packet was dropped, or the decoded `Sensor content`. Real sensors' bytes are logged the same way (`Sensor found during scan`), so a real packet can be captured and replayed.
+
 ### Convention Plugins
 Reusable Gradle config lives in `buildSrc/src/main/kotlin/` as convention plugins (`android-app`, `android-lib`, `compose`, `detekt`, `gitflow`, `monitor-resource`). Apply these to new modules rather than duplicating config.
 
