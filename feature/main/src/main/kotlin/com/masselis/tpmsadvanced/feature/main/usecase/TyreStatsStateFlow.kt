@@ -9,6 +9,12 @@ import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW_SOON
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.NORMAL
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
@@ -36,6 +42,7 @@ public class TyreStatsStateFlow internal constructor(
         unitPreferences.pressure,
         unitPreferences.temperature,
         calibrationUseCase.isEnabled,
+        rangeUseCase.lowBatteryVoltage,
         pressureLossStateFlow,
     ) { values ->
         @Suppress("MagicNumber")
@@ -47,14 +54,16 @@ public class TyreStatsStateFlow internal constructor(
             values[4] as PressureUnit,
             values[5] as TemperatureUnit,
             values[6] as Boolean,
-            values[7] as PressureLoss?,
+            values[7] as Voltage,
+            values[8] as PressureLoss?,
         ))
     }
-        .map { (atmosphere, highTemp, lowPressure, highPressure, pressureUnit, temperatureUnit, isCalibrated, pressureLoss) ->
+        .map { (atmosphere, highTemp, lowPressure, highPressure, pressureUnit, temperatureUnit, isCalibrated, lowBatteryVoltage, pressureLoss) ->
             val isPressureAlert = atmosphere.pressure.hasPressure().not() ||
                 atmosphere.pressure !in lowPressure..highPressure
             val isTemperatureAlert = atmosphere.temperature.celsius > highTemp.celsius
-            if (isPressureAlert || isTemperatureAlert) State.Alerting(
+            val battery = atmosphere.batteryVoltage?.let { Battery.of(it, lowBatteryVoltage) }
+            if (isPressureAlert || isTemperatureAlert || atmosphere.isSensorAlarm) State.Alerting(
                 atmosphere.timestamp,
                 atmosphere.sensorId,
                 atmosphere.pressure,
@@ -64,6 +73,8 @@ public class TyreStatsStateFlow internal constructor(
                 isPressureAlert,
                 isTemperatureAlert,
                 isCalibrated,
+                battery,
+                atmosphere.isSensorAlarm,
                 atmosphere.flags,
                 pressureLoss,
             ) else State.Normal(
@@ -74,6 +85,7 @@ public class TyreStatsStateFlow internal constructor(
                 atmosphere.temperature,
                 temperatureUnit,
                 isCalibrated,
+                battery,
                 atmosphere.flags,
                 pressureLoss,
             )
@@ -90,6 +102,7 @@ public class TyreStatsStateFlow internal constructor(
         val pressureUnit: PressureUnit,
         val temperature: TemperatureUnit,
         val isCalibrated: Boolean,
+        val lowBatteryVoltage: Voltage,
         val pressureLoss: PressureLoss?,
     )
 
@@ -109,6 +122,7 @@ public class TyreStatsStateFlow internal constructor(
             public val temperatureUnit: TemperatureUnit,
             // The pressure was corrected by the vehicle's calibration, marked by an asterisk
             public val isPressureCalibrated: Boolean = false,
+            public val battery: Battery? = null,
             // The status byte of the last packet, see Tyre.flags
             public val flags: UByte? = null,
             // An early leak warning, it never makes the tyre alert on its own
@@ -127,8 +141,43 @@ public class TyreStatsStateFlow internal constructor(
             public val isPressureAlert: Boolean,
             public val isTemperatureAlert: Boolean,
             public val isPressureCalibrated: Boolean = false,
+            public val battery: Battery? = null,
+            // Raised by the sensor itself (Sysgration), whatever the read values
+            public val isSensorAlarm: Boolean = false,
             public val flags: UByte? = null,
             public val pressureLoss: PressureLoss? = null,
         ) : State()
+
+        /**
+         * The sensor's battery, null when it doesn't report a voltage. A low battery never makes
+         * the tyre alert: it isn't a safety issue, the readings stay accurate until the sensor goes
+         * silent.
+         */
+        @Parcelize
+        public data class Battery(public val voltage: Voltage, public val level: Level) : Parcelable {
+
+            public enum class Level {
+                NORMAL,
+
+                /** Within [LOW_SOON_MARGIN] of the alarm, shown in orange */
+                LOW_SOON,
+
+                /** At or below the alarm, blinks red */
+                LOW,
+            }
+
+            public companion object {
+                public val LOW_SOON_MARGIN: Voltage = 0.1f.volts
+
+                public fun of(voltage: Voltage, lowVoltage: Voltage): Battery = Battery(
+                    voltage,
+                    when {
+                        voltage.isAtOrBelow(lowVoltage) -> LOW
+                        voltage.isAtOrBelow(lowVoltage + LOW_SOON_MARGIN) -> LOW_SOON
+                        else -> NORMAL
+                    },
+                )
+            }
+        }
     }
 }

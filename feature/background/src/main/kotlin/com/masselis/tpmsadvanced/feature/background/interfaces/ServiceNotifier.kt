@@ -11,10 +11,10 @@ import android.os.Build.VERSION.SDK_INT
 import android.os.Build.VERSION_CODES.Q
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationCompat.PRIORITY_HIGH
 import androidx.core.app.NotificationCompat.PRIORITY_LOW
 import androidx.core.app.NotificationCompat.PRIORITY_MAX
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.NotificationCompat.PRIORITY_HIGH
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_HIGH
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_LOW
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_MAX
@@ -32,10 +32,12 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.LowBatteryAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureLossAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.SensorAlarm
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
@@ -91,6 +93,12 @@ internal class ServiceNotifier(
         )
         notificationManager.createNotificationChannel(
             NotificationChannelCompat
+                .Builder(channelNameForLowBattery, IMPORTANCE_HIGH)
+                .setName("Sensor battery low")
+                .build()
+        )
+        notificationManager.createNotificationChannel(
+            NotificationChannelCompat
                 .Builder(channelNameForPressureLoss, IMPORTANCE_HIGH)
                 .setName("Tyre losing pressure")
                 .build()
@@ -142,45 +150,31 @@ internal class ServiceNotifier(
             .onStart { emit(NoAlert) }
             .catch { logger.e("Failed to listen for atmospheres", it); emit(ScanFailure) }
             .distinctUntilChanged()
-            // A loss is checked again at each reading and can come and go around the rule's limit: once
-            // notified, a tyre's loss updates silently until it's pumped up, the next loss alerting
-            // again
-            .scan(
-                Triple<State?, Boolean, Map<Pair<UUID, Location>, Double>>(null, false, emptyMap())
-            ) { (_, _, notified), state ->
-                (state as? PressureLossAlert)
-                    ?.let { alert ->
-                        Triple(
-                            state,
-                            notified[alert.tyre]?.let { (alert.loss.refilledAt ?: 0.0) < it } ?: false,
-                            notified + (alert.tyre to alert.loss.until),
-                        )
-                    }
-                    ?: Triple(state, false, notified)
-            }
-            .mapNotNull { (state, isRepeat, _) -> state?.let { it to isRepeat } }
+            .scan(Repeats()) { repeats, state -> repeats.next(state) }
+            .mapNotNull { repeats -> repeats.state?.let { it to repeats.isRepeat } }
             .map { (state, isRepeat) ->
                 NotificationCompat
                     .Builder(
                         appContext,
                         when (state) {
                             NoAlert, is Suspended, Idle -> channelNameWhenOk
-                            is PressureAlert, is TemperatureAlert, ScanFailure -> channelNameForAlerts
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> channelNameForAlerts
+                            is LowBatteryAlert -> channelNameForLowBattery
                             is PressureLossAlert -> channelNameForPressureLoss
                         }
                     )
                     .setSmallIcon(
                         when (state) {
-                            NoAlert, is Suspended, Idle -> R.drawable.car_tire
-                            is PressureAlert, is TemperatureAlert, is PressureLossAlert, ScanFailure ->
+                            NoAlert, is Suspended, Idle, is LowBatteryAlert -> R.drawable.car_tire
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, is PressureLossAlert, ScanFailure ->
                                 R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
                             NoAlert, is Suspended, Idle -> PRIORITY_LOW
-                            is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
-                            is PressureLossAlert -> PRIORITY_HIGH
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
+                            is LowBatteryAlert, is PressureLossAlert -> PRIORITY_HIGH
                         }
                     )
                     .setOnlyAlertOnce(isRepeat)
@@ -188,7 +182,9 @@ internal class ServiceNotifier(
                         when (state) {
                             NoAlert, is Suspended, Idle -> null
                             is PressureAlert -> state.vehicleName
+                            is SensorAlarm -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
+                            is LowBatteryAlert -> state.vehicleName
                             is PressureLossAlert -> state.vehicleName
                             ScanFailure -> null
                         }
@@ -200,9 +196,15 @@ internal class ServiceNotifier(
                                 state.atmosphere.pressure.string(unitPreferences.pressure.value)
                             } !!!"
 
+                            is SensorAlarm -> "⚠️ A tyre may be leaking !!!"
+
                             is TemperatureAlert -> "⚠️ A tyre reached the temperature of ${
                                 state.atmosphere.temperature.string(unitPreferences.temperature.value)
                             } !!!"
+
+                            is LowBatteryAlert -> "🔋 A sensor's battery is low: ${
+                                state.atmosphere.batteryVoltage?.string()
+                            }"
 
                             is PressureLossAlert -> buildString {
                                 val unit = unitPreferences.pressure.value
@@ -235,7 +237,9 @@ internal class ServiceNotifier(
                                 ?.also(::setContentIntent)
 
                             is PressureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
+                            is SensorAlarm -> setContentIntent(vehicleIntent(state.vehicleUuid))
                             is TemperatureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
+                            is LowBatteryAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
                             is PressureLossAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
 
                             ScanFailure -> {
@@ -246,8 +250,8 @@ internal class ServiceNotifier(
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert, is PressureLossAlert, is Suspended,
-                            Idle ->
+                            NoAlert, is PressureAlert, is SensorAlarm, is TemperatureAlert, is LowBatteryAlert,
+                            is PressureLossAlert, is Suspended, Idle ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -322,7 +326,19 @@ internal class ServiceNotifier(
             val atmosphere: TyreAtmosphere,
         ) : State
 
+        data class SensorAlarm(
+            val vehicleUuid: UUID,
+            val vehicleName: String,
+            val atmosphere: TyreAtmosphere,
+        ) : State
+
         data class TemperatureAlert(
+            val vehicleUuid: UUID,
+            val vehicleName: String,
+            val atmosphere: TyreAtmosphere,
+        ) : State
+
+        data class LowBatteryAlert(
             val vehicleUuid: UUID,
             val vehicleName: String,
             val atmosphere: TyreAtmosphere,
@@ -345,21 +361,53 @@ internal class ServiceNotifier(
         data object Idle : State
     }
 
+    /**
+     * Whether [state] repeats an alert that already alerted, so its notification updates silently.
+     * A sensor battery doesn't recover by itself and its voltage can hover around the alarm: each
+     * sensor alerts once per service run. A loss is checked again at each reading and can come and
+     * go around the rule's limit: once notified, a tyre's loss updates silently until it's pumped
+     * up, the next loss alerting again.
+     */
+    private data class Repeats(
+        val state: State? = null,
+        val isRepeat: Boolean = false,
+        val lowBatterySensors: Set<Int> = emptySet(),
+        /** The latest reading notified for each tyre losing pressure */
+        val losses: Map<Pair<UUID, Location>, Double> = emptyMap(),
+    ) {
+        fun next(state: State): Repeats = when (state) {
+            is LowBatteryAlert -> copy(
+                state = state,
+                isRepeat = state.atmosphere.sensorId in lowBatterySensors,
+                lowBatterySensors = lowBatterySensors + state.atmosphere.sensorId,
+            )
+
+            is PressureLossAlert -> copy(
+                state = state,
+                isRepeat = losses[state.tyre]?.let { (state.loss.refilledAt ?: 0.0) < it } ?: false,
+                losses = losses + (state.tyre to state.loss.until),
+            )
+
+            else -> copy(state = state, isRepeat = false)
+        }
+    }
+
     @Suppress("ConstPropertyName")
     internal companion object {
         private const val channelNameWhenOk = "MONITOR_SERVICE_WHEN_OK"
         private const val channelNameForAlerts = "MONITOR_SERVICE_FOR_ALERT"
+        private const val channelNameForLowBattery = "MONITOR_SERVICE_FOR_LOW_BATTERY"
         private const val channelNameForPressureLoss = "MONITOR_SERVICE_FOR_PRESSURE_LOSS"
+        private const val MINUTES_PER_HOUR = 60L
         private const val notificationId = 1
         private const val requestCode = 0
-        private const val MINUTES_PER_HOUR = 60L
     }
 }
 
 /**
  * Picks what the notification must show for all monitored vehicles at once, the most severe first:
- * a pressure alert, a temperature alert, then a tyre losing pressure. Ties are broken by the order
- * of [alerts].
+ * a pressure alert, a sensor's own alarm, a temperature alert, a tyre losing pressure, then a low
+ * battery. Ties are broken by the order of [alerts].
  */
 internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
     alerts
@@ -367,9 +415,15 @@ internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
             (alert as? Alert.Pressure)?.let { PressureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
+            (alert as? Alert.SensorAlarm)?.let { SensorAlarm(vehicle.uuid, vehicle.name, it.atmosphere) }
+        }
+        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.Temperature)?.let { TemperatureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.PressureLoss)?.let { PressureLossAlert(vehicle.uuid, vehicle.name, it.location, it.loss) }
+        }
+        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
+            (alert as? Alert.LowBattery)?.let { LowBatteryAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
         ?: NoAlert

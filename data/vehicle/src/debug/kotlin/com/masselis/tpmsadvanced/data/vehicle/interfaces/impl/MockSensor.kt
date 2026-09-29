@@ -121,7 +121,8 @@ internal enum class MockSensor {
      * but SYSGRATION, whose unit is unknown. `null` picks a healthy value.
      * @param id The sensor ID the app shows. Ignored by PECHAM and BEKUBEE_KY, see their doc.
      * @param location Only SYSGRATION advertises its location.
-     * @param isAlarm Only SYSGRATION advertises an alarm, the others raise it on a low battery.
+     * @param isAlarm Only SYSGRATION advertises an alarm, the others report their battery as a voltage
+     * which the app compares to the vehicle's low voltage alarm.
      * @param flags The raw status byte, 0 to 255. `null` sends what real sensors do, see each entry.
      */
     data class Reading(

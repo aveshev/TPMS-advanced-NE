@@ -67,6 +67,7 @@ public interface TyreBindings {
         location: Location,
         tyreDatabase: TyreDatabase,
         listenTyreUseCase: ListenTyreSmartDutyUseCase,
+        sensorBindingUseCase: SensorBindingUseCase,
         demoOrBleScannerUseCase: DemoOrBleScannerUseCase,
         @VehicleLifecycle scope: CoroutineScope,
     ): ListenTyreWithDatabaseUseCase =
@@ -80,6 +81,7 @@ public interface TyreBindings {
                 location,
                 tyreDatabase,
                 listenTyreUseCase,
+                sensorBindingUseCase,
                 scope
             )
 

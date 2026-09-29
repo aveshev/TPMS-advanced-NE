@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SwitchNavigationSettingsItem
+import com.masselis.tpmsadvanced.core.ui.SwitchSettingsItem
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreDisplaySettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.TyreDisplaySettingsViewModel
 
@@ -38,9 +39,12 @@ internal fun TyreDisplaySettings(
     viewModel: TyreDisplaySettingsViewModel = viewModel { TyreDisplaySettingsViewModel() },
 ) {
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
+    val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
     TyreDisplaySettings(
         showTimeSinceUpdate = showTimeSinceUpdate,
         onShowTimeSinceUpdate = { viewModel.showTimeSinceUpdate.value = it },
+        showBatteryVoltage = showBatteryVoltage,
+        onShowBatteryVoltage = { viewModel.showBatteryVoltage.value = it },
         openTimeSinceUpdate = openTimeSinceUpdate,
         modifier = modifier,
         additionalItems = additionalItems,
@@ -51,6 +55,8 @@ internal fun TyreDisplaySettings(
 private fun TyreDisplaySettings(
     showTimeSinceUpdate: Boolean,
     onShowTimeSinceUpdate: (Boolean) -> Unit,
+    showBatteryVoltage: Boolean,
+    onShowBatteryVoltage: (Boolean) -> Unit,
     openTimeSinceUpdate: () -> Unit,
     modifier: Modifier = Modifier,
     additionalItems: @Composable ColumnScope.() -> Unit = {},
@@ -64,6 +70,13 @@ private fun TyreDisplaySettings(
         openableWhenOff = true,
         modifier = Modifier.testTag(TyreDisplaySettingsTags.showTimeSinceUpdate),
     )
+    SwitchSettingsItem(
+        headline = "Battery voltage",
+        supporting = "(even when not low)",
+        checked = showBatteryVoltage,
+        onCheckedChange = onShowBatteryVoltage,
+        modifier = Modifier.testTag(TyreDisplaySettingsTags.showBatteryVoltage),
+    )
     additionalItems()
 }
 
@@ -73,6 +86,8 @@ internal fun TyreDisplaySettingsPreview() {
     TyreDisplaySettings(
         showTimeSinceUpdate = true,
         onShowTimeSinceUpdate = {},
+        showBatteryVoltage = false,
+        onShowBatteryVoltage = {},
         openTimeSinceUpdate = {},
     )
 }
@@ -80,5 +95,6 @@ internal fun TyreDisplaySettingsPreview() {
 @Suppress("ConstPropertyName")
 internal object TyreDisplaySettingsTags {
     const val showTimeSinceUpdate = "TyreDisplaySettingsTags_showTimeSinceUpdate"
+    const val showBatteryVoltage = "TyreDisplaySettingsTags_showBatteryVoltage"
     const val timeSinceUpdateDetails = "TyreDisplaySettingsTags_timeSinceUpdateDetails"
 }

@@ -1,5 +1,6 @@
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure;
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature;
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage;
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind;
 import java.util.UUID;
 import kotlin.Boolean;
@@ -21,6 +22,7 @@ CREATE TABLE Vehicle(
     pressureCalibration INTEGER AS Boolean NOT NULL DEFAULT 0,
     pressureOffset REAL AS Pressure NOT NULL DEFAULT 0,
     pressureMultiplier REAL NOT NULL DEFAULT 1,
+    lowBatteryVoltage REAL AS Voltage NOT NULL DEFAULT 2.6,
     pressureLoss INTEGER AS Boolean NOT NULL DEFAULT 1,
     pressureLossHours INTEGER NOT NULL DEFAULT 10
 );
@@ -131,6 +133,12 @@ SELECT pressureMultiplier FROM Vehicle WHERE uuid = ?;
 
 updatePressureMultiplier:
 UPDATE Vehicle SET pressureMultiplier = ? WHERE uuid = ?;
+
+selectLowBatteryVoltageByVehicleId:
+SELECT lowBatteryVoltage FROM Vehicle WHERE uuid = ?;
+
+updateLowBatteryVoltage:
+UPDATE Vehicle SET lowBatteryVoltage = ? WHERE uuid = ?;
 
 selectPressureLossByVehicleId:
 SELECT pressureLoss FROM Vehicle WHERE uuid = ?;

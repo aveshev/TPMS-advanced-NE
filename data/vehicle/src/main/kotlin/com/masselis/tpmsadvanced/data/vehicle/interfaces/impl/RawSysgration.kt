@@ -61,7 +61,8 @@ internal data class RawSysgration private constructor(
         battery(),
         isAlarm(),
         location(),
-        flags(),
+        // Sysgration's battery isn't a voltage, batteryVoltage stays null
+        flags = flags(),
     )
 
     override fun equals(other: Any?): Boolean {

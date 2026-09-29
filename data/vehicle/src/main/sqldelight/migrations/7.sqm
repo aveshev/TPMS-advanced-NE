@@ -1,0 +1,2 @@
+ALTER TABLE Vehicle ADD lowBatteryVoltage REAL NOT NULL DEFAULT 2.6;
+ALTER TABLE Tyre ADD batteryVoltage REAL;

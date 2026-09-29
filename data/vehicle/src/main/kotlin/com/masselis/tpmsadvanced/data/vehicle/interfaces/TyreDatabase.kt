@@ -26,7 +26,8 @@ public class TyreDatabase internal constructor(
             tyre.temperature,
             tyre.battery,
             tyre.isAlarm,
-            vehicleId
+            vehicleId,
+            tyre.batteryVoltage,
         )
     }
 
@@ -37,8 +38,43 @@ public class TyreDatabase internal constructor(
         .latestByTyreLocationByVehicle(
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm ->
-            Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+            Tyre.Located(
+                timestamp,
+                rssi,
+                id,
+                pressure,
+                temperature,
+                battery,
+                isAlarm,
+                location,
+                batteryVoltage,
+            )
+        }
+        .asOneOrNull()
+
+    /** Same as [latestByTyreLocationByVehicle], only among the records of the sensor [sensorId] */
+    public fun latestBySensorByTyreLocationByVehicle(
+        sensorId: Int,
+        location: Location,
+        vehicleId: UUID
+    ): QueryOneOrNull<Tyre.Located> = queries
+        .latestBySensorByTyreLocationByVehicle(
+            sensorId,
+            location,
+            vehicleId
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+            Tyre.Located(
+                timestamp,
+                rssi,
+                id,
+                pressure,
+                temperature,
+                battery,
+                isAlarm,
+                location,
+                batteryVoltage,
+            )
         }
         .asOneOrNull()
 
@@ -50,8 +86,18 @@ public class TyreDatabase internal constructor(
         .allByTyreLocationByVehicle(
             location,
             vehicleId,
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm ->
-            Tyre.Located(timestamp, rssi, id, pressure, temperature, battery, isAlarm, location)
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+            Tyre.Located(
+                timestamp,
+                rssi,
+                id,
+                pressure,
+                temperature,
+                battery,
+                isAlarm,
+                location,
+                batteryVoltage,
+            )
         }
         .asList()
 

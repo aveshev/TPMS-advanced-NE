@@ -21,4 +21,5 @@ internal class TyreStatsViewModelImpl(
         .combine(appPreferences.showSensorFlags, Boolean::and)
         .stateIn(viewModelScope, Eagerly, appPreferences.debugOptions.value && appPreferences.showSensorFlags.value)
     override val showTimeSinceUpdate = appPreferences.showTimeSinceUpdate
+    override val showBatteryVoltage = appPreferences.showBatteryVoltage
 }

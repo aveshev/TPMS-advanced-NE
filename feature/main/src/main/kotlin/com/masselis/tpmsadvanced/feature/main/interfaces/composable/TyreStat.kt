@@ -1,3 +1,4 @@
+// One preview per state variant
 @file:Suppress("TooManyFunctions")
 
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
@@ -35,12 +36,17 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreStatsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreBindings.Companion.TyreStatsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.keyed
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW_SOON
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.NORMAL
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
@@ -60,7 +66,8 @@ internal fun TyreStat(
     val showSensorId by viewModel.showSensorId.collectAsState()
     val showSensorFlags by viewModel.showSensorFlags.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
-    TyreStat(location, state, showSensorId, showTimeSinceUpdate, showSensorFlags, modifier)
+    val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
+    TyreStat(location, state, showSensorId, showTimeSinceUpdate, showBatteryVoltage, showSensorFlags, modifier)
 }
 
 @Suppress("NAME_SHADOWING", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
@@ -70,6 +77,7 @@ private fun TyreStat(
     state: State,
     showSensorId: Boolean = false,
     showTimeSinceUpdate: Boolean = true,
+    showBatteryVoltage: Boolean = false,
     showSensorFlags: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -105,6 +113,12 @@ private fun TyreStat(
         is State.Normal -> state.isPressureCalibrated
         is State.Alerting -> state.isPressureCalibrated
     }
+    val battery = when (state) {
+        State.NotDetected -> null
+        is State.Normal -> state.battery
+        is State.Alerting -> state.battery
+    }
+    val isBatteryAlert = battery?.level == LOW
     val pressureLoss = when (state) {
         State.NotDetected -> null
         is State.Normal -> state.pressureLoss
@@ -112,12 +126,13 @@ private fun TyreStat(
     }
     val isPressureAlert = state is State.Alerting && state.isPressureAlert
     val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
+    val isSensorAlarm = state is State.Alerting && state.isSensorAlarm
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val errorColor = MaterialTheme.colorScheme.error
     val pressureColor = if (isPressureAlert) errorColor else onSurfaceColor
     val temperatureColor = if (isTemperatureAlert) errorColor else onSurfaceColor
     var isVisible by remember { mutableStateOf(true) }
-    if (isPressureAlert || isTemperatureAlert) {
+    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isBatteryAlert) {
         LaunchedEffect(key1 = isVisible) {
             launch {
                 repeat(Int.MAX_VALUE) {
@@ -188,6 +203,39 @@ private fun TyreStat(
                 fontSize = 16.sp,
                 color = onSurfaceColor,
                 modifier = Modifier.align(alignment),
+            )
+        }
+
+        // The sensor's own alarm, its meaning isn't documented but a leak is the likely one. The
+        // pressure and temperature above stay as the sensor read them.
+        if (isSensorAlarm) {
+            Text(
+                "Leaking?",
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                fontSize = 16.sp,
+                color = errorColor,
+                modifier = Modifier
+                    .align(alignment)
+                    .alpha(if (isVisible) 1f else 0f),
+            )
+        }
+
+        // A low battery shows whatever the setting, the tyre itself doesn't alert for it
+        if (battery != null && (showBatteryVoltage || battery.level != NORMAL)) {
+            Text(
+                battery.voltage.string(),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                fontSize = 16.sp,
+                color = when (battery.level) {
+                    NORMAL -> onSurfaceColor
+                    LOW_SOON -> Orange
+                    LOW -> errorColor
+                },
+                modifier = Modifier
+                    .align(alignment)
+                    .alpha(if (isBatteryAlert.not() || isVisible) 1f else 0f),
             )
         }
 
@@ -454,6 +502,85 @@ internal fun TyreStatTimeSinceUpdateDaysPreview() {
             TemperatureUnit.CELSIUS
         ),
         showTimeSinceUpdate = true,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatBatteryNormalPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            battery = Battery(3f.volts, NORMAL),
+        ),
+        showTimeSinceUpdate = false,
+        showBatteryVoltage = true,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatBatteryLowSoonPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            battery = Battery(2.7f.volts, LOW_SOON),
+        ),
+        showTimeSinceUpdate = false,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatBatteryLowPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            battery = Battery(2.6f.volts, LOW),
+        ),
+        showTimeSinceUpdate = false,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatSensorAlarmPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Alerting(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            isPressureAlert = false,
+            isTemperatureAlert = false,
+            isSensorAlarm = true,
+        ),
+        showTimeSinceUpdate = false,
     )
 }
 

@@ -21,6 +21,7 @@ internal interface ListenTyreWithDatabaseUseCase : ListenTyreUseCase {
         location: Location,
         tyreDatabase: TyreDatabase,
         listenTyreUseCase: ListenTyreUseCase,
+        sensorBindingUseCase: SensorBindingUseCase,
         scope: CoroutineScope,
     ) : ListenTyreWithDatabaseUseCase {
 
@@ -57,8 +58,13 @@ internal interface ListenTyreWithDatabaseUseCase : ListenTyreUseCase {
             .shareIn(scope, WhileSubscribed())
             .dematerializeCompletion()
             .onStart {
-                tyreDatabase
-                    .latestByTyreLocationByVehicle(location, vehicle.uuid)
+                // With a bound sensor, its own latest record: records of other sensors stored
+                // before it was bound would be dropped by ListenBoundTyreUseCase
+                sensorBindingUseCase
+                    .boundSensor()
+                    .value
+                    ?.let { tyreDatabase.latestBySensorByTyreLocationByVehicle(it.id, location, vehicle.uuid) }
+                    .let { it ?: tyreDatabase.latestByTyreLocationByVehicle(location, vehicle.uuid) }
                     .execute()
                     ?.also { emit(it) }
             }

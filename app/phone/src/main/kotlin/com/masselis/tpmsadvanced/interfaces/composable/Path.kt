@@ -35,6 +35,11 @@ internal sealed interface Path {
         override fun toString(): String = "vehicle/$vehicleUUID/settings_temperature"
     }
 
+    @JvmInline
+    value class BatterySettings(val vehicleUUID: UUID) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/settings_battery"
+    }
+
     data object AppSettings : Path {
         override fun toString(): String = "app_settings"
     }
@@ -106,7 +111,8 @@ internal sealed interface Path {
                 SuspendBluetoothDevices,
             )
 
-        @Suppress("NAME_SHADOWING")
+        // One branch per page
+        @Suppress("NAME_SHADOWING", "CyclomaticComplexMethod")
         fun from(route: String): Path = when (val page = appPages.firstOrNull { "$it" == route }) {
             null -> route
                 .split('/')
@@ -119,6 +125,7 @@ internal sealed interface Path {
                         "settings_pressure" -> PressureSettings(uuid)
                         "settings_temperature" -> TemperatureSettings(uuid)
                         "settings_calibration" -> CalibrationSettings(uuid)
+                        "settings_battery" -> BatterySettings(uuid)
                         "settings_pressure_loss" -> PressureLossSettings(uuid)
                         "binding_method" -> BindingMethod(uuid)
                         "qrcode" -> QrCode(uuid)

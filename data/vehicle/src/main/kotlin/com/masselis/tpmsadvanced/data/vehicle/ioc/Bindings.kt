@@ -20,6 +20,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
@@ -71,6 +72,13 @@ public interface Bindings {
                 Temperature(databaseValue.toFloat())
 
             override fun encode(value: Temperature): Double = value.celsius.toDouble()
+        }
+
+    @Provides
+    private fun voltageAdapter(): ColumnAdapter<Voltage, Double> =
+        object : ColumnAdapter<Voltage, Double> {
+            override fun decode(databaseValue: Double): Voltage = Voltage(databaseValue.toFloat())
+            override fun encode(value: Voltage): Double = value.volts.toDouble()
         }
 
     @Provides
@@ -146,6 +154,7 @@ public interface Bindings {
         pressureAdapter: ColumnAdapter<Pressure, Double>,
         temperatureAdapter: ColumnAdapter<Temperature, Double>,
         uShortAdapter: ColumnAdapter<UShort, Long>,
+        voltageAdapter: ColumnAdapter<Voltage, Double>,
     ): Database = Database(
         driver,
         VehicleAdapter = Vehicle.Adapter(
@@ -159,6 +168,7 @@ public interface Bindings {
             pressureAdapter,
             pressureAdapter,
             pressureAdapter,
+            voltageAdapter,
         ),
         SensorAdapter = Sensor.Adapter(IntColumnAdapter, sensorLocationAdapter, uuidAdapter),
         TyreAdapter = Tyre.Adapter(
@@ -169,6 +179,7 @@ public interface Bindings {
             temperatureAdapter,
             uShortAdapter,
             uuidAdapter,
+            voltageAdapter,
         )
     )
 }

@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.REAR
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +41,9 @@ public class VehicleRangesUseCase internal constructor(
         MutableStateFlow(database.selectRearHighPressure(vehicle.uuid))
     public val separateRearPressure: MutableStateFlow<Boolean> =
         MutableStateFlow(database.selectSeparateRearPressure(vehicle.uuid))
+    /** A sensor's battery alarms at this voltage or below, and is shown as getting low 0.1 V above */
+    public val lowBatteryVoltage: MutableStateFlow<Voltage> =
+        MutableStateFlow(database.selectLowBatteryVoltage(vehicle.uuid))
 
     /**
      * Turning the override off keeps the rear range, so an accidental toggle loses nothing. The
@@ -112,6 +116,11 @@ public class VehicleRangesUseCase internal constructor(
         separateRearPressure
             .debounce(100.milliseconds)
             .onEach { database.updateSeparateRearPressure(it, vehicle.uuid) }
+            .launchIn(scope)
+
+        lowBatteryVoltage
+            .debounce(100.milliseconds)
+            .onEach { database.updateLowBatteryVoltage(it, vehicle.uuid) }
             .launchIn(scope)
     }
 }

@@ -3,6 +3,9 @@ package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanRecord
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanResult
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 
 @Suppress("MaxLineLength")
 @OptIn(ExperimentalStdlibApi::class)
@@ -35,5 +38,14 @@ internal class WircarlinkTest {
             .map { it.asTyre() }
             .onEach(::println)
             .also { assert(it.size == samples.size) }
+            .forEach { tyre ->
+                // battery holds the voltage rounded to 0.1 V, batteryVoltage keeps the 0.01 V steps
+                assertFalse(tyre.isAlarm)
+                assertEquals(
+                    tyre.battery.toFloat() / 10f,
+                    assertNotNull(tyre.batteryVoltage).volts,
+                    absoluteTolerance = 0.05f,
+                )
+            }
     }
 }

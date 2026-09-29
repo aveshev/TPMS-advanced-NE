@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Duration
@@ -31,6 +32,8 @@ internal interface VehicleSettingsViewModel {
     val lowTemp: MutableStateFlow<Temperature>
 
     val temperatureUnit: StateFlow<TemperatureUnit>
+
+    val lowBatteryVoltage: MutableStateFlow<Voltage>
 
     fun setRearOverrideEnabled(enabled: Boolean)
 
