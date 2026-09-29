@@ -109,12 +109,13 @@ private fun TyreStat(
     val isBatteryAlert = battery?.level == LOW
     val isPressureAlert = state is State.Alerting && state.isPressureAlert
     val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
+    val isSensorAlarm = state is State.Alerting && state.isSensorAlarm
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val errorColor = MaterialTheme.colorScheme.error
     val pressureColor = if (isPressureAlert) errorColor else onSurfaceColor
     val temperatureColor = if (isTemperatureAlert) errorColor else onSurfaceColor
     var isVisible by remember { mutableStateOf(true) }
-    if (isPressureAlert || isTemperatureAlert || isBatteryAlert) {
+    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isBatteryAlert) {
         LaunchedEffect(key1 = isVisible) {
             launch {
                 repeat(Int.MAX_VALUE) {
@@ -173,6 +174,20 @@ private fun TyreStat(
                 fontSize = 16.sp,
                 color = onSurfaceColor,
                 modifier = Modifier.align(alignment),
+            )
+        }
+
+        // The pressure and temperature above stay as the sensor read them
+        if (isSensorAlarm) {
+            Text(
+                "Sensor alarm",
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                fontSize = 16.sp,
+                color = errorColor,
+                modifier = Modifier
+                    .align(alignment)
+                    .alpha(if (isVisible) 1f else 0f),
             )
         }
 
@@ -492,6 +507,27 @@ internal fun TyreStatBatteryLowPreview() {
             30f.celsius,
             TemperatureUnit.CELSIUS,
             battery = Battery(2.6f.volts, LOW),
+        ),
+        showTimeSinceUpdate = false,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatSensorAlarmPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Alerting(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            isPressureAlert = false,
+            isTemperatureAlert = false,
+            isSensorAlarm = true,
         ),
         showTimeSinceUpdate = false,
     )

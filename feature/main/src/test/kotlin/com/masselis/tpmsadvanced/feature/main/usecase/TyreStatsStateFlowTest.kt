@@ -31,6 +31,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -82,8 +83,9 @@ internal class TyreStatsStateFlowTest {
         timestamp: Double = now(),
         sensorId: Int = 0,
         batteryVoltage: Voltage? = null,
+        isSensorAlarm: Boolean = false,
     ) = every { tyreAtmosphereUseCase.listen() }.returns(
-        flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature, batteryVoltage))
+        flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature, batteryVoltage, isSensorAlarm))
     )
 
     @Test
@@ -192,6 +194,20 @@ internal class TyreStatsStateFlowTest {
         test().test {
             assertIs<State.NotDetected>(awaitItem())
             assertEquals(LOW, assertIs<State.Alerting>(awaitItem()).battery?.level)
+        }
+    }
+
+    @Test
+    fun `a sensor alarm alerts without blaming the read pressure`() = runTest {
+        setAtmosphere(2f.bar, 45f.celsius, isSensorAlarm = true)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertIs<State.Alerting>(awaitItem()).also {
+                assertTrue(it.isSensorAlarm)
+                assertFalse(it.isPressureAlert)
+                assertFalse(it.isTemperatureAlert)
+                assertEquals(2f.bar, it.pressure)
+            }
         }
     }
 }

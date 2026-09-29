@@ -34,6 +34,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.S
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.SensorAlarm
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
@@ -152,20 +153,21 @@ internal class ServiceNotifier(
                         appContext,
                         when (state) {
                             NoAlert, is Suspended, Idle -> channelNameWhenOk
-                            is PressureAlert, is TemperatureAlert, ScanFailure -> channelNameForAlerts
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> channelNameForAlerts
                             is LowBatteryAlert -> channelNameForLowBattery
                         }
                     )
                     .setSmallIcon(
                         when (state) {
                             NoAlert, is Suspended, Idle, is LowBatteryAlert -> R.drawable.car_tire
-                            is PressureAlert, is TemperatureAlert, ScanFailure -> R.drawable.car_tire_alert
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure ->
+                                R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
                             NoAlert, is Suspended, Idle -> PRIORITY_LOW
-                            is PressureAlert, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
                             is LowBatteryAlert -> PRIORITY_HIGH
                         }
                     )
@@ -174,6 +176,7 @@ internal class ServiceNotifier(
                         when (state) {
                             NoAlert, is Suspended, Idle -> null
                             is PressureAlert -> state.vehicleName
+                            is SensorAlarm -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
                             is LowBatteryAlert -> state.vehicleName
                             ScanFailure -> null
@@ -185,6 +188,8 @@ internal class ServiceNotifier(
                             is PressureAlert -> "⚠️ A tyre reached the pressure of ${
                                 state.atmosphere.pressure.string(unitPreferences.pressure.value)
                             } !!!"
+
+                            is SensorAlarm -> "⚠️ A tyre sensor raised an alarm !!!"
 
                             is TemperatureAlert -> "⚠️ A tyre reached the temperature of ${
                                 state.atmosphere.temperature.string(unitPreferences.temperature.value)
@@ -211,6 +216,7 @@ internal class ServiceNotifier(
                                 ?.also(::setContentIntent)
 
                             is PressureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
+                            is SensorAlarm -> setContentIntent(vehicleIntent(state.vehicleUuid))
                             is TemperatureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
                             is LowBatteryAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
 
@@ -222,7 +228,7 @@ internal class ServiceNotifier(
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is TemperatureAlert, is LowBatteryAlert,
+                            NoAlert, is PressureAlert, is SensorAlarm, is TemperatureAlert, is LowBatteryAlert,
                             is Suspended, Idle ->
                                 NotificationCompat.Action.Builder(
                                     null,
@@ -298,6 +304,12 @@ internal class ServiceNotifier(
             val atmosphere: TyreAtmosphere,
         ) : State
 
+        data class SensorAlarm(
+            val vehicleUuid: UUID,
+            val vehicleName: String,
+            val atmosphere: TyreAtmosphere,
+        ) : State
+
         data class TemperatureAlert(
             val vehicleUuid: UUID,
             val vehicleName: String,
@@ -328,14 +340,17 @@ internal class ServiceNotifier(
 }
 
 /**
- * Picks what the notification must show for all monitored vehicles at once: a pressure alert wins
- * over a temperature alert, which wins over a low battery, and ties are broken by the order of
- * [alerts].
+ * Picks what the notification must show for all monitored vehicles at once, the most severe first:
+ * a pressure alert, a sensor's own alarm, a temperature alert, then a low battery. Ties are broken
+ * by the order of [alerts].
  */
 internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
     alerts
         .firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.Pressure)?.let { PressureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
+        }
+        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
+            (alert as? Alert.SensorAlarm)?.let { SensorAlarm(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.Temperature)?.let { TemperatureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }

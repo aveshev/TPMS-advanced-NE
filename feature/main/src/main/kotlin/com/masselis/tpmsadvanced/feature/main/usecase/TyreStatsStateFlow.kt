@@ -55,12 +55,11 @@ public class TyreStatsStateFlow internal constructor(
         ))
     }
         .map { (atmosphere, highTemp, lowPressure, highPressure, pressureUnit, temperatureUnit, isCalibrated, lowBatteryVoltage) ->
-            val isPressureAlert = atmosphere.isSensorAlarm ||
-                atmosphere.pressure.hasPressure().not() ||
+            val isPressureAlert = atmosphere.pressure.hasPressure().not() ||
                 atmosphere.pressure !in lowPressure..highPressure
             val isTemperatureAlert = atmosphere.temperature.celsius > highTemp.celsius
             val battery = atmosphere.batteryVoltage?.let { Battery.of(it, lowBatteryVoltage) }
-            if (isPressureAlert || isTemperatureAlert) State.Alerting(
+            if (isPressureAlert || isTemperatureAlert || atmosphere.isSensorAlarm) State.Alerting(
                 atmosphere.timestamp,
                 atmosphere.sensorId,
                 atmosphere.pressure,
@@ -71,6 +70,7 @@ public class TyreStatsStateFlow internal constructor(
                 isTemperatureAlert,
                 isCalibrated,
                 battery,
+                atmosphere.isSensorAlarm,
             ) else State.Normal(
                 atmosphere.timestamp,
                 atmosphere.sensorId,
@@ -129,6 +129,8 @@ public class TyreStatsStateFlow internal constructor(
             public val isTemperatureAlert: Boolean,
             public val isPressureCalibrated: Boolean = false,
             public val battery: Battery? = null,
+            // Raised by the sensor itself (Sysgration), whatever the read values
+            public val isSensorAlarm: Boolean = false,
         ) : State()
 
         /**

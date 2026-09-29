@@ -19,6 +19,9 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
 
         data class Pressure(val atmosphere: TyreAtmosphere) : Alert
 
+        /** Raised by the sensor itself (Sysgration), maybe a leak the pressure doesn't show yet */
+        data class SensorAlarm(val atmosphere: TyreAtmosphere) : Alert
+
         data class Temperature(val atmosphere: TyreAtmosphere) : Alert
 
         /** The least severe, only reported when no tyre alerts for its pressure or temperature */
@@ -52,9 +55,12 @@ internal class VehicleAlertUseCase(vehicleComponent: VehicleComponent) {
                 atmospheres
                     .withIndex()
                     .firstOrNull { (index, atmosphere) ->
-                        atmosphere.isSensorAlarm || atmosphere.pressure !in pressureRanges[index]
+                        atmosphere.pressure !in pressureRanges[index]
                     }
                     ?.let { (_, atmosphere) -> Alert.Pressure(atmosphere) }
+                    ?: atmospheres
+                        .firstOrNull { it.isSensorAlarm }
+                        ?.let(Alert::SensorAlarm)
                     ?: atmospheres
                         .firstOrNull { it.temperature > highTemp }
                         ?.let(Alert::Temperature)
