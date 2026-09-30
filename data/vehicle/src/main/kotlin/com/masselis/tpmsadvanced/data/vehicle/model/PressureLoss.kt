@@ -4,177 +4,104 @@ import android.os.Parcelable
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import kotlinx.parcelize.Parcelize
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.DurationUnit.SECONDS
 
 /**
- * A tyre losing [perHour] of pressure, measured from the reading of [since] to the one of [until],
- * and expected to reach [flatMark] at [flatAt]. The timestamps are in seconds. [refilledAt] is the
- * latest time the tyre was pumped up, if any: a loss found after it is a new one. A loss which
- * isn't [isWarning] is only the latest measure, whatever the [Rule] says of it: it can be zero, or
- * negative for a tyre gaining pressure, which never reaches [flatMark] ([flatAt] is infinite).
+ * A tyre which lost [drop] since its highest reading of the ride, at [since], to its latest one, at
+ * [until], [perHour] on average. The timestamps are in seconds. A loss which isn't [isWarning] is
+ * only the latest measure, whatever the [Rule] says of it: it can be zero.
  */
 @Parcelize
 public data class PressureLoss(
     val perHour: Pressure,
+    val drop: Pressure,
     val since: Double,
     val until: Double,
-    val flatAt: Double,
-    val flatMark: Pressure,
-    val refilledAt: Double? = null,
     val isWarning: Boolean = true,
 ) : Parcelable {
 
-    /** From the latest reading to [flatMark], zero once it's there */
-    public val timeToFlat: Duration
-        get() = (flatAt - until).coerceAtLeast(0.0).seconds
-
-    /**
-     * Warns about a tyre losing pressure fast enough to fall to [flatMark], two thirds of the
-     * vehicle's [lowPressure] alert, within [horizon], once it lost at least [minDropShare] of
-     * [lowPressure].
-     */
-    @Suppress("MagicNumber")
-    public data class Rule(
-        val lowPressure: Pressure,
-        val horizon: Duration,
-        val minDropShare: Float = DEFAULT_MIN_DROP_SHARE,
-    ) {
-
-        public val flatMark: Pressure
-            get() = (lowPressure.kpa * 2f / 3f).kpa
-
-        /**
-         * A smaller drop can be the sensors' resolution (3 kPa at worst), the weather (±3 kPa) or
-         * the temperature compensation's error, which grows with the pressure
-         */
-        public val minDrop: Pressure
-            get() = maxOf(lowPressure.kpa * minDropShare, 7f).kpa
-
-        /**
-         * A rise this large, after the temperature compensation, is someone pumping the tyre up
-         * rather than a sensor reading it warmer
-         */
-        public val refillGate: Pressure
-            get() = (lowPressure.kpa / 10f).kpa
-
+    /** Warns about a tyre which lost at least [minDrop] since its highest reading of the ride */
+    public data class Rule(val minDrop: Pressure = DEFAULT_MIN_DROP) {
         public companion object {
-            public const val DEFAULT_MIN_DROP_SHARE: Float = 0.075f
+            /** Two steps of the sensors' resolution, 3.45 kPa (0.5 psi) at worst */
+            public val DEFAULT_MIN_DROP: Pressure = 7f.kpa
         }
     }
 
     /**
-     * Follows a single tyre's readings, fed one by one to [next]. The pressures are compared at
-     * 20 °C, so a tyre cooling down once parked doesn't look like it's leaking.
+     * Follows a single tyre's readings, fed one by one to [next], looking for a leak while riding.
+     * Riding warms the tyre up, which only ever raises its pressure: the pressure falling from its
+     * highest reading of the ride, while the tyre isn't cooling down, is air getting out. There's
+     * no temperature compensation, the sensors' temperature lagging too far behind the air's while
+     * the tyre warms up.
      *
-     * The reference is the lowest reading since the tyre was last pumped up, readings joining it
-     * once they're over an hour old, or the oldest reading of the last hour if lower. A drop is
-     * spread over the time since that oldest reading, or since the last reading before a gap in the
-     * readings, such as the vehicle being parked: a leak which started an hour ago isn't diluted by
-     * the days before. A single reading is enough, some sensors only broadcast on a change.
+     * The sensors only broadcast on a pressure change, so there's no reading of a parked tyre to
+     * compare rides with: a leak too slow to show within a ride is left to the low pressure alert,
+     * which catches it once the tyre is cold. A ride starts with the first reading after a gap of
+     * [RIDE_GAP].
      *
-     * Once found, [loss] stays until the tyre is pumped up, a later reading replacing it with the
-     * loss it finds, if any. [measured] is the latest reading's loss, or gain, whatever the rule
-     * says of it: the drop gate, the time limit and the refill gate only apply to [loss].
+     * Once found, [loss] stays until the ride ends or the pressure gets back to its highest.
+     * [measured] is the latest reading's loss, whatever the rule says of it.
      */
     public data class Tracker(
         val loss: PressureLoss? = null,
         val measured: PressureLoss? = null,
-        /** The lowest of the readings since the latest refill, but those of the last hour */
-        private val lowest: TyreAtmosphere? = null,
-        /** The readings of the last hour, oldest first */
-        private val recent: List<TyreAtmosphere> = emptyList(),
+        /** The latest of the ride's highest readings */
+        private val peak: TyreAtmosphere? = null,
         private val latest: TyreAtmosphere? = null,
-        private val refilledAt: Double? = null,
+        /** How many readings in a row lost at least the minimum drop, the tyre not cooling down */
+        private val confirmations: Int = 0,
     ) {
 
-        @Suppress("CyclomaticComplexMethod", "LongMethod", "MaxLineLength", "NestedBlockDepth")
+        @Suppress("CyclomaticComplexMethod", "MaxLineLength", "NestedBlockDepth")
         public fun next(reading: TyreAtmosphere, rule: Rule): Tracker = when {
             // The live readings start with the latest stored one
             latest != null && reading.timestamp <= latest.timestamp -> this
             // The sensor taken off the valve reads the atmosphere, whether to pump the tyre up or
             // not: some air is let out either way, the readings start over from the next one
-            reading.pressure < OFF_VALVE -> Tracker(refilledAt = reading.timestamp)
-            // Another sensor was bound to this tyre
-            latest != null && reading.sensorId != latest.sensorId -> Tracker().next(reading, rule)
-            else -> recent
-                .partition { it.timestamp < reading.timestamp - WINDOW.toDouble(SECONDS) }
-                .let { (aged, recent) ->
-                    copy(recent = recent, lowest = (aged + listOfNotNull(lowest)).minByOrNull { it.normalisedPressure })
-                }
-                .let { tracker ->
-                    (tracker.recent.firstOrNull() ?: tracker.latest)
-                        ?.let { anchor -> anchor to listOfNotNull(tracker.lowest, anchor).minBy { it.normalisedPressure } }
-                        ?.let { (anchor, reference) ->
-                            reference.normalisedPressure.kpa
-                                .minus(reading.normalisedPressure.kpa)
-                                .takeIf { reading.timestamp > anchor.timestamp }
-                                ?.let { drop -> drop to drop / ((reading.timestamp - anchor.timestamp) / SECONDS_PER_HOUR).toFloat() }
-                                ?.let { (drop, perHour) ->
-                                    drop to PressureLoss(
-                                        perHour.kpa,
-                                        anchor.timestamp,
-                                        reading.timestamp,
-                                        flatAt = perHour
-                                            .takeIf { it > 0f }
-                                            ?.let {
-                                                reading.pressure.kpa
-                                                    .minus(rule.flatMark.kpa)
-                                                    .coerceAtLeast(0f)
-                                                    .div(it)
-                                                    .times(SECONDS_PER_HOUR)
-                                                    .plus(reading.timestamp)
-                                            }
-                                            ?: Double.POSITIVE_INFINITY,
-                                        flatMark = rule.flatMark,
-                                        refilledAt = tracker.refilledAt,
-                                        isWarning = false,
-                                    )
-                                }
-                                .let { measured ->
-                                    when {
-                                        // The pump up is measured too, as a gain
-                                        reading.normalisedPressure.kpa >= reference.normalisedPressure.kpa + rule.refillGate.kpa ->
-                                            Tracker(
-                                                measured = measured?.second?.copy(refilledAt = reading.timestamp),
-                                                refilledAt = reading.timestamp,
-                                            )
+            reading.pressure < OFF_VALVE -> Tracker()
+            // Another sensor was bound to this tyre, or another ride starts
+            latest != null && (reading.sensorId != latest.sensorId || reading.timestamp - latest.timestamp >= RIDE_GAP.toDouble(SECONDS)) ->
+                Tracker().next(reading, rule)
+            // The same pressure later on is the peak too: a leak starting then is measured from it
+            peak == null || reading.pressure >= peak.pressure ->
+                Tracker(measured = PressureLoss(0f.kpa, 0f.kpa, reading.timestamp, reading.timestamp, false), peak = reading, latest = reading)
 
-                                        else -> tracker.copy(
-                                            measured = measured?.second,
-                                            loss = measured
-                                                ?.takeIf { (drop, loss) -> drop >= rule.minDrop.kpa && loss.timeToFlat <= rule.horizon }
-                                                ?.second
-                                                ?.copy(isWarning = true)
-                                                ?: tracker.loss,
-                                        )
-                                    }
-                                }
-                        }
-                        ?: tracker
+            else -> (peak.pressure.kpa - reading.pressure.kpa)
+                .let { drop ->
+                    PressureLoss(
+                        (drop / ((reading.timestamp - peak.timestamp) / SECONDS_PER_HOUR).toFloat()).kpa,
+                        drop.kpa,
+                        peak.timestamp,
+                        reading.timestamp,
+                        isWarning = false,
+                    )
                 }
-                .let { it.copy(recent = it.recent + reading, latest = reading) }
+                .let { measured ->
+                    (measured.drop >= rule.minDrop && peak.temperature.celsius - reading.temperature.celsius <= TEMPERATURE_FALL)
+                        .let { if (it) confirmations + 1 else 0 }
+                        .let { confirmations ->
+                            copy(
+                                loss = measured.takeIf { confirmations >= CONFIRMATIONS }?.copy(isWarning = true) ?: loss,
+                                measured = measured,
+                                latest = reading,
+                                confirmations = confirmations,
+                            )
+                        }
+                }
         }
 
-        private companion object {
-            val WINDOW = 1.hours
-            val OFF_VALVE = 10f.kpa
-            const val SECONDS_PER_HOUR = 3600.0
+        public companion object {
+            public val RIDE_GAP: Duration = 10.minutes
+            private val OFF_VALVE = 10f.kpa
+
+            /** A stop cools the tyre down, its pressure falling with it */
+            private const val TEMPERATURE_FALL = 1f
+
+            /** A single reading can be a step of the sensor's resolution flickering */
+            private const val CONFIRMATIONS = 2
+            private const val SECONDS_PER_HOUR = 3600.0
         }
     }
 }
-
-/**
- * The pressure this tyre would have at 20 °C. Tyres being a fixed volume, their absolute pressure
- * follows their absolute temperature: about 1 kPa per °C for a car tyre.
- */
-@Suppress("MagicNumber")
-private val TyreAtmosphere.normalisedPressure: Pressure
-    get() = pressure.kpa
-        .plus(ATMOSPHERE_KPA)
-        .times(293.15f / (temperature.celsius + 273.15f))
-        .minus(ATMOSPHERE_KPA)
-        .kpa
-
-private const val ATMOSPHERE_KPA = 101.325f

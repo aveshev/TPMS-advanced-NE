@@ -24,7 +24,7 @@ internal class ServiceNotifierTest {
 
     private val atmosphere = TyreAtmosphere(0.0, 1, 1f.bar, 20f.celsius)
     private val otherAtmosphere = TyreAtmosphere(0.0, 2, 3f.bar, 90f.celsius)
-    private val loss = PressureLoss(0.1f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar)
+    private val loss = PressureLoss(0.6f.bar, 0.1f.bar, 0.0, 600.0)
 
     private fun vehicle(vehicleName: String, vehicleUuid: UUID = UUID.randomUUID()) =
         mockk<Vehicle> {
@@ -181,9 +181,9 @@ internal class ServiceNotifierTest {
     }
 
     @Test
-    fun `the tyre reaching its flat mark first is reported`() {
+    fun `the tyre losing pressure the fastest is reported`() {
         val uuid = UUID.randomUUID()
-        val sooner = loss.copy(flatAt = 20_000.0)
+        val sooner = loss.copy(perHour = 1.2f.bar)
         val state = worst(
             listOf(
                 vehicle("Car") to Alert.PressureLoss(Wheel(REAR_LEFT), loss),

@@ -90,14 +90,14 @@ internal class VehicleAlertUseCase(
                     ?: reported
                         .firstOrNull { (_, atmosphere) -> atmosphere.temperature > highTemp }
                         ?.let { (_, atmosphere) -> Alert.Temperature(atmosphere) }
-                    // The tyre reaching its flat mark first
+                    // The tyre losing pressure the fastest
                     ?: locations
                         .zip(losses)
                         // A loss below the rule is only shown, when asked to in the developer options
                         .mapNotNull { (location, loss) ->
                             loss?.takeIf { it.isWarning }?.let { Alert.PressureLoss(location, it) }
                         }
-                        .minByOrNull { it.loss.flatAt }
+                        .maxByOrNull { it.loss.perHour }
                     ?: reported
                         .firstOrNull { (_, atmosphere) ->
                             atmosphere

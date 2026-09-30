@@ -22,12 +22,11 @@ import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * The tyre's early leak warning, or else its latest measured loss ([PressureLoss.isWarning] false),
- * null while it isn't losing pressure or the [VehiclePressureLossUseCase] is off. The
- * [PressureLoss.Tracker] starts from the stored readings, so a restarted app or service doesn't
- * forget a loss in progress, then follows the live ones. Changing the calibration, the low pressure
- * alert or the warning's settings starts it over from the stored readings, which stay as read:
- * changing the calibration can't look like a loss.
+ * The tyre's leak warning, or else its latest measured loss ([PressureLoss.isWarning] false), null
+ * while the [VehiclePressureLossUseCase] is off. The [PressureLoss.Tracker] starts from the stored
+ * readings, so a restarted app or service doesn't forget a loss in progress, then follows the live
+ * ones. Changing the calibration or the warning's settings starts it over from the stored readings,
+ * which stay as read: changing the calibration can't look like a loss.
  */
 @Suppress("OPT_IN_TO_INHERITANCE", "LongParameterList")
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -41,7 +40,7 @@ public class TyrePressureLossStateFlow internal constructor(
     scope: CoroutineScope,
     stateFlow: StateFlow<PressureLoss?> = combine(
         calibrationUseCase.calibration,
-        pressureLossUseCase.rule(location),
+        pressureLossUseCase.rule,
     ) { calibration, rule -> calibration to rule }
         .flatMapLatest { (calibration, rule) ->
             rule

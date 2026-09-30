@@ -27,7 +27,6 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 
 internal class TyrePressureLossStateFlowTest {
@@ -45,7 +44,7 @@ internal class TyrePressureLossStateFlowTest {
         stored = emptyList()
         listened = emptyList()
         calibration = MutableStateFlow(null)
-        rule = MutableStateFlow(PressureLoss.Rule(150f.kpa, 10.hours))
+        rule = MutableStateFlow(PressureLoss.Rule())
     }
 
     context(scope: TestScope)
@@ -63,13 +62,13 @@ internal class TyrePressureLossStateFlowTest {
             every { calibration } returns this@TyrePressureLossStateFlowTest.calibration
         },
         mockk<VehiclePressureLossUseCase> {
-            every { rule(Wheel(FRONT_LEFT)) } returns this@TyrePressureLossStateFlowTest.rule
+            every { rule } returns this@TyrePressureLossStateFlowTest.rule
         },
         scope.backgroundScope,
     )
 
-    private fun record(hour: Int, kpa: Float, sensorId: Int = 1) = Tyre.Located(
-        START + hour * SECONDS_PER_HOUR,
+    private fun record(minute: Int, kpa: Float, sensorId: Int = 1) = Tyre.Located(
+        START + minute * SECONDS_PER_MINUTE,
         -50,
         sensorId,
         kpa.kpa,
@@ -87,38 +86,37 @@ internal class TyrePressureLossStateFlowTest {
 
     @Test
     fun `detects a loss started before the app was opened`() = runTest {
-        stored = listOf(record(0, 230f), record(1, 229f))
-        listened = listOf(record(12, 150f))
+        stored = listOf(record(0, 214f), record(2, 206f))
+        listened = listOf(record(4, 206f))
         val loss = test().awaitLoss()
         assertNotNull(loss)
-        // Spread over the time parked, since the last reading before it
-        assertEquals(START + SECONDS_PER_HOUR, loss.since)
+        assertEquals(START, loss.since)
     }
 
     @Test
-    fun `a loss too slow to warn about is only measured`() = runTest {
-        listened = listOf(record(0, 230f), record(12, 210f))
+    fun `a drop under the minimum is only measured`() = runTest {
+        listened = listOf(record(0, 214f), record(2, 211f))
         assertNotNull(test().awaitLoss(isWarning = false))
         assertNull(test().awaitLoss())
     }
 
     @Test
     fun `forgets the readings of the previously bound sensor`() = runTest {
-        stored = listOf(record(0, 230f, sensorId = 2), record(1, 230f, sensorId = 2))
-        listened = listOf(record(12, 150f))
+        stored = listOf(record(0, 214f, sensorId = 2), record(1, 214f, sensorId = 2))
+        listened = listOf(record(2, 200f), record(3, 200f))
         assertNull(test().awaitLoss())
     }
 
     @Test
     fun `stays quiet while the warning is off`() = runTest {
         rule.value = null
-        listened = listOf(record(0, 230f), record(12, 150f))
+        listened = listOf(record(0, 214f), record(2, 200f), record(3, 200f))
         assertNull(test().awaitLoss())
     }
 
     private companion object {
         const val START = 1_726_483_200.0
-        const val SECONDS_PER_HOUR = 3600.0
+        const val SECONDS_PER_MINUTE = 60.0
         val VEHICLE_UUID: UUID = UUID.randomUUID()
     }
 }

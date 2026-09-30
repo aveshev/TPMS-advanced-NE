@@ -14,11 +14,14 @@ import com.masselis.tpmsadvanced.core.ui.SegmentedSettingsItem
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsIntro
 import com.masselis.tpmsadvanced.core.ui.SwitchSettingsItem
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.PSI
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PressureLossSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.PressureLossSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.usecase.VehiclePressureLossUseCase
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
 
 /**
  * The page of the experimental pressure loss warning, opened from [DeveloperOptionsSettings]. It
@@ -35,17 +38,16 @@ internal fun PressureLossSettings(
     viewModel: PressureLossSettingsViewModel = viewModel { PressureLossSettingsViewModel() },
 ) {
     val enabled by viewModel.enabled.collectAsState()
-    val hours by viewModel.hours.collectAsState()
     val minDrop by viewModel.minDrop.collectAsState()
     val alwaysShow by viewModel.alwaysShow.collectAsState()
+    val unit by viewModel.pressureUnit.collectAsState()
     PressureLossSettings(
         enabled = enabled,
-        horizon = hours.hours,
-        minDrop = minDrop,
+        minDrop = minDrop.kpa,
         alwaysShow = alwaysShow,
+        unit = unit,
         onEnabled = { viewModel.enabled.value = it },
-        onHorizon = { viewModel.hours.value = it.inWholeHours.toInt() },
-        onMinDrop = { viewModel.minDrop.value = it },
+        onMinDrop = { viewModel.minDrop.value = it.kpa },
         onAlwaysShow = { viewModel.alwaysShow.value = it },
         modifier = modifier,
     )
@@ -55,17 +57,16 @@ internal fun PressureLossSettings(
 @Composable
 private fun PressureLossSettings(
     enabled: Boolean,
-    horizon: Duration,
-    minDrop: Float,
+    minDrop: Pressure,
     alwaysShow: Boolean,
+    unit: PressureUnit,
     onEnabled: (Boolean) -> Unit,
-    onHorizon: (Duration) -> Unit,
-    onMinDrop: (Float) -> Unit,
+    onMinDrop: (Pressure) -> Unit,
     onAlwaysShow: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
     SettingsIntro(
-        "Experimental. Warns about a leak before the low pressure alert: when a tyre loses pressure fast enough to fall to two thirds of its low pressure alert within the chosen time. A drop counts once it reaches the chosen share of the low pressure alert, 7 kPa (1 psi) at least.\n\nThe pressures are compared at the same temperature, so a tyre cooling down once parked doesn't count as a loss. Letting air out shows as a loss too."
+        "Experimental. Warns about a tyre losing pressure while riding: its pressure falling from its highest reading of the ride by at least the minimum drop, on two readings in a row, while the tyre isn't cooling down.\n\nRiding warms a tyre up, which only raises its pressure. A leak too slow to show within a ride is left to the low pressure alert, once the tyre is cold. Letting air out shows as a loss too."
     )
     SettingsGroup(Modifier.padding(top = 24.dp)) {
         SwitchSettingsItem(
@@ -78,19 +79,11 @@ private fun PressureLossSettings(
     // Greyed out rather than hidden while the warning is off, like Android's settings do
     SettingsGroup(Modifier.padding(top = 24.dp)) {
         SegmentedSettingsItem(
-            headline = "Warn if at ⅔ of the low alert within",
-            options = VehiclePressureLossUseCase.HORIZONS,
-            selected = horizon,
-            onSelect = onHorizon,
-            label = { "${it.inWholeHours} h" },
-        )
-        SegmentedSettingsItem(
-            headline = "Minimum drop, of the low alert",
+            headline = "Minimum drop, in ${unit.symbol()}",
             options = VehiclePressureLossUseCase.MIN_DROPS,
             selected = minDrop,
             onSelect = onMinDrop,
-            // A float share: 0.075 × 100 is 7.5000005, rounded to one decimal then "10.0" shown as "10"
-            label = { "${"%.1f".format(it * 100).trimEnd('0').trimEnd('.', ',')} %" },
+            label = { it.numberString(unit) },
         )
         SwitchSettingsItem(
             headline = "Always show leak rate",
@@ -114,11 +107,10 @@ internal object PressureLossSettingsTags {
 internal fun PressureLossSettingsPreview() {
     PressureLossSettings(
         enabled = true,
-        horizon = 10.hours,
-        minDrop = 0.075f,
+        minDrop = 7f.kpa,
         alwaysShow = false,
+        unit = PSI,
         onEnabled = {},
-        onHorizon = {},
         onMinDrop = {},
         onAlwaysShow = {},
     )
@@ -129,11 +121,10 @@ internal fun PressureLossSettingsPreview() {
 internal fun PressureLossSettingsOffPreview() {
     PressureLossSettings(
         enabled = false,
-        horizon = 2.hours,
-        minDrop = 0.1f,
+        minDrop = 10f.kpa,
         alwaysShow = true,
+        unit = BAR,
         onEnabled = {},
-        onHorizon = {},
         onMinDrop = {},
         onAlwaysShow = {},
     )

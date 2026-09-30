@@ -52,10 +52,8 @@ public interface VehicleBindings {
 
     @SingleIn(VehicleComponent.Scope::class)
     @Provides
-    private fun vehiclePressureLossUseCase(
-        appPreferences: AppPreferences,
-        rangesUseCase: VehicleRangesUseCase,
-    ): VehiclePressureLossUseCase = VehiclePressureLossUseCase(appPreferences, rangesUseCase)
+    private fun vehiclePressureLossUseCase(appPreferences: AppPreferences): VehiclePressureLossUseCase =
+        VehiclePressureLossUseCase(appPreferences)
 
     @Provides
     private fun vehicleSettingsViewModelImpl(

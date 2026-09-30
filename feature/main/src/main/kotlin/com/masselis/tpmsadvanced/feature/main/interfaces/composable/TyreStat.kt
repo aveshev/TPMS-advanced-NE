@@ -53,7 +53,6 @@ import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.B
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.NORMAL
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.absoluteValue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -313,16 +312,11 @@ private fun TyreStat(
 
 private const val UNSET_FLAG_ALPHA = 0.3f
 
-/**
- * "↓1.1 psi/h", or "↑0.2 psi/h" for a measured gain, capped at [MAX_SHOWN_PRESSURE_LOSS] to fit
- * the readout, see [Vehicle]
- */
-private fun PressureLoss.rateString(unit: PressureUnit) = minOf(perHour.kpa.absoluteValue, MAX_SHOWN_PRESSURE_LOSS.kpa)
-    .kpa
-    .string(unit)
-    .let { if (perHour.kpa < 0f) "↑$it/h" else "↓$it/h" }
+/** "↓1.1 psi/h", capped at [MAX_SHOWN_PRESSURE_LOSS] to fit the readout, see [Vehicle] */
+private fun PressureLoss.rateString(unit: PressureUnit) =
+    "↓${minOf(perHour, MAX_SHOWN_PRESSURE_LOSS).string(unit)}/h"
 
-/** Far faster than any leak the low pressure alert doesn't already cover */
+/** A step of the sensor within seconds of the peak reads as thousands of kPa per hour */
 private val MAX_SHOWN_PRESSURE_LOSS: Pressure = 999f.kpa
 
 private val PRESSURE_LOSS_PHASE = 1.5.seconds
@@ -663,7 +657,7 @@ internal fun TyreStatPressureLossPreview() {
             PressureUnit.BAR,
             30f.celsius,
             TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.12f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar),
+            pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
         ),
         showTimeSinceUpdate = false,
     )
@@ -682,7 +676,7 @@ internal fun TyreStatPressureLossRatePreview() {
             PressureUnit.BAR,
             30f.celsius,
             TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.12f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar),
+            pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
         ),
         showTimeSinceUpdate = false,
         startWithPressureLoss = true,
@@ -704,7 +698,7 @@ internal fun TyreStatPressureAlertingLossPreview() {
             TemperatureUnit.CELSIUS,
             isPressureAlert = true,
             isTemperatureAlert = false,
-            pressureLoss = PressureLoss(0.3f.bar, 0.0, 3600.0, 7200.0, 1.3f.bar),
+            pressureLoss = PressureLoss(1.8f.bar, 0.3f.bar, 0.0, 600.0),
         ),
         showTimeSinceUpdate = false,
     )
@@ -723,7 +717,7 @@ internal fun TyreStatMeasuredPressureLossRatePreview() {
             PressureUnit.BAR,
             30f.celsius,
             TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.01f.bar, 0.0, 3600.0, 252_000.0, 1.3f.bar, isWarning = false),
+            pressureLoss = PressureLoss(0.18f.bar, 0.03f.bar, 0.0, 600.0, isWarning = false),
         ),
         showTimeSinceUpdate = false,
         alwaysShowPressureLoss = true,

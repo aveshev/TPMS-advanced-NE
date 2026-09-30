@@ -2,6 +2,7 @@ package com.masselis.tpmsadvanced.feature.main.ioc
 
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
@@ -58,8 +59,10 @@ public interface Bindings {
         DebugSettingsViewModel(appPreferences)
 
     @Provides
-    private fun pressureLossSettingsViewModel(appPreferences: AppPreferences): PressureLossSettingsViewModel =
-        PressureLossSettingsViewModel(appPreferences)
+    private fun pressureLossSettingsViewModel(
+        appPreferences: AppPreferences,
+        unitPreferences: UnitPreferences,
+    ): PressureLossSettingsViewModel = PressureLossSettingsViewModel(appPreferences, unitPreferences)
 
     @SingleIn(AppScope::class)
     @Provides

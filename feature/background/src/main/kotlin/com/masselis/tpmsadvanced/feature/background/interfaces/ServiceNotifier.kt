@@ -64,6 +64,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.scan
+import kotlin.math.roundToLong
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -210,14 +211,11 @@ internal class ServiceNotifier(
                                 val unit = unitPreferences.pressure.value
                                 append("📉 ")
                                 appendLoc(state.location, capitalized = true)
-                                append(" is losing ${state.loss.perHour.string(unit)}/h, down to ")
-                                append(state.loss.flatMark.string(unit))
-                                state.loss
-                                    .timeToFlat
-                                    .inWholeMinutes
-                                    .takeIf { it >= MINUTES_PER_HOUR }
-                                    ?.let { append(" in about ${(it + MINUTES_PER_HOUR / 2) / MINUTES_PER_HOUR} h") }
-                                    ?: append(" in less than an hour")
+                                append(" is losing pressure: down ${state.loss.drop.string(unit)} in ")
+                                ((state.loss.until - state.loss.since) / SECONDS_PER_MINUTE)
+                                    .roundToLong()
+                                    .coerceAtLeast(1)
+                                    .let { append("$it min") }
                             }
 
                             ScanFailure -> "The Android system reported an issue during the" +
@@ -372,7 +370,7 @@ internal class ServiceNotifier(
         val state: State? = null,
         val isRepeat: Boolean = false,
         val lowBatterySensors: Set<Int> = emptySet(),
-        /** The latest reading notified for each tyre losing pressure */
+        /** The peak each tyre losing pressure was notified from, see [PressureLoss.since] */
         val losses: Map<Pair<UUID, Location>, Double> = emptyMap(),
     ) {
         fun next(state: State): Repeats = when (state) {
@@ -384,8 +382,8 @@ internal class ServiceNotifier(
 
             is PressureLossAlert -> copy(
                 state = state,
-                isRepeat = losses[state.tyre]?.let { (state.loss.refilledAt ?: 0.0) < it } ?: false,
-                losses = losses + (state.tyre to state.loss.until),
+                isRepeat = losses[state.tyre] == state.loss.since,
+                losses = losses + (state.tyre to state.loss.since),
             )
 
             else -> copy(state = state, isRepeat = false)
@@ -398,7 +396,7 @@ internal class ServiceNotifier(
         private const val channelNameForAlerts = "MONITOR_SERVICE_FOR_ALERT"
         private const val channelNameForLowBattery = "MONITOR_SERVICE_FOR_LOW_BATTERY"
         private const val channelNameForPressureLoss = "MONITOR_SERVICE_FOR_PRESSURE_LOSS"
-        private const val MINUTES_PER_HOUR = 60L
+        private const val SECONDS_PER_MINUTE = 60.0
         private const val notificationId = 1
         private const val requestCode = 0
     }
@@ -407,7 +405,7 @@ internal class ServiceNotifier(
 /**
  * Picks what the notification must show for all monitored vehicles at once, the most severe first:
  * a pressure alert, a sensor's own alarm, a temperature alert, a tyre losing pressure, then a low
- * battery. Among tyres losing pressure, the one reaching its flat mark first wins. Other ties are
+ * battery. Among tyres losing pressure, the one losing it the fastest wins. Other ties are
  * broken by the order of [alerts].
  */
 internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
@@ -426,7 +424,7 @@ internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
                 (alert as? Alert.PressureLoss)
                     ?.let { PressureLossAlert(vehicle.uuid, vehicle.name, it.location, it.loss) }
             }
-            .minByOrNull { it.loss.flatAt }
+            .maxByOrNull { it.loss.perHour }
         ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
             (alert as? Alert.LowBattery)?.let { LowBatteryAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }

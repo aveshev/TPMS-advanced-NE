@@ -61,9 +61,8 @@ public class AppPreferences internal constructor(
     }
 
     /**
-     * Warns about a tyre losing pressure fast enough to fall to two thirds of its low pressure
-     * alert within [pressureLossHours], once it lost at least [pressureLossMinDrop] of that alert.
-     * Experimental, so off by default.
+     * Warns about a tyre losing at least [pressureLossMinDrop] kPa while riding. Experimental, so
+     * off by default.
      */
     public val pressureLoss: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("PRESSURE_LOSS", false)
@@ -71,20 +70,14 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("PRESSURE_LOSS", newValue) }
     }
 
-    public val pressureLossHours: MutableStateFlow<Int> = observableStateFlow(
-        sharedPreferences.getInt("PRESSURE_LOSS_HOURS", DEFAULT_PRESSURE_LOSS_HOURS)
-    ) { _, newValue ->
-        sharedPreferences.edit { putInt("PRESSURE_LOSS_HOURS", newValue) }
-    }
-
-    /** A share of the low pressure alert, 0.075 for 7.5% */
+    /** In kPa */
     public val pressureLossMinDrop: MutableStateFlow<Float> = observableStateFlow(
-        sharedPreferences.getFloat("PRESSURE_LOSS_MIN_DROP", DEFAULT_PRESSURE_LOSS_MIN_DROP)
+        sharedPreferences.getFloat("PRESSURE_LOSS_MIN_DROP_KPA", DEFAULT_PRESSURE_LOSS_MIN_DROP)
     ) { _, newValue ->
-        sharedPreferences.edit { putFloat("PRESSURE_LOSS_MIN_DROP", newValue) }
+        sharedPreferences.edit { putFloat("PRESSURE_LOSS_MIN_DROP_KPA", newValue) }
     }
 
-    /** Also shows the loss rate of a tyre losing too little or too slowly to be warned about */
+    /** Also shows the loss of a tyre losing too little to be warned about, zero included */
     public val alwaysShowPressureLoss: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("ALWAYS_SHOW_PRESSURE_LOSS", false)
     ) { _, newValue ->
@@ -224,7 +217,6 @@ public class AppPreferences internal constructor(
 
     private companion object {
         const val DEFAULT_STAY_ACTIVE_MINUTES = 10
-        const val DEFAULT_PRESSURE_LOSS_HOURS = 10
-        const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 0.075f
+        const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 7f
     }
 }

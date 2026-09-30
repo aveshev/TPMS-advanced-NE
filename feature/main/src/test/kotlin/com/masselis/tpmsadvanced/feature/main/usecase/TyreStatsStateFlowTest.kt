@@ -150,7 +150,7 @@ internal class TyreStatsStateFlowTest {
 
     @Test
     fun `shows a pressure loss without alerting`() = runTest {
-        val loss = PressureLoss(0.1f.bar, 0.0, 3600.0, 36_000.0, 1.3f.bar)
+        val loss = PressureLoss(0.6f.bar, 0.1f.bar, 0.0, 600.0)
         pressureLoss.value = loss
         setAtmosphere(2f.bar, 45f.celsius)
         test().test {

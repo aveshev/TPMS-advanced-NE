@@ -1,35 +1,28 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
 
 /**
- * The early leak warning, set for the whole app in the developer options and applied to the
- * vehicle's low pressure alerts: a tyre losing pressure fast enough to fall to two thirds of its
- * low pressure alert within the chosen time, see [PressureLoss.Rule].
+ * The leak warning, set for the whole app in the developer options: a tyre losing pressure while
+ * riding, see [PressureLoss.Tracker].
  */
-public class VehiclePressureLossUseCase internal constructor(
-    private val appPreferences: AppPreferences,
-    private val rangesUseCase: VehicleRangesUseCase,
-) {
+public class VehiclePressureLossUseCase internal constructor(appPreferences: AppPreferences) {
 
-    /** The rule checking the tyre at [location], null while it's off */
-    public fun rule(location: Location): Flow<PressureLoss.Rule?> = combine(
+    /** The rule checking the tyres, null while it's off */
+    public val rule: Flow<PressureLoss.Rule?> = combine(
         appPreferences.pressureLoss,
-        appPreferences.pressureLossHours,
         appPreferences.pressureLossMinDrop,
-        rangesUseCase.resolvedLowPressure(location),
-    ) { enabled, hours, minDrop, lowPressure ->
-        PressureLoss.Rule(lowPressure, hours.hours, minDrop).takeIf { enabled }
+    ) { enabled, minDrop ->
+        PressureLoss.Rule(minDrop.kpa).takeIf { enabled }
     }
 
     public companion object {
-        public val HORIZONS: List<Duration> = listOf(2.hours, 5.hours, 10.hours, 24.hours)
-        public val MIN_DROPS: List<Float> = listOf(0.05f, 0.075f, 0.1f, 0.15f)
+        /** From one and a half to four steps of the sensors' resolution, 3.45 kPa at worst */
+        public val MIN_DROPS: List<Pressure> = listOf(5f.kpa, 7f.kpa, 10f.kpa, 14f.kpa)
     }
 }
