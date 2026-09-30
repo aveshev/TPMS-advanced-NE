@@ -11,24 +11,37 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SwitchNavigationSettingsItem
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DebugSettingsViewModel
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PressureLossSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.DebugSettingsViewModel
+import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.PressureLossSettingsViewModel
 
 /**
- * The "Developer options" group of the app settings: the demo mode, and the switch of the debug
- * options, whose page [openDebug] opens.
+ * The "Developer options" group of the app settings: the demo mode, the switch of the debug
+ * options, whose page [openDebug] opens, and the experimental pressure loss warning, whose page
+ * [openPressureLoss] opens.
  */
 @Composable
 public fun DeveloperOptionsSettings(
     openDebug: () -> Unit,
+    openPressureLoss: () -> Unit,
     modifier: Modifier = Modifier,
-): Unit = DeveloperOptionsSettings(openDebug, modifier, viewModel { DebugSettingsViewModel() })
+): Unit = DeveloperOptionsSettings(
+    openDebug,
+    openPressureLoss,
+    modifier,
+    viewModel { DebugSettingsViewModel() },
+    viewModel { PressureLossSettingsViewModel() },
+)
 
 @Composable
 internal fun DeveloperOptionsSettings(
     openDebug: () -> Unit,
+    openPressureLoss: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DebugSettingsViewModel = viewModel { DebugSettingsViewModel() },
+    pressureLossViewModel: PressureLossSettingsViewModel = viewModel { PressureLossSettingsViewModel() },
 ) {
+    val pressureLoss by pressureLossViewModel.enabled.collectAsState()
     val debugOptions by viewModel.debugOptions.collectAsState()
     val sensorId by viewModel.showSensorId.collectAsState()
     val sensorFlags by viewModel.showSensorFlags.collectAsState()
@@ -61,6 +74,16 @@ internal fun DeveloperOptionsSettings(
             onClick = openDebug,
             modifier = Modifier.testTag(DeveloperOptionsSettingsTags.debug),
         )
+        SwitchNavigationSettingsItem(
+            headline = "Pressure loss",
+            supporting = listOf(AnnotatedString("Experimental")),
+            checked = pressureLoss,
+            onCheckedChange = { pressureLossViewModel.enabled.value = it },
+            onClick = openPressureLoss,
+            // The page explains what counts as a loss, which matters before turning it on
+            openableWhenOff = true,
+            modifier = Modifier.testTag(DeveloperOptionsSettingsTags.pressureLoss),
+        )
     }
 }
 
@@ -76,10 +99,19 @@ internal fun DeveloperOptionsSettingsPreview() {
             onCheckedChange = {},
             onClick = {},
         )
+        SwitchNavigationSettingsItem(
+            headline = "Pressure loss",
+            supporting = listOf(AnnotatedString("Experimental")),
+            checked = false,
+            onCheckedChange = {},
+            onClick = {},
+            openableWhenOff = true,
+        )
     }
 }
 
 @Suppress("ConstPropertyName")
 internal object DeveloperOptionsSettingsTags {
     const val debug = "DeveloperOptionsSettingsTags_debug"
+    const val pressureLoss = "DeveloperOptionsSettingsTags_pressureLoss"
 }

@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.main.ioc.vehicle
 
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
@@ -52,24 +53,20 @@ public interface VehicleBindings {
     @SingleIn(VehicleComponent.Scope::class)
     @Provides
     private fun vehiclePressureLossUseCase(
-        vehicle: Vehicle,
-        @VehicleLifecycle scope: CoroutineScope,
-        database: VehicleDatabase,
+        appPreferences: AppPreferences,
         rangesUseCase: VehicleRangesUseCase,
-    ): VehiclePressureLossUseCase = VehiclePressureLossUseCase(vehicle, scope, database, rangesUseCase)
+    ): VehiclePressureLossUseCase = VehiclePressureLossUseCase(appPreferences, rangesUseCase)
 
     @Provides
     private fun vehicleSettingsViewModelImpl(
         vehicleRangesUseCase: VehicleRangesUseCase,
         vehicleCalibrationUseCase: VehicleCalibrationUseCase,
-        vehiclePressureLossUseCase: VehiclePressureLossUseCase,
         renameVehicleUseCase: RenameVehicleUseCase,
         vehicleStateFlow: StateFlow<Vehicle>,
         unitPreferences: UnitPreferences,
     ): VehicleSettingsViewModelImpl = VehicleSettingsViewModelImpl(
         vehicleRangesUseCase,
         vehicleCalibrationUseCase,
-        vehiclePressureLossUseCase,
         renameVehicleUseCase,
         vehicleStateFlow,
         unitPreferences

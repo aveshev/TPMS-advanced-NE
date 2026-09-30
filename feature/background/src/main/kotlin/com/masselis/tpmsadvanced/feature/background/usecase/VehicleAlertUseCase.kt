@@ -93,7 +93,10 @@ internal class VehicleAlertUseCase(
                     // The tyre reaching its flat mark first
                     ?: locations
                         .zip(losses)
-                        .mapNotNull { (location, loss) -> loss?.let { Alert.PressureLoss(location, it) } }
+                        // A loss below the rule is only shown, when asked to in the developer options
+                        .mapNotNull { (location, loss) ->
+                            loss?.takeIf { it.isWarning }?.let { Alert.PressureLoss(location, it) }
+                        }
                         .minByOrNull { it.loss.flatAt }
                     ?: reported
                         .firstOrNull { (_, atmosphere) ->

@@ -130,6 +130,15 @@ internal class VehicleAlertUseCaseTest {
     }
 
     @Test
+    fun `a loss measured below the rule isn't reported`() = runTest {
+        atmospheres.getValue(Wheel(FRONT_LEFT)).emit(atmosphere(200f))
+        losses.getValue(Axle(REAR)).value = loss.copy(isWarning = false)
+        test().alert.test {
+            assertEquals(Alert.None, awaitItem())
+        }
+    }
+
+    @Test
     fun `a temperature alert wins over a pressure loss`() = runTest {
         atmospheres.getValue(Wheel(FRONT_LEFT)).emit(atmosphere(200f, celsius = 100f))
         losses.getValue(Axle(REAR)).value = loss

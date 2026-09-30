@@ -80,8 +80,10 @@ internal class TyrePressureLossStateFlowTest {
     )
 
     /** The flow computes on other dispatchers, the wait is in real time */
-    private suspend fun TyrePressureLossStateFlow.awaitLoss(): PressureLoss? =
-        withContext(Dispatchers.Default) { withTimeoutOrNull(1.seconds) { first { it != null } } }
+    private suspend fun TyrePressureLossStateFlow.awaitLoss(isWarning: Boolean = true): PressureLoss? =
+        withContext(Dispatchers.Default) {
+            withTimeoutOrNull(1.seconds) { first { it != null && it.isWarning == isWarning } }
+        }
 
     @Test
     fun `detects a loss started before the app was opened`() = runTest {
@@ -91,6 +93,13 @@ internal class TyrePressureLossStateFlowTest {
         assertNotNull(loss)
         // Spread over the time parked, since the last reading before it
         assertEquals(START + SECONDS_PER_HOUR, loss.since)
+    }
+
+    @Test
+    fun `a loss too slow to warn about is only measured`() = runTest {
+        listened = listOf(record(0, 230f), record(12, 210f))
+        assertNotNull(test().awaitLoss(isWarning = false))
+        assertNull(test().awaitLoss())
     }
 
     @Test

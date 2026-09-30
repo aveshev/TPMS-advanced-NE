@@ -165,9 +165,6 @@ internal fun VehicleHome(
                             openBattery = {
                                 navController.navigate("${Path.BatterySettings(vehicleComponent.vehicle.uuid)}")
                             },
-                            openPressureLoss = {
-                                navController.navigate("${Path.PressureLossSettings(vehicleComponent.vehicle.uuid)}")
-                            },
                             openBindingMethod = {
                                 navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
                             },
@@ -184,11 +181,6 @@ internal fun VehicleHome(
                     }
                     composable("${Path.CalibrationSettings(vehicleComponent.vehicle.uuid)}") {
                         CalibrationSettings(
-                            modifier = modifier
-                        )
-                    }
-                    composable("${Path.PressureLossSettings(vehicleComponent.vehicle.uuid)}") {
-                        PressureLossSettings(
                             modifier = modifier
                         )
                     }
@@ -219,11 +211,19 @@ internal fun VehicleHome(
                             openDebug = {
                                 navController.navigate("${Path.Debug}")
                             },
+                            openPressureLoss = {
+                                navController.navigate("${Path.PressureLoss}")
+                            },
                             modifier = modifier
                         )
                     }
                     composable("${Path.Debug}") {
                         DebugSettingsPage(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.PressureLoss}") {
+                        PressureLossSettingsPage(
                             modifier = modifier
                         )
                     }
@@ -395,7 +395,7 @@ private fun TopAppBar(
                 is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.CalibrationSettings -> Text(text = "Pressure calibration")
                 is Path.BatterySettings -> Text(text = "Battery voltage")
-                is Path.PressureLossSettings -> Text(text = "Pressure loss")
+                is Path.PressureLoss -> Text(text = "Pressure loss")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
                 is Path.Debug -> Text(text = "Debug")
@@ -418,7 +418,7 @@ private fun TopAppBar(
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
                 is Path.BatterySettings,
-                is Path.PressureLossSettings,
+                is Path.PressureLoss,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.Debug,
@@ -496,7 +496,7 @@ private fun TopAppBar(
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
                 is Path.BatterySettings,
-                is Path.PressureLossSettings,
+                is Path.PressureLoss,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.Debug,

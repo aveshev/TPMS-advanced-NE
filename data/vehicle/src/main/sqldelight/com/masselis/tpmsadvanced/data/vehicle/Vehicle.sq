@@ -22,9 +22,7 @@ CREATE TABLE Vehicle(
     pressureCalibration INTEGER AS Boolean NOT NULL DEFAULT 0,
     pressureOffset REAL AS Pressure NOT NULL DEFAULT 0,
     pressureMultiplier REAL NOT NULL DEFAULT 1,
-    lowBatteryVoltage REAL AS Voltage NOT NULL DEFAULT 2.6,
-    pressureLoss INTEGER AS Boolean NOT NULL DEFAULT 1,
-    pressureLossHours INTEGER NOT NULL DEFAULT 10
+    lowBatteryVoltage REAL AS Voltage NOT NULL DEFAULT 2.6
 );
 
 -- This succession of triggers ensure there is always exactly 1 car with isFavourite set to 1
@@ -139,18 +137,6 @@ SELECT lowBatteryVoltage FROM Vehicle WHERE uuid = ?;
 
 updateLowBatteryVoltage:
 UPDATE Vehicle SET lowBatteryVoltage = ? WHERE uuid = ?;
-
-selectPressureLossByVehicleId:
-SELECT pressureLoss FROM Vehicle WHERE uuid = ?;
-
-updatePressureLoss:
-UPDATE Vehicle SET pressureLoss = ? WHERE uuid = ?;
-
-selectPressureLossHoursByVehicleId:
-SELECT pressureLossHours FROM Vehicle WHERE uuid = ?;
-
-updatePressureLossHours:
-UPDATE Vehicle SET pressureLossHours = ? WHERE uuid = ?;
 
 selectLowTempByVehicleId:
 SELECT lowTemp FROM Vehicle WHERE uuid = ?;

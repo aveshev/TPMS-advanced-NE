@@ -71,7 +71,17 @@ internal fun TyreStat(
     val showSensorFlags by viewModel.showSensorFlags.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
     val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
-    TyreStat(location, state, showSensorId, showTimeSinceUpdate, showBatteryVoltage, showSensorFlags, modifier)
+    val alwaysShowPressureLoss by viewModel.alwaysShowPressureLoss.collectAsState()
+    TyreStat(
+        location,
+        state,
+        showSensorId,
+        showTimeSinceUpdate,
+        showBatteryVoltage,
+        showSensorFlags,
+        modifier,
+        alwaysShowPressureLoss = alwaysShowPressureLoss,
+    )
 }
 
 @Suppress("NAME_SHADOWING", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
@@ -84,6 +94,7 @@ private fun TyreStat(
     showBatteryVoltage: Boolean = false,
     showSensorFlags: Boolean = false,
     modifier: Modifier = Modifier,
+    alwaysShowPressureLoss: Boolean = false,
     // Lets a preview show the pressure loss phase of the pressure line
     startWithPressureLoss: Boolean = false,
 ) {
@@ -129,7 +140,7 @@ private fun TyreStat(
         State.NotDetected -> null
         is State.Normal -> state.pressureLoss
         is State.Alerting -> state.pressureLoss
-    }
+    }?.takeIf { it.isWarning || alwaysShowPressureLoss }
     val isPressureAlert = state is State.Alerting && state.isPressureAlert
     val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
     val isSensorAlarm = state is State.Alerting && state.isSensorAlarm
@@ -187,8 +198,10 @@ private fun TyreStat(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             color = when {
-                pressureLossText != null && showsPressureLoss -> MaterialTheme.colorScheme.warning
-                else -> pressureColor
+                pressureLossText == null || showsPressureLoss.not() -> pressureColor
+                pressureLoss.isWarning -> MaterialTheme.colorScheme.warning
+                // Only measured, shown from the developer options
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
             modifier = Modifier
                 .align(alignment)
@@ -688,5 +701,26 @@ internal fun TyreStatPressureAlertingLossPreview() {
             pressureLoss = PressureLoss(0.3f.bar, 0.0, 3600.0, 7200.0, 1.3f.bar),
         ),
         showTimeSinceUpdate = false,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatMeasuredPressureLossRatePreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            pressureLoss = PressureLoss(0.01f.bar, 0.0, 3600.0, 252_000.0, 1.3f.bar, isWarning = false),
+        ),
+        showTimeSinceUpdate = false,
+        alwaysShowPressureLoss = true,
+        startWithPressureLoss = true,
     )
 }

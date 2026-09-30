@@ -9,4 +9,5 @@ internal interface TyreStatsViewModel {
     val showSensorFlags: StateFlow<Boolean>
     val showTimeSinceUpdate: StateFlow<Boolean>
     val showBatteryVoltage: StateFlow<Boolean>
+    val alwaysShowPressureLoss: StateFlow<Boolean>
 }

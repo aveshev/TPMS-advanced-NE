@@ -11,7 +11,8 @@ import kotlin.time.DurationUnit.SECONDS
 /**
  * A tyre losing [perHour] of pressure, measured from the reading of [since] to the one of [until],
  * and expected to reach [flatMark] at [flatAt]. The timestamps are in seconds. [refilledAt] is the
- * latest time the tyre was pumped up, if any: a loss found after it is a new one.
+ * latest time the tyre was pumped up, if any: a loss found after it is a new one. A loss which
+ * isn't [isWarning] is only the latest measure, too small or too slow for the [Rule].
  */
 @Parcelize
 public data class PressureLoss(
@@ -21,6 +22,7 @@ public data class PressureLoss(
     val flatAt: Double,
     val flatMark: Pressure,
     val refilledAt: Double? = null,
+    val isWarning: Boolean = true,
 ) : Parcelable {
 
     /** From the latest reading to [flatMark], zero once it's there */
@@ -29,10 +31,15 @@ public data class PressureLoss(
 
     /**
      * Warns about a tyre losing pressure fast enough to fall to [flatMark], two thirds of the
-     * vehicle's [lowPressure] alert, within [horizon].
+     * vehicle's [lowPressure] alert, within [horizon], once it lost at least [minDropShare] of
+     * [lowPressure].
      */
     @Suppress("MagicNumber")
-    public data class Rule(val lowPressure: Pressure, val horizon: Duration) {
+    public data class Rule(
+        val lowPressure: Pressure,
+        val horizon: Duration,
+        val minDropShare: Float = DEFAULT_MIN_DROP_SHARE,
+    ) {
 
         public val flatMark: Pressure
             get() = (lowPressure.kpa * 2f / 3f).kpa
@@ -42,7 +49,7 @@ public data class PressureLoss(
          * the temperature compensation's error, which grows with the pressure
          */
         public val minDrop: Pressure
-            get() = maxOf(lowPressure.kpa * 0.075f, 7f).kpa
+            get() = maxOf(lowPressure.kpa * minDropShare, 7f).kpa
 
         /**
          * A rise this large, after the temperature compensation, is someone pumping the tyre up
@@ -50,6 +57,10 @@ public data class PressureLoss(
          */
         public val refillGate: Pressure
             get() = (lowPressure.kpa / 10f).kpa
+
+        public companion object {
+            public const val DEFAULT_MIN_DROP_SHARE: Float = 0.075f
+        }
     }
 
     /**
@@ -63,10 +74,11 @@ public data class PressureLoss(
      * the days before. A single reading is enough, some sensors only broadcast on a change.
      *
      * Once found, [loss] stays until the tyre is pumped up, a later reading replacing it with the
-     * loss it finds, if any.
+     * loss it finds, if any. [measured] is the latest reading's loss, whatever the rule says of it.
      */
     public data class Tracker(
         val loss: PressureLoss? = null,
+        val measured: PressureLoss? = null,
         /** The lowest of the readings since the latest refill, but those of the last hour */
         private val lowest: TyreAtmosphere? = null,
         /** The readings of the last hour, oldest first */
@@ -96,29 +108,36 @@ public data class PressureLoss(
                                 reading.normalisedPressure.kpa >= reference.normalisedPressure.kpa + rule.refillGate.kpa ->
                                     Tracker(refilledAt = reading.timestamp)
 
-                                else -> tracker.copy(
-                                    loss = reference.normalisedPressure.kpa
-                                        .minus(reading.normalisedPressure.kpa)
-                                        .takeIf { it >= rule.minDrop.kpa && reading.timestamp > anchor.timestamp }
-                                        ?.div(((reading.timestamp - anchor.timestamp) / SECONDS_PER_HOUR).toFloat())
-                                        ?.let { perHour ->
-                                            PressureLoss(
-                                                perHour.kpa,
-                                                anchor.timestamp,
-                                                reading.timestamp,
-                                                flatAt = reading.pressure.kpa
-                                                    .minus(rule.flatMark.kpa)
-                                                    .coerceAtLeast(0f)
-                                                    .div(perHour)
-                                                    .times(SECONDS_PER_HOUR)
-                                                    .plus(reading.timestamp),
-                                                flatMark = rule.flatMark,
-                                                refilledAt = tracker.refilledAt,
-                                            )
-                                        }
-                                        ?.takeIf { it.timeToFlat <= rule.horizon }
-                                        ?: tracker.loss
-                                )
+                                else -> reference.normalisedPressure.kpa
+                                    .minus(reading.normalisedPressure.kpa)
+                                    .takeIf { it > 0f && reading.timestamp > anchor.timestamp }
+                                    ?.let { drop -> drop to drop / ((reading.timestamp - anchor.timestamp) / SECONDS_PER_HOUR).toFloat() }
+                                    ?.let { (drop, perHour) ->
+                                        drop to PressureLoss(
+                                            perHour.kpa,
+                                            anchor.timestamp,
+                                            reading.timestamp,
+                                            flatAt = reading.pressure.kpa
+                                                .minus(rule.flatMark.kpa)
+                                                .coerceAtLeast(0f)
+                                                .div(perHour)
+                                                .times(SECONDS_PER_HOUR)
+                                                .plus(reading.timestamp),
+                                            flatMark = rule.flatMark,
+                                            refilledAt = tracker.refilledAt,
+                                            isWarning = false,
+                                        )
+                                    }
+                                    .let { measured ->
+                                        tracker.copy(
+                                            measured = measured?.second,
+                                            loss = measured
+                                                ?.takeIf { (drop, loss) -> drop >= rule.minDrop.kpa && loss.timeToFlat <= rule.horizon }
+                                                ?.second
+                                                ?.copy(isWarning = true)
+                                                ?: tracker.loss,
+                                        )
+                                    }
                             }
                         }
                         ?: tracker

@@ -72,6 +72,40 @@ internal class PressureLossTest {
     }
 
     @Test
+    fun `the minimum drop is a share of the low pressure alert`() {
+        // 10 kPa lost within half an hour: under 7.5% of 150 kPa, over 5% of it
+        assertNull(track(reading(0.0, 230f), reading(0.5, 220f)))
+        assertNotNull(
+            track(reading(0.0, 230f), reading(0.5, 220f), rule = PressureLoss.Rule(150f.kpa, 10.hours, 0.05f))
+        )
+    }
+
+    @Test
+    fun `a loss below the rule is measured but isn't a warning`() {
+        val tracker = listOf(reading(0.0, 230f), reading(12.0, 210f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertNull(tracker.loss)
+        val measured = assertNotNull(tracker.measured)
+        assertEquals(false, measured.isWarning)
+        assertEquals(20f / 12f, measured.perHour.kpa, 0.01f)
+    }
+
+    @Test
+    fun `a warning is measured too`() {
+        val tracker = listOf(reading(0.0, 230f), reading(0.5, 229f), reading(12.0, 150f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertEquals(true, tracker.loss?.isWarning)
+        assertEquals(tracker.loss, tracker.measured?.copy(isWarning = true))
+    }
+
+    @Test
+    fun `a steady reading measures nothing`() {
+        val tracker = listOf(reading(0.0, 230f), reading(0.5, 230f), reading(1.0, 231f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertNull(tracker.measured)
+    }
+
+    @Test
     fun `a drop from before the last hour isn't counted in it`() {
         // 230 kPa yesterday, 220 kPa an hour ago: only 8 kPa were lost within the hour
         assertNull(track(reading(0.0, 230f), reading(23.5, 220f), reading(24.4, 212f)))

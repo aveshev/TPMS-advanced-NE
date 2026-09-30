@@ -26,11 +26,6 @@ internal sealed interface Path {
     }
 
     @JvmInline
-    value class PressureLossSettings(val vehicleUUID: UUID) : Path {
-        override fun toString(): String = "vehicle/$vehicleUUID/settings_pressure_loss"
-    }
-
-    @JvmInline
     value class TemperatureSettings(val vehicleUUID: UUID) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/settings_temperature"
     }
@@ -50,6 +45,10 @@ internal sealed interface Path {
 
     data object Debug : Path {
         override fun toString(): String = "app_settings/debug"
+    }
+
+    data object PressureLoss : Path {
+        override fun toString(): String = "app_settings/pressure_loss"
     }
 
     data object PersistentScanning : Path {
@@ -102,6 +101,7 @@ internal sealed interface Path {
                 AppSettings,
                 TimeSinceUpdate,
                 Debug,
+                PressureLoss,
                 PersistentScanning,
                 ActivateScanConditions,
                 StayActiveDuration,
@@ -111,8 +111,7 @@ internal sealed interface Path {
                 SuspendBluetoothDevices,
             )
 
-        // One branch per page
-        @Suppress("NAME_SHADOWING", "CyclomaticComplexMethod")
+        @Suppress("NAME_SHADOWING")
         fun from(route: String): Path = when (val page = appPages.firstOrNull { "$it" == route }) {
             null -> route
                 .split('/')
@@ -126,7 +125,6 @@ internal sealed interface Path {
                         "settings_temperature" -> TemperatureSettings(uuid)
                         "settings_calibration" -> CalibrationSettings(uuid)
                         "settings_battery" -> BatterySettings(uuid)
-                        "settings_pressure_loss" -> PressureLossSettings(uuid)
                         "binding_method" -> BindingMethod(uuid)
                         "qrcode" -> QrCode(uuid)
                         "unlocated" -> Unlocated(uuid)

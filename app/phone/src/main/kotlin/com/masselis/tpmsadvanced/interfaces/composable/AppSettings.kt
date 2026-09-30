@@ -26,6 +26,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Suspen
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.SuspendScanConditions
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DebugSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DeveloperOptionsSettings
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.PressureLossSettings
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
 import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettingsItems
@@ -40,6 +41,7 @@ internal fun AppSettings(
     openActivateScanConditions: () -> Unit,
     openSuspendScanConditions: () -> Unit,
     openDebug: () -> Unit,
+    openPressureLoss: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     SettingsSectionHeader("Display")
@@ -58,6 +60,7 @@ internal fun AppSettings(
     SettingsSectionHeader("Developer options")
     DeveloperOptionsSettings(
         openDebug = openDebug,
+        openPressureLoss = openPressureLoss,
         modifier = Modifier.testTag(developerOptions),
     )
     SettingsSectionHeader("About")
@@ -71,6 +74,13 @@ internal fun DebugSettingsPage(
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     DebugSettings(additionalItems = { DetectedActivitiesSettingsItem() })
+}
+
+@Composable
+internal fun PressureLossSettingsPage(
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    PressureLossSettings()
 }
 
 @Composable
