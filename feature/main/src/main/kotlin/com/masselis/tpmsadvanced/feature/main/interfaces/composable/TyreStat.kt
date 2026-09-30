@@ -249,11 +249,13 @@ private fun TyreStat(
             )
         }
 
-        // Bit 0 first, the bits which are not set in the last packet greyed out
+        // Bit 7 first, like the byte written in binary (0x80 lights the leftmost digit), the bits
+        // which are not set in the last packet greyed out
         if (flags != null && showSensorFlags) {
             Text(
                 text = buildAnnotatedString {
-                    repeat(Byte.SIZE_BITS) { bit ->
+                    repeat(Byte.SIZE_BITS) { index ->
+                        val bit = Byte.SIZE_BITS - 1 - index
                         withStyle(
                             if ((flags.toInt() shr bit) and 1 == 1) SpanStyle(fontWeight = FontWeight.Bold)
                             else SpanStyle(color = onSurfaceColor.copy(alpha = UNSET_FLAG_ALPHA))

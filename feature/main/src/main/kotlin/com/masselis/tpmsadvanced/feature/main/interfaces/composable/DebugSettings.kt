@@ -96,7 +96,7 @@ private fun DebugSettings(
         )
         SwitchSettingsItem(
             headline = "Sensor flags",
-            supporting = "Bits 0 to 7 of the last packet's status byte, the unset ones greyed out",
+            supporting = "Bits 7 to 0 of the last packet's status byte, the unset ones greyed out",
             checked = showSensorFlags,
             onCheckedChange = onShowSensorFlags,
             modifier = Modifier.testTag(DebugSettingsTags.showSensorFlags),
