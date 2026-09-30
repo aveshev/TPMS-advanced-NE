@@ -94,17 +94,6 @@ private val PressureUnit.widestReadout: String
         PSI -> "88.8 psi*"
     }
 
-/**
- * Widest loss rate a tyre losing pressure shows in its pressure line, alternating with the
- * pressure, see [TyreStat]
- */
-private val PressureUnit.widestPressureLoss: String
-    get() = when (this) {
-        KILO_PASCAL -> "↓888 kpa/h"
-        BAR -> "↓8.88 bar/h"
-        PSI -> "↓88.8 psi/h"
-    }
-
 /** Widest plausible detail lines of a readout, see [TyreStat] */
 private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
 
@@ -178,8 +167,7 @@ private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit): Dp {
     val pressureStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
     val density = LocalDensity.current
     return remember(measurer, pressureStyle, density, pressureUnit) {
-        listOf(pressureUnit.widestReadout, pressureUnit.widestPressureLoss)
-            .map { measurer.measure(it, pressureStyle) }
+        listOf(measurer.measure(pressureUnit.widestReadout, pressureStyle))
             .plus(WIDEST_DETAILS.map { measurer.measure(it, pressureStyle.copy(fontSize = 16.sp)) })
             .maxOf { it.size.width }
             .let { with(density) { it.toDp() } }

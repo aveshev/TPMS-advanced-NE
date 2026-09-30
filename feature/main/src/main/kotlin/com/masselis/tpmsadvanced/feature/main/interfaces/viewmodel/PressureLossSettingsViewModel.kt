@@ -10,6 +10,5 @@ internal class PressureLossSettingsViewModel(
 ) : ViewModel() {
     val enabled = appPreferences.pressureLoss
     val minDrop = appPreferences.pressureLossMinDrop
-    val alwaysShow = appPreferences.alwaysShowPressureLoss
     val pressureUnit = unitPreferences.pressure
 }

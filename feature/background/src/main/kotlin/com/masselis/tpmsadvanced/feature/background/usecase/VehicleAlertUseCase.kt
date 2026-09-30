@@ -93,10 +93,7 @@ internal class VehicleAlertUseCase(
                     // The tyre losing pressure the fastest
                     ?: locations
                         .zip(losses)
-                        // A loss below the rule is only shown, when asked to in the developer options
-                        .mapNotNull { (location, loss) ->
-                            loss?.takeIf { it.isWarning }?.let { Alert.PressureLoss(location, it) }
-                        }
+                        .mapNotNull { (location, loss) -> loss?.let { Alert.PressureLoss(location, it) } }
                         .maxByOrNull { it.loss.perHour }
                     ?: reported
                         .firstOrNull { (_, atmosphere) ->

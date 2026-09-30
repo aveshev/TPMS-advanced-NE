@@ -26,11 +26,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.masselis.tpmsadvanced.core.ui.Orange
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
-import com.masselis.tpmsadvanced.core.ui.warning
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
@@ -79,7 +79,7 @@ private fun VehicleBatterySettings(
         ) {
             listOf(
                 Triple(lowVoltage + LOW_SOON_MARGIN + LOW_SOON_MARGIN, MaterialTheme.colorScheme.onSurface, "Normal"),
-                Triple(lowVoltage + LOW_SOON_MARGIN, MaterialTheme.colorScheme.warning, "Getting low"),
+                Triple(lowVoltage + LOW_SOON_MARGIN, Orange, "Getting low"),
                 Triple(lowVoltage, MaterialTheme.colorScheme.error, "Low alarm"),
             ).forEach { (voltage, color, caption) ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

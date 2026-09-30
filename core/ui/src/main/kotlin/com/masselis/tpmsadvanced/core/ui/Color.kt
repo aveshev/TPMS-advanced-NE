@@ -24,10 +24,8 @@ public val md_theme_light_onError: Color = Color(0xFFFFFFFF)
 public val md_theme_light_onErrorContainer: Color = Color(0xFF410002)
 public val md_theme_light_background: Color = Color(0xFFFCFDF6)
 public val md_theme_light_onBackground: Color = Color(0xFF1A1C19)
-// Read when used rather than when this file loads, so the other colours don't need the app context
-// (previews and Paparazzi tests have none)
-public val md_theme_light_surface: Color
-    get() = Color(appContext.getColor(R.color.md_theme_light_surface))
+public val md_theme_light_surface: Color =
+    Color(appContext.getColor(R.color.md_theme_light_surface))
 public val md_theme_light_onSurface: Color = Color(0xFF1A1C19)
 public val md_theme_light_surfaceVariant: Color = Color(0xFFDFE4D8)
 public val md_theme_light_onSurfaceVariant: Color = Color(0xFF42493F)
@@ -57,8 +55,7 @@ public val md_theme_dark_onError: Color = Color(0xFF690005)
 public val md_theme_dark_onErrorContainer: Color = Color(0xFFFFDAD6)
 public val md_theme_dark_background: Color = Color(0xFF1A1C19)
 public val md_theme_dark_onBackground: Color = Color(0xFFE2E3DD)
-public val md_theme_dark_surface: Color
-    get() = Color(appContext.getColor(R.color.md_theme_dark_surface))
+public val md_theme_dark_surface: Color = Color(appContext.getColor(R.color.md_theme_dark_surface))
 public val md_theme_dark_onSurface: Color = Color(0xFFE2E3DD)
 public val md_theme_dark_surfaceVariant: Color = Color(0xFF42493F)
 public val md_theme_dark_onSurfaceVariant: Color = Color(0xFFC2C8BC)
@@ -73,7 +70,5 @@ public val md_theme_dark_surfaceTintColor: Color = Color(0xFF81DB74)
 
 public val seed: Color = Color(0xFF5FB755)
 
-// A warning below the theme's error, which Material 3 has no role for, see ColorScheme.warning.
-// The dark one is pale like the dark error, so the error still reads as the more severe one.
-public val md_theme_light_warning: Color = Color(0xFFFF9800)
-public val md_theme_dark_warning: Color = Color(0xFFFFD49E)
+/** A warning below the theme's error: a suspended scan, a sensor battery getting low */
+public val Orange: Color = Color(0xFFFF9800)

@@ -39,34 +39,29 @@ internal fun PressureLossSettings(
 ) {
     val enabled by viewModel.enabled.collectAsState()
     val minDrop by viewModel.minDrop.collectAsState()
-    val alwaysShow by viewModel.alwaysShow.collectAsState()
     val unit by viewModel.pressureUnit.collectAsState()
     PressureLossSettings(
         enabled = enabled,
         minDrop = minDrop.kpa,
-        alwaysShow = alwaysShow,
         unit = unit,
         onEnabled = { viewModel.enabled.value = it },
         onMinDrop = { viewModel.minDrop.value = it.kpa },
-        onAlwaysShow = { viewModel.alwaysShow.value = it },
         modifier = modifier,
     )
 }
 
-@Suppress("LongMethod", "LongParameterList", "MaxLineLength")
+@Suppress("MaxLineLength")
 @Composable
 private fun PressureLossSettings(
     enabled: Boolean,
     minDrop: Pressure,
-    alwaysShow: Boolean,
     unit: PressureUnit,
     onEnabled: (Boolean) -> Unit,
     onMinDrop: (Pressure) -> Unit,
-    onAlwaysShow: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
     SettingsIntro(
-        "Experimental. Warns about a tyre losing pressure while riding: its pressure falling from its highest reading of the ride by at least the minimum drop, on two readings in a row, while the tyre isn't cooling down.\n\nRiding warms a tyre up, which only raises its pressure. A leak too slow to show within a ride is left to the low pressure alert, once the tyre is cold. Letting air out shows as a loss too."
+        "Experimental. Shows \"Leaking?\" under a tyre losing pressure while riding, and notifies about it: its pressure falling from its highest reading of the ride by at least the minimum drop, on two readings in a row, while the tyre isn't cooling down.\n\nRiding warms a tyre up, which only raises its pressure, so a fall is air getting out. A leak too slow to show within a ride is left to the low pressure alert, once the tyre is cold. Letting air out shows as a loss too."
     )
     SettingsGroup(Modifier.padding(top = 24.dp)) {
         SwitchSettingsItem(
@@ -76,7 +71,6 @@ private fun PressureLossSettings(
             modifier = Modifier.testTag(PressureLossSettingsTags.enabled),
         )
     }
-    // Greyed out rather than hidden while the warning is off, like Android's settings do
     SettingsGroup(Modifier.padding(top = 24.dp)) {
         SegmentedSettingsItem(
             headline = "Minimum drop, in ${unit.symbol()}",
@@ -85,21 +79,12 @@ private fun PressureLossSettings(
             onSelect = onMinDrop,
             label = { it.numberString(unit) },
         )
-        SwitchSettingsItem(
-            headline = "Always show leak rate",
-            supporting = "(even when not above threshold)",
-            checked = alwaysShow,
-            onCheckedChange = onAlwaysShow,
-            enabled = enabled,
-            modifier = Modifier.testTag(PressureLossSettingsTags.alwaysShow),
-        )
     }
 }
 
 @Suppress("ConstPropertyName")
 internal object PressureLossSettingsTags {
     const val enabled = "PressureLossSettingsTags_enabled"
-    const val alwaysShow = "PressureLossSettingsTags_alwaysShow"
 }
 
 @Preview
@@ -108,11 +93,9 @@ internal fun PressureLossSettingsPreview() {
     PressureLossSettings(
         enabled = true,
         minDrop = 7f.kpa,
-        alwaysShow = false,
         unit = PSI,
         onEnabled = {},
         onMinDrop = {},
-        onAlwaysShow = {},
     )
 }
 
@@ -122,10 +105,8 @@ internal fun PressureLossSettingsOffPreview() {
     PressureLossSettings(
         enabled = false,
         minDrop = 10f.kpa,
-        alwaysShow = true,
         unit = BAR,
         onEnabled = {},
         onMinDrop = {},
-        onAlwaysShow = {},
     )
 }

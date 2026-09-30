@@ -9,8 +9,7 @@ import kotlin.time.DurationUnit.SECONDS
 
 /**
  * A tyre which lost [drop] since its highest reading of the ride, at [since], to its latest one, at
- * [until], [perHour] on average. The timestamps are in seconds. A loss which isn't [isWarning] is
- * only the latest measure, whatever the [Rule] says of it: it can be zero.
+ * [until], [perHour] on average. The timestamps are in seconds.
  */
 @Parcelize
 public data class PressureLoss(
@@ -18,7 +17,6 @@ public data class PressureLoss(
     val drop: Pressure,
     val since: Double,
     val until: Double,
-    val isWarning: Boolean = true,
 ) : Parcelable {
 
     /** Warns about a tyre which lost at least [minDrop] since its highest reading of the ride */
@@ -42,11 +40,9 @@ public data class PressureLoss(
      * [RIDE_GAP].
      *
      * Once found, [loss] stays until the ride ends or the pressure gets back to its highest.
-     * [measured] is the latest reading's loss, whatever the rule says of it.
      */
     public data class Tracker(
         val loss: PressureLoss? = null,
-        val measured: PressureLoss? = null,
         /** The latest of the ride's highest readings */
         private val peak: TyreAtmosphere? = null,
         private val latest: TyreAtmosphere? = null,
@@ -66,7 +62,7 @@ public data class PressureLoss(
                 Tracker().next(reading, rule)
             // The same pressure later on is the peak too: a leak starting then is measured from it
             peak == null || reading.pressure >= peak.pressure ->
-                Tracker(measured = PressureLoss(0f.kpa, 0f.kpa, reading.timestamp, reading.timestamp, false), peak = reading, latest = reading)
+                Tracker(peak = reading, latest = reading)
 
             else -> (peak.pressure.kpa - reading.pressure.kpa)
                 .let { drop ->
@@ -75,7 +71,6 @@ public data class PressureLoss(
                         drop.kpa,
                         peak.timestamp,
                         reading.timestamp,
-                        isWarning = false,
                     )
                 }
                 .let { measured ->
@@ -83,8 +78,7 @@ public data class PressureLoss(
                         .let { if (it) confirmations + 1 else 0 }
                         .let { confirmations ->
                             copy(
-                                loss = measured.takeIf { confirmations >= CONFIRMATIONS }?.copy(isWarning = true) ?: loss,
-                                measured = measured,
+                                loss = measured.takeIf { confirmations >= CONFIRMATIONS } ?: loss,
                                 latest = reading,
                                 confirmations = confirmations,
                             )

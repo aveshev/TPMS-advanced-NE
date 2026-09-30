@@ -4,7 +4,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import org.junit.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -17,11 +16,8 @@ internal class PressureLossTest {
     private fun reading(minute: Double, kpa: Float, celsius: Float = 30f, sensorId: Int = 1) =
         TyreAtmosphere(minute * SECONDS_PER_MINUTE, sensorId, kpa.kpa, celsius.celsius)
 
-    private fun tracker(vararg readings: TyreAtmosphere, rule: PressureLoss.Rule = this.rule) =
-        readings.fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
-
     private fun track(vararg readings: TyreAtmosphere, rule: PressureLoss.Rule = this.rule) =
-        tracker(*readings, rule = rule).loss
+        readings.fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }.loss
 
     @Test
     fun `a tyre warming up loses nothing`() {
@@ -109,14 +105,6 @@ internal class PressureLossTest {
     @Test
     fun `older readings are ignored`() {
         assertNull(track(reading(0.0, 214f), reading(2.0, 214f), reading(1.0, 200f), reading(1.5, 200f)))
-    }
-
-    @Test
-    fun `every reading is measured`() {
-        assertEquals(0f, tracker(reading(0.0, 214f)).measured?.perHour?.kpa)
-        val measured = assertNotNull(tracker(reading(0.0, 214f), reading(6.0, 211f)).measured)
-        assertFalse(measured.isWarning)
-        assertEquals(30f, measured.perHour.kpa, 0.01f)
     }
 
     private companion object {

@@ -22,5 +22,4 @@ internal class TyreStatsViewModelImpl(
         .stateIn(viewModelScope, Eagerly, appPreferences.debugOptions.value && appPreferences.showSensorFlags.value)
     override val showTimeSinceUpdate = appPreferences.showTimeSinceUpdate
     override val showBatteryVoltage = appPreferences.showBatteryVoltage
-    override val alwaysShowPressureLoss = appPreferences.alwaysShowPressureLoss
 }

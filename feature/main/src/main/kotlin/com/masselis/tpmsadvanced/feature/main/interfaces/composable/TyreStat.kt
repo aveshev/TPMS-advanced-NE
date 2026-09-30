@@ -17,8 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -27,13 +25,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.common.now
+import com.masselis.tpmsadvanced.core.ui.Orange
 import com.masselis.tpmsadvanced.core.ui.viewModel
-import com.masselis.tpmsadvanced.core.ui.warning
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
@@ -71,17 +67,7 @@ internal fun TyreStat(
     val showSensorFlags by viewModel.showSensorFlags.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
     val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
-    val alwaysShowPressureLoss by viewModel.alwaysShowPressureLoss.collectAsState()
-    TyreStat(
-        location,
-        state,
-        showSensorId,
-        showTimeSinceUpdate,
-        showBatteryVoltage,
-        showSensorFlags,
-        modifier,
-        alwaysShowPressureLoss = alwaysShowPressureLoss,
-    )
+    TyreStat(location, state, showSensorId, showTimeSinceUpdate, showBatteryVoltage, showSensorFlags, modifier)
 }
 
 @Suppress("NAME_SHADOWING", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
@@ -94,9 +80,6 @@ private fun TyreStat(
     showBatteryVoltage: Boolean = false,
     showSensorFlags: Boolean = false,
     modifier: Modifier = Modifier,
-    alwaysShowPressureLoss: Boolean = false,
-    // Lets a preview show the pressure loss phase of the pressure line
-    startWithPressureLoss: Boolean = false,
 ) {
     val (pressure, temperature) = when (val state = state) {
         State.NotDetected -> null to null
@@ -136,20 +119,21 @@ private fun TyreStat(
         is State.Alerting -> state.battery
     }
     val isBatteryAlert = battery?.level == LOW
-    val pressureLoss = when (state) {
-        State.NotDetected -> null
-        is State.Normal -> state.pressureLoss
-        is State.Alerting -> state.pressureLoss
-    }?.takeIf { it.isWarning || alwaysShowPressureLoss }
     val isPressureAlert = state is State.Alerting && state.isPressureAlert
     val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
     val isSensorAlarm = state is State.Alerting && state.isSensorAlarm
+    // A tyre losing pressure while riding, see PressureLoss.Tracker
+    val isLeaking = when (state) {
+        State.NotDetected -> false
+        is State.Normal -> state.pressureLoss != null
+        is State.Alerting -> state.pressureLoss != null
+    }
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val errorColor = MaterialTheme.colorScheme.error
     val pressureColor = if (isPressureAlert) errorColor else onSurfaceColor
     val temperatureColor = if (isTemperatureAlert) errorColor else onSurfaceColor
     var isVisible by remember { mutableStateOf(true) }
-    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isBatteryAlert) {
+    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isLeaking || isBatteryAlert) {
         LaunchedEffect(key1 = isVisible) {
             launch {
                 repeat(Int.MAX_VALUE) {
@@ -160,17 +144,6 @@ private fun TyreStat(
         }
     } else
         isVisible = true
-    // A tyre losing pressure alternates its pressure line between the pressure and the loss rate
-    var showsPressureLoss by remember { mutableStateOf(startWithPressureLoss) }
-    if (pressureLoss != null) {
-        LaunchedEffect(Unit) {
-            repeat(Int.MAX_VALUE) {
-                delay(PRESSURE_LOSS_PHASE)
-                showsPressureLoss = showsPressureLoss.not()
-            }
-        }
-    } else
-        showsPressureLoss = false
     val alignment = remember {
         when (location) {
             is Location.Axle -> Alignment.Start
@@ -185,33 +158,19 @@ private fun TyreStat(
             }
         }
     }
-    val pressureText = pressure
-        ?.let { (value, unit) -> value.string(unit) }
-        // Explained on the vehicle's calibration page
-        ?.let { if (isPressureCalibrated) "$it*" else it }
-        ?: "-.--"
-    val pressureLossText = pressureLoss
-        ?.let { loss -> pressure?.let { (_, unit) -> loss.rateString(unit) } }
     Column(modifier = modifier) {
         Text(
-            pressureLossText?.takeIf { showsPressureLoss } ?: pressureText,
+            pressure
+                ?.let { (value, unit) -> value.string(unit) }
+                // Explained on the vehicle's calibration page
+                ?.let { if (isPressureCalibrated) "$it*" else it }
+                ?: "-.--",
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            color = when {
-                pressureLossText == null || showsPressureLoss.not() -> pressureColor
-                pressureLoss.isWarning -> MaterialTheme.colorScheme.warning
-                // Only measured, shown from the developer options
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            color = pressureColor,
             modifier = Modifier
                 .align(alignment)
-                // Alternating with the loss rate already draws the eye, the pressure doesn't blink
-                .alpha(if (isPressureAlert.not() || pressureLossText != null || isVisible) 1f else 0f)
-                .run {
-                    pressureLossText
-                        ?.let { loss -> clearAndSetSemantics { contentDescription = "$pressureText, losing $loss" } }
-                        ?: this
-                },
+                .alpha(if (isPressureAlert.not() || isVisible) 1f else 0f),
         )
 
         Text(
@@ -237,8 +196,9 @@ private fun TyreStat(
         }
 
         // The sensor's own alarm, its meaning isn't documented but a leak is the likely one. The
-        // pressure and temperature above stay as the sensor read them.
-        if (isSensorAlarm) {
+        // pressure and temperature above stay as the sensor read them. The same goes for the
+        // pressure falling while riding.
+        if (isSensorAlarm || isLeaking) {
             Text(
                 "Leaking?",
                 fontWeight = FontWeight.SemiBold,
@@ -260,7 +220,7 @@ private fun TyreStat(
                 fontSize = 16.sp,
                 color = when (battery.level) {
                     NORMAL -> onSurfaceColor
-                    LOW_SOON -> MaterialTheme.colorScheme.warning
+                    LOW_SOON -> Orange
                     LOW -> errorColor
                 },
                 modifier = Modifier
@@ -311,15 +271,6 @@ private fun TyreStat(
 }
 
 private const val UNSET_FLAG_ALPHA = 0.3f
-
-/** "↓1.1 psi/h", capped at [MAX_SHOWN_PRESSURE_LOSS] to fit the readout, see [Vehicle] */
-private fun PressureLoss.rateString(unit: PressureUnit) =
-    "↓${minOf(perHour, MAX_SHOWN_PRESSURE_LOSS).string(unit)}/h"
-
-/** A step of the sensor within seconds of the peak reads as thousands of kPa per hour */
-private val MAX_SHOWN_PRESSURE_LOSS: Pressure = 999f.kpa
-
-private val PRESSURE_LOSS_PHASE = 1.5.seconds
 
 // Re-emits on every tier boundary crossed (each minute, then each hour, then each day) so the
 // label stays live without waiting for a new sensor packet. A new `timestamp` (new packet)
@@ -660,67 +611,5 @@ internal fun TyreStatPressureLossPreview() {
             pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
         ),
         showTimeSinceUpdate = false,
-    )
-}
-
-
-@Preview
-@Composable
-internal fun TyreStatPressureLossRatePreview() {
-    TyreStat(
-        location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
-        ),
-        showTimeSinceUpdate = false,
-        startWithPressureLoss = true,
-    )
-}
-
-
-@Preview
-@Composable
-internal fun TyreStatPressureAlertingLossPreview() {
-    TyreStat(
-        location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Alerting(
-            0.0,
-            0,
-            1.4f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            isPressureAlert = true,
-            isTemperatureAlert = false,
-            pressureLoss = PressureLoss(1.8f.bar, 0.3f.bar, 0.0, 600.0),
-        ),
-        showTimeSinceUpdate = false,
-    )
-}
-
-
-@Preview
-@Composable
-internal fun TyreStatMeasuredPressureLossRatePreview() {
-    TyreStat(
-        location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.18f.bar, 0.03f.bar, 0.0, 600.0, isWarning = false),
-        ),
-        showTimeSinceUpdate = false,
-        alwaysShowPressureLoss = true,
-        startWithPressureLoss = true,
     )
 }

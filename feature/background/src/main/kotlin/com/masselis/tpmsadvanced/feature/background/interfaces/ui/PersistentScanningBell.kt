@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
-import com.masselis.tpmsadvanced.core.ui.warning
+import com.masselis.tpmsadvanced.core.ui.Orange
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
@@ -86,7 +86,7 @@ internal val BellState.color: Color
     get() = when (this) {
         BellState.NeedsPermission -> MaterialTheme.colorScheme.error
         BellState.Active -> MaterialTheme.colorScheme.primary
-        BellState.Suspended -> MaterialTheme.colorScheme.warning
+        BellState.Suspended -> Orange
         // The theme's content colour, a plain white would vanish on the light theme
         BellState.Idle -> LocalContentColor.current
     }
