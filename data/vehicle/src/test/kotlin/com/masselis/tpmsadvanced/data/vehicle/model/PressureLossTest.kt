@@ -99,10 +99,39 @@ internal class PressureLossTest {
     }
 
     @Test
-    fun `a steady reading measures nothing`() {
+    fun `a gain is measured as a negative loss`() {
         val tracker = listOf(reading(0.0, 230f), reading(0.5, 230f), reading(1.0, 231f))
             .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
-        assertNull(tracker.measured)
+        assertNull(tracker.loss)
+        val measured = assertNotNull(tracker.measured)
+        // Over the last hour, since the first reading
+        assertEquals(-1f, measured.perHour.kpa, 0.01f)
+        assertEquals(Double.POSITIVE_INFINITY, measured.flatAt)
+    }
+
+    @Test
+    fun `a steady tyre measures no loss`() {
+        val tracker = listOf(reading(0.0, 230f), reading(0.5, 230f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertEquals(0f, tracker.measured?.perHour?.kpa)
+    }
+
+    @Test
+    fun `a drop under the minimum is still measured`() {
+        val tracker = listOf(reading(0.0, 230f), reading(0.1, 227f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertNull(tracker.loss)
+        assertEquals(30f, tracker.measured?.perHour?.kpa ?: 0f, 0.01f)
+    }
+
+    @Test
+    fun `a refill is measured as a gain`() {
+        val tracker = listOf(reading(0.0, 150f), reading(0.5, 230f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertNull(tracker.loss)
+        val measured = assertNotNull(tracker.measured)
+        assertEquals(-160f, measured.perHour.kpa, 0.01f)
+        assertEquals(0.5 * SECONDS_PER_HOUR, measured.refilledAt)
     }
 
     @Test
