@@ -38,9 +38,6 @@ internal data class RawBekubeeKy private constructor(
 
     fun temperature() = data[2].toFloat().celsius
 
-    // The only byte of the payload which isn't decoded, probably the status of the sensor
-    fun flags() = data[0].toUByte()
-
     override fun asTyre() = Tyre.Unlocated(
         now(),
         rssi,
@@ -51,7 +48,6 @@ internal data class RawBekubeeKy private constructor(
         // The low battery is reported through batteryVoltage, these sensors send no alarm
         false,
         battery().toFloat().div(10f).volts,
-        flags(),
     )
 
     override fun equals(other: Any?): Boolean {

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The database copies DebugSettingsViewModel.exportDatabase() writes -->
+<paths>
+    <cache-path
+        name="database_export"
+        path="database_export/" />
+</paths>

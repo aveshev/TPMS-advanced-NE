@@ -49,9 +49,6 @@ internal data class RawSysgration private constructor(
 
     fun isAlarm() = manufacturerData[15] == PRESSURE_ALARM_BYTE
 
-    // The byte the alarm is read from, 0x01 being the only value known so far
-    fun flags() = manufacturerData[15].toUByte()
-
     override fun asTyre() = Tyre.SensorLocated(
         now(),
         rssi,
@@ -62,7 +59,6 @@ internal data class RawSysgration private constructor(
         isAlarm(),
         location(),
         // Sysgration's battery isn't a voltage, batteryVoltage stays null
-        flags = flags(),
     )
 
     override fun equals(other: Any?): Boolean {

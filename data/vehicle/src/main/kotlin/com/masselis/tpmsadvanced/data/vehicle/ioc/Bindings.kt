@@ -12,6 +12,7 @@ import com.masselis.tpmsadvanced.data.vehicle.Database
 import com.masselis.tpmsadvanced.data.vehicle.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.Vehicle
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.DatabaseExport
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
@@ -87,6 +88,9 @@ public interface Bindings {
             override fun decode(databaseValue: Long): UShort = databaseValue.toUShort()
             override fun encode(value: UShort): Long = value.toLong()
         }
+
+    @Provides
+    private fun databaseExport(driver: SqlDriver): DatabaseExport = DatabaseExport(driver)
 
     @Suppress("MagicNumber")
     @Provides

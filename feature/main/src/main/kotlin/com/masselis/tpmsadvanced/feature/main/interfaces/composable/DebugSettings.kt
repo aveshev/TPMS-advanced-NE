@@ -1,22 +1,29 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.OnLeaveEffect
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsIntro
+import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.SwitchSettingsItem
+import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DebugSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.DebugSettingsViewModel
+import kotlinx.coroutines.launch
 
 /**
  * The page opened from the "Debug" item of [DeveloperOptionsSettings]: what the sensors and the
@@ -39,11 +46,28 @@ internal fun DebugSettings(
     OnLeaveEffect(viewModel::disableIfNoneSelected)
     val showSensorId by viewModel.showSensorId.collectAsState()
     val showSensorFlags by viewModel.showSensorFlags.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     DebugSettings(
         showSensorId = showSensorId,
         onShowSensorId = { viewModel.showSensorId.value = it },
         showSensorFlags = showSensorFlags,
         onShowSensorFlags = { viewModel.showSensorFlags.value = it },
+        onExportDatabase = {
+            scope.launch {
+                viewModel
+                    .exportDatabase()
+                    .let { FileProvider.getUriForFile(context, "${context.packageName}.database_export", it) }
+                    .let { uri ->
+                        Intent(Intent.ACTION_SEND)
+                            .setType("application/vnd.sqlite3")
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    .let { Intent.createChooser(it, "Export database") }
+                    .also { context.startActivity(it) }
+            }
+        },
         modifier = modifier,
         additionalItems = additionalItems,
     )
@@ -55,6 +79,7 @@ private fun DebugSettings(
     onShowSensorId: (Boolean) -> Unit,
     showSensorFlags: Boolean,
     onShowSensorFlags: (Boolean) -> Unit,
+    onExportDatabase: () -> Unit,
     modifier: Modifier = Modifier,
     additionalItems: @Composable ColumnScope.() -> Unit = {},
 ) = Column(modifier) {
@@ -71,12 +96,21 @@ private fun DebugSettings(
         )
         SwitchSettingsItem(
             headline = "Sensor flags",
-            supporting = "Bits 0 to 7 of the last packet's status byte, the unset ones greyed out",
+            supporting = "Bits 7 to 0 of the last packet's status bytes, the unset ones greyed out",
             checked = showSensorFlags,
             onCheckedChange = onShowSensorFlags,
             modifier = Modifier.testTag(DebugSettingsTags.showSensorFlags),
         )
         additionalItems()
+    }
+    SettingsSectionHeader("Data")
+    SettingsGroup {
+        TextSettingsItem(
+            headline = "Export database",
+            supporting = "Every stored reading, with the raw packet it came from",
+            onClick = onExportDatabase,
+            modifier = Modifier.testTag(DebugSettingsTags.exportDatabase),
+        )
     }
 }
 
@@ -88,6 +122,7 @@ internal fun DebugSettingsPreview() {
         onShowSensorId = {},
         showSensorFlags = false,
         onShowSensorFlags = {},
+        onExportDatabase = {},
     )
 }
 
@@ -95,4 +130,5 @@ internal fun DebugSettingsPreview() {
 internal object DebugSettingsTags {
     const val showSensorId = "DebugSettingsTags_showSensorId"
     const val showSensorFlags = "DebugSettingsTags_showSensorFlags"
+    const val exportDatabase = "DebugSettingsTags_exportDatabase"
 }

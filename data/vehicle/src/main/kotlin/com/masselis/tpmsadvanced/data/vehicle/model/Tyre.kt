@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.data.vehicle.model
 
 import android.os.Parcelable
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.Advertisement
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlinx.parcelize.Parcelize
 
@@ -21,11 +22,12 @@ public sealed interface Tyre : Parcelable {
     public val batteryVoltage: Voltage?
 
     /**
-     * The status byte of the packet, as broadcast: shown for debugging, since what most of its
-     * bits mean is unknown. null when the sensor has no such byte, or when this tyre was read from
-     * the database, which doesn't store it.
+     * The whole advertisement as received, in hexadecimal, so that what the decoders don't read
+     * yet can be looked into later from an exported database, and [flags] read from it. null for
+     * the readings which didn't come from a scan (demo mode), or were stored before the database
+     * kept it.
      */
-    public val flags: UByte?
+    public val raw: String?
 
     public sealed interface SensorInput : Tyre
 
@@ -39,7 +41,7 @@ public sealed interface Tyre : Parcelable {
         override val battery: UShort,
         override val isAlarm: Boolean,
         override val batteryVoltage: Voltage? = null,
-        override val flags: UByte? = null,
+        override val raw: String? = null,
     ) : Tyre, SensorInput
 
     @Parcelize
@@ -53,7 +55,7 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         val location: Location,
         override val batteryVoltage: Voltage? = null,
-        override val flags: UByte? = null,
+        override val raw: String? = null,
     ) : Tyre {
         public constructor(tyre: Tyre, location: Location) : this(
             tyre.timestamp,
@@ -65,7 +67,7 @@ public sealed interface Tyre : Parcelable {
             tyre.isAlarm,
             location,
             tyre.batteryVoltage,
-            tyre.flags,
+            tyre.raw,
         )
     }
 
@@ -80,9 +82,18 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         val location: SensorLocation,
         override val batteryVoltage: Voltage? = null,
-        override val flags: UByte? = null,
+        override val raw: String? = null,
     ) : Tyre, SensorInput
 }
+
+/**
+ * The status bytes of the packet, as broadcast, read from [Tyre.raw]: shown for debugging, since
+ * what most of their bits mean is unknown. One byte for most sensors, several candidates for the
+ * ones whose status byte isn't found yet. null when the sensor has none, or without [Tyre.raw].
+ */
+@OptIn(ExperimentalStdlibApi::class)
+public val Tyre.flags: List<UByte>?
+    get() = raw?.let { Advertisement(it.hexToByteArray()).statusBytes }
 
 /**
  * The atmosphere shown for this record, its pressure corrected by [calibration] when the vehicle has

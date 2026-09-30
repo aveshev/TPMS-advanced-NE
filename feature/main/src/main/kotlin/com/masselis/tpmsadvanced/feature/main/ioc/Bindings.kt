@@ -2,6 +2,7 @@ package com.masselis.tpmsadvanced.feature.main.ioc
 
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.DatabaseExport
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
@@ -55,8 +56,10 @@ public interface Bindings {
         TyreDisplaySettingsViewModel(appPreferences)
 
     @Provides
-    private fun debugSettingsViewModel(appPreferences: AppPreferences): DebugSettingsViewModel =
-        DebugSettingsViewModel(appPreferences)
+    private fun debugSettingsViewModel(
+        appPreferences: AppPreferences,
+        databaseExport: DatabaseExport,
+    ): DebugSettingsViewModel = DebugSettingsViewModel(appPreferences, databaseExport)
 
     @Provides
     private fun pressureLossSettingsViewModel(

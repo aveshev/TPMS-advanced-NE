@@ -249,13 +249,15 @@ private fun TyreStat(
             )
         }
 
-        // Bit 0 first, the bits which are not set in the last packet greyed out
-        if (flags != null && showSensorFlags) {
+        // A line per status byte, bit 7 first like the byte written in binary (0x80 lights the
+        // leftmost digit), the bits which are not set in the last packet greyed out
+        if (showSensorFlags) flags?.forEach { flag ->
             Text(
                 text = buildAnnotatedString {
-                    repeat(Byte.SIZE_BITS) { bit ->
+                    repeat(Byte.SIZE_BITS) { index ->
+                        val bit = Byte.SIZE_BITS - 1 - index
                         withStyle(
-                            if ((flags.toInt() shr bit) and 1 == 1) SpanStyle(fontWeight = FontWeight.Bold)
+                            if ((flag.toInt() shr bit) and 1 == 1) SpanStyle(fontWeight = FontWeight.Bold)
                             else SpanStyle(color = onSurfaceColor.copy(alpha = UNSET_FLAG_ALPHA))
                         ) { append("$bit") }
                     }
@@ -587,7 +589,7 @@ internal fun TyreStatFlagsPreview() {
             PressureUnit.BAR,
             30f.celsius,
             TemperatureUnit.CELSIUS,
-            flags = 0x83u,
+            flags = listOf(0x83u.toUByte()),
         ),
         showSensorId = true,
         showTimeSinceUpdate = false,
@@ -611,5 +613,26 @@ internal fun TyreStatPressureLossPreview() {
             pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
         ),
         showTimeSinceUpdate = false,
+    )
+}
+
+
+// Wicarlink's four candidate status bytes, from its only captured packet
+@Preview
+@Composable
+internal fun TyreStatSeveralFlagsPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0x562D00,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            flags = listOf(0xACu, 0x00u, 0x00u, 0x08u).map { it.toUByte() },
+        ),
+        showTimeSinceUpdate = false,
+        showSensorFlags = true,
     )
 }
