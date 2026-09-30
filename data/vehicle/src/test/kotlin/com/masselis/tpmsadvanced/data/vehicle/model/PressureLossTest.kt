@@ -172,8 +172,18 @@ internal class PressureLossTest {
     }
 
     @Test
-    fun `an alarm reading no pressure is left to the low pressure alert`() {
-        assertNull(track(reading(0.0, 230f), reading(1.0, 0f)))
+    fun `a sensor off the valve is left to the low pressure alert`() {
+        assertNull(track(reading(0.0, 230f), reading(1.0, 0.7f)))
+    }
+
+    @Test
+    fun `a sensor put back on the valve starts over`() {
+        // 30 kPa let out while checking the pressure, without pumping the tyre up
+        val tracker = listOf(reading(0.0, 230f), reading(0.5, 230f), reading(0.6, 0.7f), reading(0.7, 200f))
+            .fold(PressureLoss.Tracker()) { tracker, reading -> tracker.next(reading, rule) }
+        assertNull(tracker.loss)
+        assertNull(tracker.measured)
+        assertNull(tracker.next(reading(0.8, 199f), rule).loss)
     }
 
     @Test

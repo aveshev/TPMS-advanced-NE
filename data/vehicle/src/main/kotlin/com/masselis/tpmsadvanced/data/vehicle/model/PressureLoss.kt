@@ -91,10 +91,11 @@ public data class PressureLoss(
 
         @Suppress("CyclomaticComplexMethod", "LongMethod", "MaxLineLength", "NestedBlockDepth")
         public fun next(reading: TyreAtmosphere, rule: Rule): Tracker = when {
-            // A pressure of 0 is an alarm or a flat tyre, the low pressure alert already covers it
-            reading.pressure.hasPressure().not() -> this
             // The live readings start with the latest stored one
             latest != null && reading.timestamp <= latest.timestamp -> this
+            // The sensor taken off the valve reads the atmosphere, whether to pump the tyre up or
+            // not: some air is let out either way, the readings start over from the next one
+            reading.pressure < OFF_VALVE -> Tracker(refilledAt = reading.timestamp)
             // Another sensor was bound to this tyre
             latest != null && reading.sensorId != latest.sensorId -> Tracker().next(reading, rule)
             else -> recent
@@ -158,6 +159,7 @@ public data class PressureLoss(
 
         private companion object {
             val WINDOW = 1.hours
+            val OFF_VALVE = 10f.kpa
             const val SECONDS_PER_HOUR = 3600.0
         }
     }
