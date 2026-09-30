@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
+import com.masselis.tpmsadvanced.data.vehicle.model.flags
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
@@ -45,41 +46,43 @@ internal class TyreDatabaseTest {
         currentVehicleUuid = database.vehicleQueries.currentFavourite().executeAsOne().uuid
     }
 
-    private fun tyre(flags: UByte?, raw: String?) = Tyre.Located(
-        1.0, -60, 42, 2f.bar, 20f.celsius, 100u, false, Location.Wheel(FRONT_LEFT), null, flags, raw,
+    private fun tyre(raw: String?) = Tyre.Located(
+        1.0, -60, 42, 2f.bar, 20f.celsius, 100u, false, Location.Wheel(FRONT_LEFT), null, raw,
     )
 
     private fun latest() = tyreDatabase
         .latestByTyreLocationByVehicle(Location.Wheel(FRONT_LEFT), currentVehicleUuid)
         .execute()
 
+    // A real Pecham advertisement, whose status byte is 0x80
+    private val pecham = "0303a5270308425208ff801b1b02a584ea"
+
     @Test
-    fun flagsAndRawAreStored() = runTest {
-        tyreDatabase.insert(tyre(0x83u, "0201060303b0fb"), currentVehicleUuid)
-        assertEquals(0x83u.toUByte(), latest()?.flags)
-        assertEquals("0201060303b0fb", latest()?.raw)
+    fun rawIsStoredAndTheFlagsReadFromIt() = runTest {
+        tyreDatabase.insert(tyre(pecham), currentVehicleUuid)
+        assertEquals(pecham, latest()?.raw)
+        assertEquals(listOf<UByte>(0x80u), latest()?.flags)
     }
 
     @Test
-    fun missingFlagsAndRawStayNull() = runTest {
-        tyreDatabase.insert(tyre(null, null), currentVehicleUuid)
-        assertNull(latest()?.flags)
+    fun withoutRawThereAreNoFlags() = runTest {
+        tyreDatabase.insert(tyre(null), currentVehicleUuid)
         assertNull(latest()?.raw)
+        assertNull(latest()?.flags)
     }
 
     @Test
     fun exportHoldsTheReadings() = runTest {
-        tyreDatabase.insert(tyre(0x01u, "02010605ff12345600"), currentVehicleUuid)
+        tyreDatabase.insert(tyre(pecham), currentVehicleUuid)
         val file = File(appContext.cacheDir, "database_export/test.db")
         // Twice: an existing copy must be replaced, VACUUM INTO alone refuses to overwrite
         databaseExport.exportTo(file)
         databaseExport.exportTo(file)
         SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { copy ->
-            copy.rawQuery("SELECT flags, raw FROM Tyre", null).use { cursor ->
+            copy.rawQuery("SELECT raw FROM Tyre", null).use { cursor ->
                 assertEquals(1, cursor.count)
                 cursor.moveToFirst()
-                assertEquals(1, cursor.getInt(0))
-                assertEquals("02010605ff12345600", cursor.getString(1))
+                assertEquals(pecham, cursor.getString(0))
             }
         }
     }

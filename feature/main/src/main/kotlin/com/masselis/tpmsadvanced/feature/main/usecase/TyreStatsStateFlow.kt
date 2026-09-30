@@ -123,8 +123,8 @@ public class TyreStatsStateFlow internal constructor(
             // The pressure was corrected by the vehicle's calibration, marked by an asterisk
             public val isPressureCalibrated: Boolean = false,
             public val battery: Battery? = null,
-            // The status byte of the last packet, see Tyre.flags
-            public val flags: UByte? = null,
+            // The status bytes of the last packet, see Tyre.flags
+            public val flags: List<UByte>? = null,
             // An early leak warning, it never makes the tyre alert on its own
             public val pressureLoss: PressureLoss? = null,
         ) : State()
@@ -144,7 +144,7 @@ public class TyreStatsStateFlow internal constructor(
             public val battery: Battery? = null,
             // Raised by the sensor itself (Sysgration), whatever the read values
             public val isSensorAlarm: Boolean = false,
-            public val flags: UByte? = null,
+            public val flags: List<UByte>? = null,
             public val pressureLoss: PressureLoss? = null,
         ) : State()
 

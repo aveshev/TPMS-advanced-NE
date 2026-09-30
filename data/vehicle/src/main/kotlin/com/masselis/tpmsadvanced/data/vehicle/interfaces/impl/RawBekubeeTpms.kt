@@ -16,6 +16,7 @@ import kotlin.math.roundToInt
 @Suppress("MagicNumber")
 internal data class RawBekubeeTpms private constructor(
     private val rssi: Int,
+    // Kept for equality: the company ID changes with the state, see invoke()
     private val companyId: Int,
     private val manufacturerData: ByteArray,
 ) : Raw {
@@ -37,9 +38,6 @@ internal data class RawBekubeeTpms private constructor(
         .toFloat()
         .celsius
 
-    // The company ID changes with the state of the sensor, see invoke()
-    fun flags() = (companyId and 0xFF).toUByte()
-
     // Returns 2.97 for 2.97 volts
     fun voltage() = (manufacturerData[0].toInt() and 0xFF) * 0.01f + 1.22f
 
@@ -53,7 +51,6 @@ internal data class RawBekubeeTpms private constructor(
         // The low battery is reported through batteryVoltage, these sensors send no alarm
         false,
         voltage().volts,
-        flags(),
     )
 
     override fun equals(other: Any?): Boolean {

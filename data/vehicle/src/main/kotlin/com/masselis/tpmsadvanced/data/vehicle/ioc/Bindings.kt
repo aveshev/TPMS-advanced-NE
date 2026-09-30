@@ -92,13 +92,6 @@ public interface Bindings {
     @Provides
     private fun databaseExport(driver: SqlDriver): DatabaseExport = DatabaseExport(driver)
 
-    @Provides
-    private fun uByteAdapter(): ColumnAdapter<UByte, Long> =
-        object : ColumnAdapter<UByte, Long> {
-            override fun decode(databaseValue: Long): UByte = databaseValue.toUByte()
-            override fun encode(value: UByte): Long = value.toLong()
-        }
-
     @Suppress("MagicNumber")
     @Provides
     private fun locationAdapter(): ColumnAdapter<Location, Long> =
@@ -166,7 +159,6 @@ public interface Bindings {
         temperatureAdapter: ColumnAdapter<Temperature, Double>,
         uShortAdapter: ColumnAdapter<UShort, Long>,
         voltageAdapter: ColumnAdapter<Voltage, Double>,
-        uByteAdapter: ColumnAdapter<UByte, Long>,
     ): Database = Database(
         driver,
         VehicleAdapter = Vehicle.Adapter(
@@ -192,7 +184,6 @@ public interface Bindings {
             uShortAdapter,
             uuidAdapter,
             voltageAdapter,
-            uByteAdapter,
         )
     )
 }

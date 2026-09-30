@@ -120,19 +120,17 @@ internal class MockSensorTest {
     }
 
     @Test
-    fun `flags go to the byte each decoder reads them from`() {
+    fun `flags go to the status byte the tyre shows`() {
         reading(kpa = 200f, celsius = 20f, flags = 0x5A).let { reading ->
-            assertEquals(0x5A.toByte(), PECHAM.advertisement(reading)[10])
-            assertEquals(0x5A.toByte(), BEKUBEE_KY.advertisement(reading)[10])
-            assertEquals(0x5A.toByte(), WICARLINK.advertisement(reading)[17])
-            // Low byte of the company ID, which leads the manufacturer data
-            assertEquals(0x5A.toByte(), BEKUBEE_TPMS.advertisement(reading).adStructures().getValue(0xFF)[0])
-            // Byte 15 after the 2 bytes of company ID
-            assertEquals(0x5A.toByte(), SYSGRATION.advertisement(reading).adStructures().getValue(0xFF)[2 + 15])
-            MockSensor.entries.forEach { assertNotNull(it.advertisement(reading).decoded(), "$it with flags") }
+            listOf(PECHAM, BEKUBEE_KY, BEKUBEE_TPMS, SYSGRATION).forEach { sensor ->
+                val advertisement = sensor.advertisement(reading)
+                assertNotNull(advertisement.decoded(), "$sensor with flags")
+                assertEquals(listOf<UByte>(0x5Au), Advertisement(advertisement).statusBytes, "$sensor")
+            }
         }
-        // Wicarlink's 9th pressure bit is its flags byte being 1
-        assertEquals(1.toByte(), WICARLINK.advertisement(reading(kpa = 900f, celsius = 20f, flags = 1))[17])
+        // Wicarlink's 9th pressure bit is byte 17 being 1
+        assertEquals(1.toByte(), WICARLINK.advertisement(reading(kpa = 900f, celsius = 20f))[17])
+        assertEquals(0.toByte(), WICARLINK.advertisement(reading(kpa = 200f, celsius = 20f))[17])
         // Sysgration's alarm is its flags byte being 1
         assertTrue(SYSGRATION.advertisement(reading(kpa = 200f, celsius = 20f, flags = 1)).decoded()!!.asTyre().isAlarm)
     }
@@ -140,8 +138,7 @@ internal class MockSensorTest {
     @Test
     fun `values an advertisement cannot carry are rejected`() {
         assertFailsWith<IllegalArgumentException> { PECHAM.advertisement(reading(kpa = 200f, celsius = 20f, flags = 256)) }
-        assertFailsWith<IllegalArgumentException> { WICARLINK.advertisement(reading(kpa = 900f, celsius = 20f, flags = 0)) }
-        assertFailsWith<IllegalArgumentException> { WICARLINK.advertisement(reading(kpa = 200f, celsius = 20f, flags = 1)) }
+        assertFailsWith<IllegalArgumentException> { WICARLINK.advertisement(reading(kpa = 200f, celsius = 20f, flags = 0)) }
         assertFailsWith<IllegalArgumentException> { SYSGRATION.advertisement(reading(kpa = 200f, celsius = 20f, isAlarm = true, flags = 3)) }
         assertFailsWith<IllegalArgumentException> { PECHAM.advertisement(reading(kpa = -1f, celsius = 20f)) }
         assertFailsWith<IllegalArgumentException> { WICARLINK.advertisement(reading(kpa = 200f, celsius = -60f)) }

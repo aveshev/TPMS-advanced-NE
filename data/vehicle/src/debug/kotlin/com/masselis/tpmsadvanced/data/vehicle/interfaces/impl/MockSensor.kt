@@ -34,8 +34,9 @@ internal enum class MockSensor {
     },
 
     /**
-     * `flags` is byte 17, whose bit 0 is the pressure's 9th bit: the decoder adds 256 to the
-     * pressure when the byte is exactly 1. It defaults to that bit, and has to agree with it.
+     * `flags` is refused: which bytes carry the status is unknown (bytes 9, 10, 14 and 15 are the
+     * candidates shown on the tyre), replay raw bytes to set them. Byte 17 carries the pressure's
+     * 9th bit, the decoder adding 256 to the pressure when it is exactly 1.
      */
     WICARLINK {
         // Captured from a real sensor (see WircarlinkTest), only the reading's bytes are replaced
@@ -46,13 +47,10 @@ internal enum class MockSensor {
                     .roundToInt()
                     .let { pressure ->
                         bytes[12] = pressure.toByte()
-                        bytes[17] = (reading.flags?.within("flags", 0..255) ?: (pressure shr 8))
-                            .also {
-                                require((it == 1) == (pressure >= 256)) {
-                                    "flags must be 1 above about 803 kpa for WICARLINK, and anything but 1 below: the decoder reads the pressure's 9th bit from it"
-                                }
-                            }
-                            .toByte()
+                        require(reading.flags == null) {
+                            "WICARLINK takes no flags, its status bytes are unknown: replay raw bytes to set bytes 9, 10, 14 or 15"
+                        }
+                        bytes[17] = (pressure shr 8).toByte()
                     }
                 bytes[11] = reading.voltageByte(default = 33)
                 bytes[13] = reading.celsius.within("celsius", -55f..200f).roundToInt().plus(55).toByte()
