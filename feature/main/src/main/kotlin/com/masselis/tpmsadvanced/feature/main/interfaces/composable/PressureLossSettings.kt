@@ -89,8 +89,8 @@ private fun PressureLossSettings(
             options = VehiclePressureLossUseCase.MIN_DROPS,
             selected = minDrop,
             onSelect = onMinDrop,
-            // 7.5 %, not 7.50 %
-            label = { "${(it * 100).toBigDecimal().stripTrailingZeros().toPlainString()} %" },
+            // A float share: 0.075 × 100 is 7.5000005, rounded to one decimal then "10.0" shown as "10"
+            label = { "${"%.1f".format(it * 100).trimEnd('0').trimEnd('.', ',')} %" },
         )
         SwitchSettingsItem(
             headline = "Always show leak rate",
