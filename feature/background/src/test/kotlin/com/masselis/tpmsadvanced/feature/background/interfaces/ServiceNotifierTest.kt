@@ -1,12 +1,16 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces
 
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.LowBatteryAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureLossAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.SensorAlarm
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
 import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
@@ -20,6 +24,7 @@ internal class ServiceNotifierTest {
 
     private val atmosphere = TyreAtmosphere(0.0, 1, 1f.bar, 20f.celsius)
     private val otherAtmosphere = TyreAtmosphere(0.0, 2, 3f.bar, 90f.celsius)
+    private val loss = PressureLoss(0.6f.bar, 0.1f.bar, 0.0, 600.0)
 
     private fun vehicle(vehicleName: String, vehicleUuid: UUID = UUID.randomUUID()) =
         mockk<Vehicle> {
@@ -137,5 +142,54 @@ internal class ServiceNotifierTest {
             )
         )
         assertEquals(PressureAlert(uuid, "Bike", otherAtmosphere), state)
+    }
+
+    @Test
+    fun `a pressure loss is reported when no tyre alerts`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.None,
+                vehicle("Bike", uuid) to Alert.PressureLoss(Wheel(REAR_LEFT), loss),
+            )
+        )
+        assertEquals(PressureLossAlert(uuid, "Bike", Wheel(REAR_LEFT), loss), state)
+    }
+
+    @Test
+    fun `a temperature alert wins over a pressure loss of an earlier vehicle`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.PressureLoss(Wheel(REAR_LEFT), loss),
+                vehicle("Bike", uuid) to Alert.Temperature(otherAtmosphere),
+            )
+        )
+        assertEquals(TemperatureAlert(uuid, "Bike", otherAtmosphere), state)
+    }
+
+    @Test
+    fun `a pressure loss wins over a low battery of an earlier vehicle`() {
+        val uuid = UUID.randomUUID()
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.LowBattery(atmosphere),
+                vehicle("Bike", uuid) to Alert.PressureLoss(Wheel(REAR_LEFT), loss),
+            )
+        )
+        assertEquals(PressureLossAlert(uuid, "Bike", Wheel(REAR_LEFT), loss), state)
+    }
+
+    @Test
+    fun `the tyre losing pressure the fastest is reported`() {
+        val uuid = UUID.randomUUID()
+        val sooner = loss.copy(perHour = 1.2f.bar)
+        val state = worst(
+            listOf(
+                vehicle("Car") to Alert.PressureLoss(Wheel(REAR_LEFT), loss),
+                vehicle("Bike", uuid) to Alert.PressureLoss(Wheel(REAR_LEFT), sooner),
+            )
+        )
+        assertEquals(PressureLossAlert(uuid, "Bike", Wheel(REAR_LEFT), sooner), state)
     }
 }

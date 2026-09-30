@@ -83,3 +83,21 @@ public sealed interface Tyre : Parcelable {
         override val flags: UByte? = null,
     ) : Tyre, SensorInput
 }
+
+/**
+ * The atmosphere shown for this record, its pressure corrected by [calibration] when the vehicle has
+ * one
+ */
+public fun Tyre.toAtmosphere(calibration: PressureCalibration?): TyreAtmosphere = TyreAtmosphere(
+    timestamp,
+    sensorId,
+    pressure,
+    temperature,
+    batteryVoltage,
+    isAlarm,
+    flags,
+).let { atmosphere ->
+    calibration
+        ?.let { atmosphere.copy(pressure = it.applyTo(atmosphere.pressure)) }
+        ?: atmosphere
+}

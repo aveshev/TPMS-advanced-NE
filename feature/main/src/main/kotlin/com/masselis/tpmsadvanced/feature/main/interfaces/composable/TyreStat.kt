@@ -30,6 +30,7 @@ import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
@@ -121,12 +122,18 @@ private fun TyreStat(
     val isPressureAlert = state is State.Alerting && state.isPressureAlert
     val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
     val isSensorAlarm = state is State.Alerting && state.isSensorAlarm
+    // A tyre losing pressure while riding, see PressureLoss.Tracker
+    val isLeaking = when (state) {
+        State.NotDetected -> false
+        is State.Normal -> state.pressureLoss != null
+        is State.Alerting -> state.pressureLoss != null
+    }
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val errorColor = MaterialTheme.colorScheme.error
     val pressureColor = if (isPressureAlert) errorColor else onSurfaceColor
     val temperatureColor = if (isTemperatureAlert) errorColor else onSurfaceColor
     var isVisible by remember { mutableStateOf(true) }
-    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isBatteryAlert) {
+    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isLeaking || isBatteryAlert) {
         LaunchedEffect(key1 = isVisible) {
             launch {
                 repeat(Int.MAX_VALUE) {
@@ -189,8 +196,9 @@ private fun TyreStat(
         }
 
         // The sensor's own alarm, its meaning isn't documented but a leak is the likely one. The
-        // pressure and temperature above stay as the sensor read them.
-        if (isSensorAlarm) {
+        // pressure and temperature above stay as the sensor read them. The same goes for the
+        // pressure falling while riding.
+        if (isSensorAlarm || isLeaking) {
             Text(
                 "Leaking?",
                 fontWeight = FontWeight.SemiBold,
@@ -584,5 +592,24 @@ internal fun TyreStatFlagsPreview() {
         showSensorId = true,
         showTimeSinceUpdate = false,
         showSensorFlags = true,
+    )
+}
+
+
+@Preview
+@Composable
+internal fun TyreStatPressureLossPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = State.Normal(
+            0.0,
+            0,
+            2f.bar,
+            PressureUnit.BAR,
+            30f.celsius,
+            TemperatureUnit.CELSIUS,
+            pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
+        ),
+        showTimeSinceUpdate = false,
     )
 }

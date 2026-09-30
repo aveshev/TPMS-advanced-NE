@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS tyre_vehicle_location_timestamp ON Tyre(vehicleId, location, timestamp);

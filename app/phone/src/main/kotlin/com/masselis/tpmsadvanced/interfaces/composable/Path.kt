@@ -47,6 +47,10 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings/debug"
     }
 
+    data object PressureLoss : Path {
+        override fun toString(): String = "app_settings/pressure_loss"
+    }
+
     data object PersistentScanning : Path {
         override fun toString(): String = "app_settings/persistent_scanning"
     }
@@ -97,6 +101,7 @@ internal sealed interface Path {
                 AppSettings,
                 TimeSinceUpdate,
                 Debug,
+                PressureLoss,
                 PersistentScanning,
                 ActivateScanConditions,
                 StayActiveDuration,

@@ -71,4 +71,11 @@ internal class TyreStatTest {
             TyreStatTemperatureAlertingPreview()
         }
     }
+
+    @Test
+    fun pressureLoss() {
+        paparazzi.snapshot {
+            TyreStatPressureLossPreview()
+        }
+    }
 }

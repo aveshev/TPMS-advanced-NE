@@ -60,6 +60,23 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_BATTERY_VOLTAGE", newValue) }
     }
 
+    /**
+     * Warns about a tyre losing at least [pressureLossMinDrop] kPa while riding. Experimental, so
+     * off by default.
+     */
+    public val pressureLoss: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("PRESSURE_LOSS", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("PRESSURE_LOSS", newValue) }
+    }
+
+    /** In kPa */
+    public val pressureLossMinDrop: MutableStateFlow<Float> = observableStateFlow(
+        sharedPreferences.getFloat("PRESSURE_LOSS_MIN_DROP_KPA", DEFAULT_PRESSURE_LOSS_MIN_DROP)
+    ) { _, newValue ->
+        sharedPreferences.edit { putFloat("PRESSURE_LOSS_MIN_DROP_KPA", newValue) }
+    }
+
     public val persistentScanning: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("PERSISTENT_SCANNING", false)
     ) { _, newValue ->
@@ -193,5 +210,6 @@ public class AppPreferences internal constructor(
 
     private companion object {
         const val DEFAULT_STAY_ACTIVE_MINUTES = 10
+        const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 7f
     }
 }

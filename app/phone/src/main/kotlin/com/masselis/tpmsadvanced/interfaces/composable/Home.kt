@@ -211,11 +211,19 @@ internal fun VehicleHome(
                             openDebug = {
                                 navController.navigate("${Path.Debug}")
                             },
+                            openPressureLoss = {
+                                navController.navigate("${Path.PressureLoss}")
+                            },
                             modifier = modifier
                         )
                     }
                     composable("${Path.Debug}") {
                         DebugSettingsPage(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.PressureLoss}") {
+                        PressureLossSettingsPage(
                             modifier = modifier
                         )
                     }
@@ -387,6 +395,7 @@ private fun TopAppBar(
                 is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.CalibrationSettings -> Text(text = "Pressure calibration")
                 is Path.BatterySettings -> Text(text = "Battery voltage")
+                is Path.PressureLoss -> Text(text = "Pressure loss")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")
                 is Path.Debug -> Text(text = "Debug")
@@ -409,6 +418,7 @@ private fun TopAppBar(
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
                 is Path.BatterySettings,
+                is Path.PressureLoss,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.Debug,
@@ -486,6 +496,7 @@ private fun TopAppBar(
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
                 is Path.BatterySettings,
+                is Path.PressureLoss,
                 is Path.AppSettings,
                 is Path.TimeSinceUpdate,
                 is Path.Debug,

@@ -55,6 +55,7 @@ internal class ListenTyreWithDatabaseUseCaseTest {
         location = Location.Wheel(FRONT_LEFT)
         tyreDatabase = mockk {
             coEvery { insert(any(), any()) } returns Unit
+            coEvery { prune(any<Location.Wheel>(), any()) } returns Unit
             every { latestByTyreLocationByVehicle(any<Location.Wheel>(), any()) } returns
                     mockkQueryOneOrNull(null as Tyre.Located?)
         }
@@ -81,6 +82,29 @@ internal class ListenTyreWithDatabaseUseCaseTest {
             assertEquals(tyresToEmit[1], awaitItem())
         }
         coVerify(exactly = 2) { tyreDatabase.insert(any(), any()) }
+        coroutineContext.cancelChildren()
+    }
+
+    @Test
+    fun `a burst is emitted whole but stored once`() = runTest {
+        val timestamp = now()
+        val tyresToEmit = listOf(
+            Tyre.Located(timestamp, -20, 1, 2f.bar, 20f.celsius, 50u, false, Location.Wheel(FRONT_LEFT)),
+            Tyre.Located(timestamp + 0.2, -25, 1, 2f.bar, 20f.celsius, 50u, false, Location.Wheel(FRONT_LEFT)),
+            Tyre.Located(timestamp + 0.4, -22, 1, 2f.bar, 20f.celsius, 50u, false, Location.Wheel(FRONT_LEFT)),
+            // A new reading
+            Tyre.Located(timestamp + 5, -20, 1, 1.9f.bar, 20f.celsius, 50u, false, Location.Wheel(FRONT_LEFT)),
+            // The same values a while later, stored so the latest stored reading stays recent
+            Tyre.Located(timestamp + 65, -20, 1, 1.9f.bar, 20f.celsius, 50u, false, Location.Wheel(FRONT_LEFT)),
+        )
+        every { listenTyreUseCase.listen() } returns tyresToEmit
+            .asFlow()
+            .onCompletion { awaitCancellation() }
+        test().listen().test {
+            tyresToEmit.forEach { assertEquals(it, awaitItem()) }
+        }
+        coVerify(exactly = 3) { tyreDatabase.insert(any(), any()) }
+        coVerify(exactly = 1) { tyreDatabase.prune(location, any()) }
         coroutineContext.cancelChildren()
     }
 

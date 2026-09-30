@@ -2,12 +2,14 @@ package com.masselis.tpmsadvanced.feature.main.ioc
 
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DebugSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DemoModeSwitchViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PreconditionsViewModel
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PressureLossSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreDisplaySettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.CurrentVehicleDropdownViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -56,6 +58,12 @@ public interface Bindings {
     private fun debugSettingsViewModel(appPreferences: AppPreferences): DebugSettingsViewModel =
         DebugSettingsViewModel(appPreferences)
 
+    @Provides
+    private fun pressureLossSettingsViewModel(
+        appPreferences: AppPreferences,
+        unitPreferences: UnitPreferences,
+    ): PressureLossSettingsViewModel = PressureLossSettingsViewModel(appPreferences, unitPreferences)
+
     @SingleIn(AppScope::class)
     @Provides
     private fun vehicleComponentCacheUseCase(
@@ -73,12 +81,14 @@ public interface Bindings {
 
     public val featureMainInternal: Internal
 
+    @Suppress("LongParameterList")
     @Inject
     public class Internal internal constructor(
         internal val vehicleComponentCache: () -> VehicleComponentCacheUseCase,
         internal val preconditionsViewModel: () -> PreconditionsViewModel,
         internal val tyreDisplaySettingsViewModel: () -> TyreDisplaySettingsViewModel,
         internal val debugSettingsViewModel: () -> DebugSettingsViewModel,
+        internal val pressureLossSettingsViewModel: () -> PressureLossSettingsViewModel,
         internal val currentVehicleDropdownViewModel: CurrentVehicleDropdownViewModelImpl.Factory,
         internal val demoModeSwitchViewModel: () -> DemoModeSwitchViewModel
     )
@@ -88,6 +98,7 @@ public interface Bindings {
         internal fun PreconditionsViewModel() = featureMainInternal.preconditionsViewModel()
         internal fun TyreDisplaySettingsViewModel() = featureMainInternal.tyreDisplaySettingsViewModel()
         internal fun DebugSettingsViewModel() = featureMainInternal.debugSettingsViewModel()
+        internal fun PressureLossSettingsViewModel() = featureMainInternal.pressureLossSettingsViewModel()
         internal val CurrentVehicleDropdownViewModel
             get() = featureMainInternal.currentVehicleDropdownViewModel
 

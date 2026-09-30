@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
@@ -18,12 +19,14 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class VehicleAlertUseCase(
     locations: List<Location>,
     listenAtmosphere: (Location) -> Flow<TyreAtmosphere>,
+    listenPressureLoss: (Location) -> Flow<PressureLoss?>,
     vehicleRangesUseCase: VehicleRangesUseCase,
 ) {
 
     constructor(vehicleComponent: VehicleComponent) : this(
         vehicleComponent.vehicle.kind.locations.toList(),
         { vehicleComponent.TyreComponent(it).tyreAtmosphereUseCase.listen() },
+        { vehicleComponent.TyreComponent(it).tyrePressureLossStateFlow },
         vehicleComponent.vehicleRangesUseCase,
     )
 
@@ -37,7 +40,16 @@ internal class VehicleAlertUseCase(
 
         data class Temperature(val atmosphere: TyreAtmosphere) : Alert
 
-        /** The least severe, only reported when no tyre alerts for its pressure or temperature */
+        /**
+         * An early leak warning, only reported when no tyre alerts for its pressure, a sensor alarm
+         * or its temperature
+         */
+        data class PressureLoss(
+            val location: Location,
+            val loss: com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss,
+        ) : Alert
+
+        /** The least severe, only reported when no tyre alerts for anything else */
         data class LowBattery(val atmosphere: TyreAtmosphere) : Alert
     }
 
@@ -63,7 +75,8 @@ internal class VehicleAlertUseCase(
         ) { it },
         vehicleRangesUseCase.highTemp,
         vehicleRangesUseCase.lowBatteryVoltage,
-    ) { atmospheres, pressureRanges, highTemp, lowBatteryVoltage ->
+        combine(locations.map { listenPressureLoss(it).onStart { emit(null) } }) { it.toList() },
+    ) { atmospheres, pressureRanges, highTemp, lowBatteryVoltage, losses ->
         atmospheres
             .withIndex()
             .mapNotNull { (index, atmosphere) -> atmosphere?.let { index to it } }
@@ -77,6 +90,11 @@ internal class VehicleAlertUseCase(
                     ?: reported
                         .firstOrNull { (_, atmosphere) -> atmosphere.temperature > highTemp }
                         ?.let { (_, atmosphere) -> Alert.Temperature(atmosphere) }
+                    // The tyre losing pressure the fastest
+                    ?: locations
+                        .zip(losses)
+                        .mapNotNull { (location, loss) -> loss?.let { Alert.PressureLoss(location, it) } }
+                        .maxByOrNull { it.loss.perHour }
                     ?: reported
                         .firstOrNull { (_, atmosphere) ->
                             atmosphere

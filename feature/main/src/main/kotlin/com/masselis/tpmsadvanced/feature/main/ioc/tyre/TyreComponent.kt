@@ -7,6 +7,7 @@ import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreSubcomponentBindings.
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreAtmosphereUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow
+import com.masselis.tpmsadvanced.feature.main.usecase.TyrePressureLossStateFlow
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.GraphExtension
@@ -32,6 +33,7 @@ public interface TyreComponent {
     public val tyreAtmosphereUseCase: TyreAtmosphereUseCase
     public val tyreIconStateFlow: TyreIconStateFlow
     public val tyreStatsStateFlow: TyreStatsStateFlow
+    public val tyrePressureLossStateFlow: TyrePressureLossStateFlow
 
     public companion object {
         public fun TyreComponent.keyed(): Keyed = mapOf(
