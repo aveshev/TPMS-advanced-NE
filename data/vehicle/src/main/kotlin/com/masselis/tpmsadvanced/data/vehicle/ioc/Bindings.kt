@@ -12,6 +12,7 @@ import com.masselis.tpmsadvanced.data.vehicle.Database
 import com.masselis.tpmsadvanced.data.vehicle.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.Vehicle
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.DatabaseExport
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
@@ -88,6 +89,16 @@ public interface Bindings {
             override fun encode(value: UShort): Long = value.toLong()
         }
 
+    @Provides
+    private fun databaseExport(driver: SqlDriver): DatabaseExport = DatabaseExport(driver)
+
+    @Provides
+    private fun uByteAdapter(): ColumnAdapter<UByte, Long> =
+        object : ColumnAdapter<UByte, Long> {
+            override fun decode(databaseValue: Long): UByte = databaseValue.toUByte()
+            override fun encode(value: UByte): Long = value.toLong()
+        }
+
     @Suppress("MagicNumber")
     @Provides
     private fun locationAdapter(): ColumnAdapter<Location, Long> =
@@ -155,6 +166,7 @@ public interface Bindings {
         temperatureAdapter: ColumnAdapter<Temperature, Double>,
         uShortAdapter: ColumnAdapter<UShort, Long>,
         voltageAdapter: ColumnAdapter<Voltage, Double>,
+        uByteAdapter: ColumnAdapter<UByte, Long>,
     ): Database = Database(
         driver,
         VehicleAdapter = Vehicle.Adapter(
@@ -180,6 +192,7 @@ public interface Bindings {
             uShortAdapter,
             uuidAdapter,
             voltageAdapter,
+            uByteAdapter,
         )
     )
 }

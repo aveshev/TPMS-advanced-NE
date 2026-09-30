@@ -28,6 +28,8 @@ public class TyreDatabase internal constructor(
             tyre.isAlarm,
             vehicleId,
             tyre.batteryVoltage,
+            tyre.flags,
+            tyre.raw,
         )
     }
 
@@ -38,7 +40,7 @@ public class TyreDatabase internal constructor(
         .latestByTyreLocationByVehicle(
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, flags, raw ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -49,6 +51,8 @@ public class TyreDatabase internal constructor(
                 isAlarm,
                 location,
                 batteryVoltage,
+                flags,
+                raw,
             )
         }
         .asOneOrNull()
@@ -63,7 +67,7 @@ public class TyreDatabase internal constructor(
             sensorId,
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, flags, raw ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -74,6 +78,8 @@ public class TyreDatabase internal constructor(
                 isAlarm,
                 location,
                 batteryVoltage,
+                flags,
+                raw,
             )
         }
         .asOneOrNull()
@@ -86,7 +92,7 @@ public class TyreDatabase internal constructor(
         .allByTyreLocationByVehicle(
             location,
             vehicleId,
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, flags, raw ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -97,6 +103,8 @@ public class TyreDatabase internal constructor(
                 isAlarm,
                 location,
                 batteryVoltage,
+                flags,
+                raw,
             )
         }
         .asList()

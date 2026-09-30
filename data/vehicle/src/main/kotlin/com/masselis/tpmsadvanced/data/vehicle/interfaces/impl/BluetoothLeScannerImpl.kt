@@ -33,7 +33,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -102,22 +102,30 @@ internal class BluetoothLeScannerImpl(
         }
     }.flowOn(Dispatchers.Main) // System's BluetoothLeScanner class as issues if called on a background thread
         .withMockAdvertisements(context, FILTERS)
-        .mapNotNull {
-            logger.v { "Sensor found during scan. Address: ${it.device.address}, scan bytes: ${it.scanRecord?.bytes?.toHexString()}" }
-            RawPecham(it)
-                ?: RawBekubeeKy(it)
-                ?: RawWicarlink(it)
-                ?: RawBekubeeTpms(it)
-                ?: RawSysgration(it)
-                ?: run {
-                    logger.d { "Sensor not parsed. Scan bytes: ${it.scanRecord?.bytes?.toHexString()}" }
-                    null
-                }
+        .mapNotNull { result ->
+            logger.v { "Sensor found during scan. Address: ${result.device.address}, scan bytes: ${result.scanRecord?.bytes?.toHexString()}" }
+            (
+                RawPecham(result)
+                    ?: RawBekubeeKy(result)
+                    ?: RawWicarlink(result)
+                    ?: RawBekubeeTpms(result)
+                    ?: RawSysgration(result)
+                    ?: run {
+                        logger.d { "Sensor not parsed. Scan bytes: ${result.scanRecord?.bytes?.toHexString()}" }
+                        null
+                    }
+            )?.let { it to result.scanRecord?.advertisementHex }
         }
         // A real sensor emits the same value up to 10 times in a short time, to avoid to emit the
-        // same value 10 times, I use `distinctUntilChanged()`.
-        .distinctUntilChanged()
-        .map { it.asTyre() }
+        // same value 10 times, only a change of the decoded packet goes through.
+        .distinctUntilChangedBy { (raw, _) -> raw }
+        .map { (raw, advertisement) ->
+            // Kept whole, for what the decoders don't read yet
+            when (val tyre = raw.asTyre()) {
+                is Tyre.Unlocated -> tyre.copy(raw = advertisement)
+                is Tyre.SensorLocated -> tyre.copy(raw = advertisement)
+            }
+        }
         .onEach { logger.d("Sensor content: $it") }
 
     private val lowLatencyScanFlow = scan(ScanSettings.SCAN_MODE_LOW_LATENCY).shared()

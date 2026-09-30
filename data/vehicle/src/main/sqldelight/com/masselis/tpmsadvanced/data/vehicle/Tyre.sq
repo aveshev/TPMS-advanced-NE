@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Voltage;
 import java.util.UUID;
 import kotlin.Boolean;
 import kotlin.Int;
+import kotlin.UByte;
 import kotlin.UShort;
 
 CREATE TABLE Tyre(
@@ -18,6 +19,10 @@ CREATE TABLE Tyre(
     isAlarm INTEGER AS Boolean NOT NULL,
     vehicleId TEXT AS UUID NOT NULL,
     batteryVoltage REAL AS Voltage,
+    -- The status byte of the packet, when the sensor has one
+    flags INTEGER AS UByte,
+    -- The whole advertisement in hexadecimal, for what the decoders don't read yet
+    raw TEXT,
     FOREIGN KEY(vehicleId) REFERENCES Vehicle(uuid) ON DELETE CASCADE
 );
 
@@ -25,24 +30,24 @@ CREATE TABLE Tyre(
 CREATE INDEX IF NOT EXISTS tyre_vehicle_location_timestamp ON Tyre(vehicleId, location, timestamp);
 
 insert:
-INSERT INTO Tyre (id, timestamp, rssi, location, pressure, temperature, battery, isAlarm, vehicleId, batteryVoltage) VALUES (?, ?,?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Tyre (id, timestamp, rssi, location, pressure, temperature, battery, isAlarm, vehicleId, batteryVoltage, flags, raw) VALUES (?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 latestByTyreLocationByVehicle:
-SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm, Tyre.batteryVoltage FROM Tyre
+SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm, Tyre.batteryVoltage, Tyre.flags, Tyre.raw FROM Tyre
 INNER JOIN Vehicle ON Tyre.vehicleId = Vehicle.uuid
 WHERE location = ? AND Vehicle.uuid = ?
 ORDER BY timestamp DESC
 LIMIT 1;
 
 latestBySensorByTyreLocationByVehicle:
-SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm, Tyre.batteryVoltage FROM Tyre
+SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm, Tyre.batteryVoltage, Tyre.flags, Tyre.raw FROM Tyre
 INNER JOIN Vehicle ON Tyre.vehicleId = Vehicle.uuid
 WHERE Tyre.id = ? AND location = ? AND Vehicle.uuid = ?
 ORDER BY timestamp DESC
 LIMIT 1;
 
 allByTyreLocationByVehicle:
-SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm, Tyre.batteryVoltage FROM Tyre
+SELECT Tyre.id, Tyre.timestamp, Tyre.rssi, Tyre.location, Tyre.pressure, Tyre.temperature, Tyre.battery, Tyre.isAlarm, Tyre.batteryVoltage, Tyre.flags, Tyre.raw FROM Tyre
 INNER JOIN Vehicle ON Tyre.vehicleId = Vehicle.uuid
 WHERE location = ? AND Vehicle.uuid = ?
 ORDER BY timestamp ASC;

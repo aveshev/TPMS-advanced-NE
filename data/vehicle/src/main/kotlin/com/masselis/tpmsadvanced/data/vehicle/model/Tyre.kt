@@ -22,10 +22,17 @@ public sealed interface Tyre : Parcelable {
 
     /**
      * The status byte of the packet, as broadcast: shown for debugging, since what most of its
-     * bits mean is unknown. null when the sensor has no such byte, or when this tyre was read from
-     * the database, which doesn't store it.
+     * bits mean is unknown. null when the sensor has no such byte, or for a reading stored before
+     * the database kept it.
      */
     public val flags: UByte?
+
+    /**
+     * The whole advertisement as received, in hexadecimal, so that what the decoders don't read
+     * yet can be looked into later from an exported database. null for the readings which didn't
+     * come from a scan (demo mode), or were stored before the database kept it.
+     */
+    public val raw: String?
 
     public sealed interface SensorInput : Tyre
 
@@ -40,6 +47,7 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         override val batteryVoltage: Voltage? = null,
         override val flags: UByte? = null,
+        override val raw: String? = null,
     ) : Tyre, SensorInput
 
     @Parcelize
@@ -54,6 +62,7 @@ public sealed interface Tyre : Parcelable {
         val location: Location,
         override val batteryVoltage: Voltage? = null,
         override val flags: UByte? = null,
+        override val raw: String? = null,
     ) : Tyre {
         public constructor(tyre: Tyre, location: Location) : this(
             tyre.timestamp,
@@ -66,6 +75,7 @@ public sealed interface Tyre : Parcelable {
             location,
             tyre.batteryVoltage,
             tyre.flags,
+            tyre.raw,
         )
     }
 
@@ -81,6 +91,7 @@ public sealed interface Tyre : Parcelable {
         val location: SensorLocation,
         override val batteryVoltage: Voltage? = null,
         override val flags: UByte? = null,
+        override val raw: String? = null,
     ) : Tyre, SensorInput
 }
 

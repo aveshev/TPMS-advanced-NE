@@ -36,14 +36,16 @@ sqldelight {
                 .asFileTree
                 .matching { include("*.sqm") }
                 .files
-                .sortedBy { it.nameWithoutExtension }
+                // Numerically: as text, "10" would sort before "9"
+                .sortedBy { it.nameWithoutExtension.toInt() }
                 .map { it.nameWithoutExtension }
             val snapshots = schemaOutputDirectory
                 .get()
                 .asFileTree
                 .matching { include("*.db") }
                 .files
-                .sortedBy { it.nameWithoutExtension }
+                // Numerically: as text, "10" would sort before "9"
+                .sortedBy { it.nameWithoutExtension.toInt() }
                 .map { it.nameWithoutExtension }
             // Check that all migrations have a corresponding snapshot
             for (migration in migrations) {
