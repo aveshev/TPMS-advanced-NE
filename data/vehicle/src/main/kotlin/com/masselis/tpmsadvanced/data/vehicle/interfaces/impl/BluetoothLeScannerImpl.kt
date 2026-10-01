@@ -158,13 +158,27 @@ internal class BluetoothLeScannerImpl(
         shared(ScanSettings.SCAN_MODE_BALANCED) { scan(ScanSettings.SCAN_MODE_BALANCED) }
 
     @SuppressLint("MissingPermission")
-    override fun advertisements(mode: ScanMode, devices: List<DeviceMatch>?): Flow<Advertisement> =
+    override fun advertisements(
+        mode: ScanMode,
+        devices: List<DeviceMatch>?,
+        reportDelay: Duration,
+    ): Flow<Advertisement> =
         if (devices?.isEmpty() == true) emptyFlow()
-        else shared(mode to devices) {
+        else shared(Triple(mode, devices, reportDelay)) {
             rawScan(
                 devices.orEmpty().flatMap { it.asFilters() },
                 // Every packet, the broadcast period is read from them
-                ScanSettings.Builder().setScanMode(mode.value).build(),
+                ScanSettings
+                    .Builder()
+                    .setScanMode(mode.value)
+                    // Asking for it without the chip supporting it fails the scan
+                    .setReportDelay(
+                        reportDelay
+                            .takeIf { bluetoothAdapter?.isOffloadedScanBatchingSupported == true }
+                            ?.inWholeMilliseconds
+                            ?: 0
+                    )
+                    .build(),
             ).map { result ->
                 Advertisement(
                     address = result.device.address,

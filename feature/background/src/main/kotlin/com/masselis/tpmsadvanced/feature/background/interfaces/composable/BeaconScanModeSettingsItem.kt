@@ -17,15 +17,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.BALANCED
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_LATENCY
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_POWER
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.OPPORTUNISTIC
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BeaconsViewModel
 import com.masselis.tpmsadvanced.feature.background.ioc.Bindings.Companion.BeaconsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.BALANCED
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_LATENCY
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.OPPORTUNISTIC
 
 /** The mode of the background scan looking for beacons, to compare their battery use and delay */
 @Composable
@@ -47,7 +48,7 @@ internal fun BeaconScanModeSettingsItem(
             modifier = Modifier.testTag(BeaconScanModeSettingsItemTags.scanMode),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ScanMode.entries.forEach { option ->
+            Mode.entries.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label) },
                     onClick = {
@@ -67,10 +68,11 @@ internal fun BeaconScanModeSettingsItem(
     }
 }
 
-private val ScanMode.label
+private val Mode.label
     get() = when (this) {
         OPPORTUNISTIC -> "Opportunistic"
         LOW_POWER -> "Low power"
+        LOW_POWER_BATCHED -> "Low power, batched every 30 s"
         BALANCED -> "Balanced"
         LOW_LATENCY -> "Low latency"
     }

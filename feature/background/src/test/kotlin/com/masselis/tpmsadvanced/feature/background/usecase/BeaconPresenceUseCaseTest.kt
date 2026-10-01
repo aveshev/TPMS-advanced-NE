@@ -5,8 +5,10 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Advertisement
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_POWER
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.OPPORTUNISTIC
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.OPPORTUNISTIC
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import io.mockk.every
 import io.mockk.mockk
@@ -36,7 +38,7 @@ internal class BeaconPresenceUseCaseTest {
     fun setup() {
         advertisements = MutableSharedFlow()
         bluetoothOn = MutableStateFlow(true)
-        scanner = mockk { every { advertisements(any(), any()) } returns advertisements }
+        scanner = mockk { every { advertisements(any(), any(), any()) } returns advertisements }
     }
 
     @Test
@@ -117,7 +119,7 @@ internal class BeaconPresenceUseCaseTest {
         bluetoothOn.value = false
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
-            verify(exactly = 0) { scanner.advertisements(any(), any()) }
+            verify(exactly = 0) { scanner.advertisements(any(), any(), any()) }
             bluetoothOn.value = true
             advertisements.emit(advertisement(BIKE.address, rssi = -70))
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
@@ -133,8 +135,9 @@ internal class BeaconPresenceUseCaseTest {
             assertEquals(emptyMap(), awaitItem())
             verify {
                 scanner.advertisements(
-                    OPPORTUNISTIC,
+                    ScanMode.OPPORTUNISTIC,
                     listOf(DeviceMatch(BIKE.address, BIKE.advertisedName), DeviceMatch(nameless.address, null)),
+                    Duration.ZERO,
                 )
             }
         }
@@ -143,7 +146,7 @@ internal class BeaconPresenceUseCaseTest {
     @Test
     fun `a failed scan is tried again later`() = runTest {
         var attempts = 0
-        every { scanner.advertisements(any(), any()) } returns flow {
+        every { scanner.advertisements(any(), any(), any()) } returns flow {
             attempts++
             if (attempts == 1) error("Scanning too frequently")
             emit(advertisement(BIKE.address, rssi = -70))
@@ -152,6 +155,21 @@ internal class BeaconPresenceUseCaseTest {
             assertEquals(emptyMap(), awaitItem())
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
             assertEquals(2, attempts)
+        }
+    }
+
+    @Test
+    fun `a batched scan keeps the beacon nearby between two batches`() = runTest {
+        test().nearby(listOf(BIKE), LOW_POWER_BATCHED).test {
+            assertEquals(emptyMap(), awaitItem())
+            verify { scanner.advertisements(ScanMode.LOW_POWER, any(), 30.seconds) }
+            advertisements.emit(advertisement(BIKE.address, rssi = -70))
+            assertEquals(mapOf(BIKE.address to -70), awaitItem())
+            // The next batch is due
+            delay(35.seconds)
+            expectNoEvents()
+            delay(30.seconds)
+            assertEquals(emptyMap(), awaitItem())
         }
     }
 

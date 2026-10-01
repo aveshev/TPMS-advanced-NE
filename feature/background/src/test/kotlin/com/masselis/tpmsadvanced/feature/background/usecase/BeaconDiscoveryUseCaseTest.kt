@@ -43,14 +43,14 @@ internal class BeaconDiscoveryUseCaseTest {
         bluetoothOn = MutableStateFlow(true)
         reloads = MutableSharedFlow()
         scanning = MutableStateFlow(true)
-        scanner = mockk { every { advertisements(any(), any()) } returns advertisements }
+        scanner = mockk { every { advertisements(any(), any(), any()) } returns advertisements }
     }
 
     @Test
     fun `every named device heard is listed, refreshed every second`() = runTest {
         test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
-            verify { scanner.advertisements(LOW_LATENCY, null) }
+            verify { scanner.advertisements(LOW_LATENCY, null, Duration.ZERO) }
             advertisements.emit(advertisement(BIKE, "CFMOTOR_ee64a312381a", rssi = -84))
             expectNoEvents()
             delay(1.seconds)
@@ -131,7 +131,7 @@ internal class BeaconDiscoveryUseCaseTest {
         bluetoothOn.value = false
         test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
-            verify(exactly = 0) { scanner.advertisements(any(), any()) }
+            verify(exactly = 0) { scanner.advertisements(any(), any(), any()) }
         }
     }
 
@@ -285,7 +285,7 @@ internal class BeaconDiscoveryUseCaseTest {
             assertEquals(listOf(BIKE), awaitListed().devices.map { it.address })
             scanning.value = false
             delay(1.seconds)
-            verify(exactly = 1) { scanner.advertisements(any(), any()) }
+            verify(exactly = 1) { scanner.advertisements(any(), any(), any()) }
             scanning.value = true
             advertisements.emit(advertisement(TAG, "Tag", rssi = -60))
             delay(1.seconds)
@@ -294,7 +294,7 @@ internal class BeaconDiscoveryUseCaseTest {
                 assertEquals(listOf(BIKE), page.devices.map { it.address })
                 assertEquals(1, page.notShown)
             }
-            verify(exactly = 2) { scanner.advertisements(any(), any()) }
+            verify(exactly = 2) { scanner.advertisements(any(), any(), any()) }
         }
     }
 

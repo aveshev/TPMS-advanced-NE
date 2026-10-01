@@ -4,10 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_LATENCY
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_LATENCY
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -65,9 +65,9 @@ internal class BeaconsViewModel(
     }
 
     /** The mode of the background scan for beacons, a debug option */
-    val scanMode: Flow<ScanMode> = appPreferences.beaconScanMode.map { it.asBeaconScanMode() }
+    val scanMode: Flow<Mode> = appPreferences.beaconScanMode.map { it.asBeaconScanMode() }
 
-    fun setScanMode(mode: ScanMode) {
+    fun setScanMode(mode: Mode) {
         appPreferences.beaconScanMode.value = mode.name
     }
 

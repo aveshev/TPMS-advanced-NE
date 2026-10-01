@@ -41,10 +41,16 @@ public interface BluetoothLeScanner {
 
     /**
      * Every advertisement of the devices matching [devices], or of every device around when null.
-     * Each collection scans by itself, nothing is shared or deduplicated. Completes right away for
-     * an empty [devices]: no filter at all would mean every device instead.
+     * Completes right away for an empty [devices]: no filter at all would mean every device instead.
+     * With a [reportDelay], the Bluetooth chip holds the advertisements and hands them over in
+     * batches, waking the phone less often: they come up to [reportDelay] late. Without the chip
+     * supporting it, they come right away.
      */
-    public fun advertisements(mode: ScanMode, devices: List<DeviceMatch>?): Flow<Advertisement>
+    public fun advertisements(
+        mode: ScanMode,
+        devices: List<DeviceMatch>?,
+        reportDelay: Duration = Duration.ZERO,
+    ): Flow<Advertisement>
 
     public fun missingPermission(): List<String>
 

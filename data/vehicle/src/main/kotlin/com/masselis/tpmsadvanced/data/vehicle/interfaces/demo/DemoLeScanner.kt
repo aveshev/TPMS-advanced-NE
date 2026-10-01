@@ -11,6 +11,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlin.time.Duration
 
 @Suppress("MagicNumber")
 public class DemoLeScanner : BluetoothLeScanner {
@@ -126,6 +127,7 @@ public class DemoLeScanner : BluetoothLeScanner {
     override fun advertisements(
         mode: BluetoothLeScanner.ScanMode,
         devices: List<BluetoothLeScanner.DeviceMatch>?,
+        reportDelay: Duration,
     ): Flow<BluetoothLeScanner.Advertisement> = emptyFlow()
 
     override fun missingPermission(): List<String> = emptyList()
