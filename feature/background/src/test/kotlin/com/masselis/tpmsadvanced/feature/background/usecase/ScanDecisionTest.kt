@@ -168,7 +168,12 @@ internal class ScanDecisionTest {
     fun `the beacon override activates a nearby beacon despite the suspend conditions`() {
         assertEquals(
             ScanDecision.Active(setOf(BEACON, CABLE)),
-            decide(setOf(BEACON, CABLE), setOf(BEACON, CABLE), setOf(WIFI, Reason.BLUETOOTH), beaconOverridesSuspend = true)
+            decide(
+                setOf(BEACON, CABLE),
+                setOf(BEACON, CABLE),
+                setOf(WIFI, Reason.BLUETOOTH),
+                beaconOverridesSuspend = true,
+            )
         )
     }
 

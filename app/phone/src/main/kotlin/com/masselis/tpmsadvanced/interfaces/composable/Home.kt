@@ -245,6 +245,9 @@ internal fun VehicleHome(
                             openBluetoothDevices = {
                                 navController.navigate("${Path.ActivateBluetoothDevices}")
                             },
+                            openBeacons = {
+                                navController.navigate("${Path.Beacons}")
+                            },
                             modifier = modifier
                         )
                     }
@@ -276,6 +279,19 @@ internal fun VehicleHome(
                     }
                     composable("${Path.SuspendBluetoothDevices}") {
                         SuspendBluetoothDevicesSettings(
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.Beacons}") {
+                        BeaconsSettings(
+                            openBeaconScan = {
+                                navController.navigate("${Path.BeaconScan}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.BeaconScan}") {
+                        BeaconScanSettings(
                             modifier = modifier
                         )
                     }
@@ -406,6 +422,8 @@ private fun TopAppBar(
                 is Path.ExceptedWifis -> Text(text = "Excepted WiFis")
                 is Path.ActivateBluetoothDevices,
                 is Path.SuspendBluetoothDevices -> Text(text = "Bluetooth devices")
+                is Path.Beacons -> Text(text = "Bluetooth beacons")
+                is Path.BeaconScan -> Text(text = "Add a beacon")
                 is Path.BindingMethod -> Text(text = "Binding method")
                 is Path.Unlocated -> Text(text = "Binding")
                 is Path.QrCode, null -> {}
@@ -429,6 +447,8 @@ private fun TopAppBar(
                 is Path.ExceptedWifis,
                 is Path.ActivateBluetoothDevices,
                 is Path.SuspendBluetoothDevices,
+                is Path.Beacons,
+                is Path.BeaconScan,
                 is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated -> {
@@ -507,6 +527,8 @@ private fun TopAppBar(
                 is Path.ExceptedWifis,
                 is Path.ActivateBluetoothDevices,
                 is Path.SuspendBluetoothDevices,
+                is Path.Beacons,
+                is Path.BeaconScan,
                 is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated,

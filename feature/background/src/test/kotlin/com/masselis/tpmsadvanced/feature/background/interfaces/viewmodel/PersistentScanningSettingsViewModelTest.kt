@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel
 
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
 import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase.PairedDevice
 import io.mockk.every
@@ -21,6 +22,8 @@ internal class PersistentScanningSettingsViewModelTest {
     private lateinit var activateOnAndroidAuto: MutableStateFlow<Boolean>
     private lateinit var activateOnBluetooth: MutableStateFlow<Boolean>
     private lateinit var activateBluetoothDevices: MutableStateFlow<Set<String>>
+    private lateinit var activateOnBeacon: MutableStateFlow<Boolean>
+    private lateinit var beacons: MutableStateFlow<List<Beacon>>
 
     private fun test() = PersistentScanningSettingsViewModel(
         mockk<AppPreferences>(relaxed = true) {
@@ -30,6 +33,8 @@ internal class PersistentScanningSettingsViewModelTest {
             every { activateOnAndroidAuto } returns this@PersistentScanningSettingsViewModelTest.activateOnAndroidAuto
             every { activateOnBluetooth } returns this@PersistentScanningSettingsViewModelTest.activateOnBluetooth
             every { activateBluetoothDevices } returns this@PersistentScanningSettingsViewModelTest.activateBluetoothDevices
+            every { activateOnBeacon } returns this@PersistentScanningSettingsViewModelTest.activateOnBeacon
+            every { beacons } returns this@PersistentScanningSettingsViewModelTest.beacons
         },
         mockk(relaxed = true),
         mockk(relaxed = true),
@@ -45,6 +50,8 @@ internal class PersistentScanningSettingsViewModelTest {
         activateOnAndroidAuto = MutableStateFlow(false)
         activateOnBluetooth = MutableStateFlow(true)
         activateBluetoothDevices = MutableStateFlow(setOf("CAR"))
+        activateOnBeacon = MutableStateFlow(false)
+        beacons = MutableStateFlow(emptyList())
     }
 
     @Test
@@ -88,6 +95,23 @@ internal class PersistentScanningSettingsViewModelTest {
     @Test
     fun `the Bluetooth condition without any device doesn't keep the activate conditions on`() {
         activateBluetoothDevices.value = emptySet()
+        test().disableActivateConditionsIfNoneSelected()
+        assertFalse(activateConditions.value)
+    }
+
+    @Test
+    fun `the beacon condition alone keeps the activate conditions on`() {
+        activateOnBluetooth.value = false
+        activateOnBeacon.value = true
+        beacons.value = listOf(Beacon("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", label = null))
+        test().disableActivateConditionsIfNoneSelected()
+        assertTrue(activateConditions.value)
+    }
+
+    @Test
+    fun `the beacon condition without any beacon doesn't keep the activate conditions on`() {
+        activateOnBluetooth.value = false
+        activateOnBeacon.value = true
         test().disableActivateConditionsIfNoneSelected()
         assertFalse(activateConditions.value)
     }

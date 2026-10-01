@@ -16,6 +16,9 @@ import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateBluetoothDevices
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconScan
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconScanModeSettingsItem
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Beacons
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateScanConditions
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.DetectedActivitiesSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ScanStatusAnnouncementsSettingsItem
@@ -78,6 +81,7 @@ internal fun DebugSettingsPage(
         additionalItems = {
             DetectedActivitiesSettingsItem()
             ScanStatusAnnouncementsSettingsItem()
+            BeaconScanModeSettingsItem()
         }
     )
 }
@@ -107,9 +111,10 @@ internal fun PersistentScanningDetailsSettings(
 internal fun ActivateScanConditionsSettings(
     openStayActiveDuration: () -> Unit,
     openBluetoothDevices: () -> Unit,
+    openBeacons: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
-    ActivateScanConditions(openStayActiveDuration, openBluetoothDevices)
+    ActivateScanConditions(openStayActiveDuration, openBluetoothDevices, openBeacons)
 }
 
 @Composable
@@ -147,6 +152,21 @@ internal fun SuspendBluetoothDevicesSettings(
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     SuspendBluetoothDevices()
+}
+
+@Composable
+internal fun BeaconsSettings(
+    openBeaconScan: () -> Unit,
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    Beacons(openBeaconScan)
+}
+
+@Composable
+internal fun BeaconScanSettings(
+    modifier: Modifier = Modifier
+) = SettingsPage(modifier) {
+    BeaconScan()
 }
 
 @Composable

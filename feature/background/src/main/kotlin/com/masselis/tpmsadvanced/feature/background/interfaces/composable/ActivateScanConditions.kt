@@ -22,16 +22,19 @@ import com.masselis.tpmsadvanced.feature.background.ioc.Bindings.Companion.Persi
 /**
  * The page opened from the "Activate scan conditions" item of [PersistentScanningSettings], the
  * duration of "Stay active" being picked on its own page, opened through [openStayActiveDuration],
- * and the Bluetooth devices on another one, opened through [openBluetoothDevices].
+ * the Bluetooth devices on another one, opened through [openBluetoothDevices], and the beacons on a
+ * third one, opened through [openBeacons].
  */
 @Composable
 public fun ActivateScanConditions(
     openStayActiveDuration: () -> Unit,
     openBluetoothDevices: () -> Unit,
+    openBeacons: () -> Unit,
     modifier: Modifier = Modifier,
 ): Unit = ActivateScanConditions(
     openStayActiveDuration,
     openBluetoothDevices,
+    openBeacons,
     modifier,
     viewModel { PersistentScanningSettingsViewModel() },
 )
@@ -40,6 +43,7 @@ public fun ActivateScanConditions(
 internal fun ActivateScanConditions(
     openStayActiveDuration: () -> Unit,
     openBluetoothDevices: () -> Unit,
+    openBeacons: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PersistentScanningSettingsViewModel = viewModel { PersistentScanningSettingsViewModel() },
 ) {
@@ -53,6 +57,8 @@ internal fun ActivateScanConditions(
     val bluetooth by viewModel.activateBluetooth.enabled.collectAsState()
     val bluetoothDevices by viewModel.activateBluetooth.devices.collectAsState()
     val paired by viewModel.pairedDevices.collectAsState(initial = emptyList())
+    val beacon by viewModel.activateOnBeacon.collectAsState()
+    val beacons by viewModel.beacons.collectAsState()
     val stayActive by viewModel.stayActive.collectAsState()
     val stayActiveMinutes by viewModel.stayActiveMinutes.collectAsState()
     ActivateScanConditions(
@@ -71,6 +77,15 @@ internal fun ActivateScanConditions(
         },
         openBluetoothDevices = openBluetoothDevices,
         bluetoothSelected = bluetooth && bluetoothDevices.isNotEmpty(),
+        beacon = beacon,
+        beaconSummary = beaconsSummary(beacons),
+        // Turned on without any beacon to look for, the only sensible next step is to add one
+        onBeacon = { enabled ->
+            viewModel.activateOnBeacon.value = enabled
+            if (enabled && beacons.isEmpty()) openBeacons()
+        },
+        openBeacons = openBeacons,
+        beaconSelected = beacon && beacons.isNotEmpty(),
         stayActive = stayActive,
         stayActiveMinutes = stayActiveMinutes,
         onStayActive = { viewModel.stayActive.value = it },
@@ -79,7 +94,7 @@ internal fun ActivateScanConditions(
     )
 }
 
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun ActivateScanConditions(
     cable: Boolean,
@@ -93,6 +108,11 @@ private fun ActivateScanConditions(
     onBluetooth: (Boolean) -> Unit,
     openBluetoothDevices: () -> Unit,
     bluetoothSelected: Boolean,
+    beacon: Boolean,
+    beaconSummary: List<AnnotatedString>,
+    onBeacon: (Boolean) -> Unit,
+    openBeacons: () -> Unit,
+    beaconSelected: Boolean,
     stayActive: Boolean,
     stayActiveMinutes: Int,
     onStayActive: (Boolean) -> Unit,
@@ -114,6 +134,16 @@ private fun ActivateScanConditions(
             // Devices can be removed from the list while the condition is off
             openableWhenOff = true,
             modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnBluetooth),
+        )
+        SwitchNavigationSettingsItem(
+            headline = "Bluetooth beacon nearby",
+            supporting = beaconSummary,
+            checked = beacon,
+            onCheckedChange = onBeacon,
+            onClick = openBeacons,
+            // Beacons can be removed from the list while the condition is off
+            openableWhenOff = true,
+            modifier = Modifier.testTag(PersistentScanningSettingsTags.activateOnBeacon),
         )
         SwitchSettingsItem(
             headline = "Charging with a cable",
@@ -144,7 +174,7 @@ private fun ActivateScanConditions(
             ).map(::AnnotatedString),
             checked = stayActive,
             // Only extends the conditions above, meaningless without any of them
-            enabled = cable || wireless || androidAuto || bluetoothSelected,
+            enabled = cable || wireless || androidAuto || bluetoothSelected || beaconSelected,
             onCheckedChange = onStayActive,
             onClick = openStayActiveDuration,
             modifier = Modifier.testTag(PersistentScanningSettingsTags.stayActive),
@@ -168,6 +198,11 @@ internal fun ActivateScanConditionsPreview() {
         onBluetooth = {},
         openBluetoothDevices = {},
         bluetoothSelected = true,
+        beacon = true,
+        beaconSummary = listOf(AnnotatedString("Bike")),
+        onBeacon = {},
+        openBeacons = {},
+        beaconSelected = true,
         stayActive = true,
         stayActiveMinutes = 10,
         onStayActive = {},

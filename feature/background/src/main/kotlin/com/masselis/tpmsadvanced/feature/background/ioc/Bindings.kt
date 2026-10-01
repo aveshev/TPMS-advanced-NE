@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BeaconsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.DetectedActivitiesViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.KeepAliveInstructionsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
@@ -12,6 +13,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Persist
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanStatusAnnouncementsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
@@ -78,6 +80,22 @@ public interface Bindings {
         // The paired devices are only unknown while Bluetooth is off
         bluetoothDevicesUseCase.paired.map { it != null },
     )
+
+    @Provides
+    private fun beaconDiscoveryUseCase(
+        scanner: BluetoothLeScanner,
+        bluetoothDevicesUseCase: BluetoothDevicesUseCase,
+    ): BeaconDiscoveryUseCase = BeaconDiscoveryUseCase(
+        scanner,
+        bluetoothDevicesUseCase.paired.map { it != null },
+    )
+
+    @Provides
+    private fun beaconsViewModel(
+        appPreferences: AppPreferences,
+        beaconPresenceUseCase: BeaconPresenceUseCase,
+        beaconDiscoveryUseCase: BeaconDiscoveryUseCase,
+    ): BeaconsViewModel = BeaconsViewModel(appPreferences, beaconPresenceUseCase, beaconDiscoveryUseCase)
 
     @Provides
     @SingleIn(AppScope::class)
@@ -196,10 +214,13 @@ public interface Bindings {
         internal val detectedActivitiesViewModel: () -> DetectedActivitiesViewModel,
         internal val keepAliveInstructionsViewModel: () -> KeepAliveInstructionsViewModel,
         internal val scanStatusAnnouncementsViewModel: () -> ScanStatusAnnouncementsViewModel,
+        internal val beaconsViewModel: () -> BeaconsViewModel,
     )
 
     public companion object : Bindings by appGraph as Bindings {
         internal fun PersistentScanningSettingsViewModel() =
             featureBackgroundInternal.persistentScanningSettingsViewModel()
+
+        internal fun BeaconsViewModel() = featureBackgroundInternal.beaconsViewModel()
     }
 }
