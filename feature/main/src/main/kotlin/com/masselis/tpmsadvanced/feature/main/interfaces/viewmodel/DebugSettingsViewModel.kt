@@ -16,8 +16,9 @@ internal class DebugSettingsViewModel(
     val showSensorId = appPreferences.showSensorId
     val showSensorFlags = appPreferences.showSensorFlags
 
-    // Owned by the background feature, which also puts its item on the debug page
+    // Owned by the background feature, which also puts their items on the debug page
     val showDetectedActivities = appPreferences.showDetectedActivities
+    val announceScanStatus = appPreferences.announceScanStatus
 
     /** A copy of the database in the cache folder the FileProvider shares, named after now */
     suspend fun exportDatabase(): File = LocalDateTime
@@ -27,7 +28,7 @@ internal class DebugSettingsViewModel(
         .also { databaseExport.exportTo(it) }
 
     fun disableIfNoneSelected() {
-        listOf(showSensorId, showSensorFlags, showDetectedActivities)
+        listOf(showSensorId, showSensorFlags, showDetectedActivities, announceScanStatus)
             .none { it.value }
             .also { if (it) debugOptions.value = false }
     }

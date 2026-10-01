@@ -1,0 +1,106 @@
+package com.masselis.tpmsadvanced.feature.background.usecase
+
+import android.app.KeyguardManager
+import android.media.AudioAttributes
+import android.os.PowerManager
+import android.speech.tts.TextToSpeech
+import androidx.core.content.getSystemService
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
+import co.touchlab.kermit.Logger
+import com.masselis.tpmsadvanced.core.common.appContext
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+
+/**
+ * A debug option: speaks the status of persistent scanning each time it changes ("TPMS active"...),
+ * to hear when the phone switches modes with the screen off or in a pocket. Quiet while the app is
+ * in front of the user, who sees the status on the bell instead.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal class ScanStatusAnnouncer(
+    appPreferences: AppPreferences,
+    scanPolicyUseCase: ScanPolicyUseCase,
+    scope: CoroutineScope,
+) {
+    private val logger = Logger.withTag("ScanStatusAnnouncer")
+    // Lazy: only needed once there is something to say
+    private val powerManager by lazy { appContext.getSystemService<PowerManager>()!! }
+    private val keyguardManager by lazy { appContext.getSystemService<KeyguardManager>()!! }
+
+    /** What to say about each status change, the status at the time of collecting excluded */
+    val statusChanges: Flow<String> = scanPolicyUseCase
+        .decision
+        .map { decision ->
+            when (decision) {
+                // Without persistent scanning, the decision is the one of the manual button
+                is ScanDecision.Active -> if (MANUAL in decision.causes) "TPMS off" else "TPMS active"
+                is ScanDecision.Suspended -> "TPMS suspended"
+                ScanDecision.Idle -> "TPMS idle"
+            }
+        }
+        // Several decisions share a status (another activate cause...), they say nothing new
+        .distinctUntilChanged()
+        .drop(1)
+
+    /** Screen off, locked, or showing another app */
+    private val isUnattended: Boolean
+        get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED).not() ||
+                powerManager.isInteractive.not() ||
+                keyguardManager.isKeyguardLocked
+
+    init {
+        // Only while the switch of the debug options is on, as the other ones
+        combine(appPreferences.debugOptions, appPreferences.announceScanStatus, Boolean::and)
+            .distinctUntilChanged()
+            .flatMapLatest { enabled ->
+                if (enabled) textToSpeech().flatMapLatest { tts ->
+                    statusChanges
+                        .filter { isUnattended }
+                        .onEach { tts.speak(it, TextToSpeech.QUEUE_FLUSH, null, UTTERANCE_ID) }
+                }
+                else emptyFlow()
+            }
+            .launchIn(scope)
+    }
+
+    /** The default engine once it is ready, shut down when the collection ends */
+    private fun textToSpeech(): Flow<TextToSpeech> = callbackFlow {
+        val status = CompletableDeferred<Int>()
+        val tts = TextToSpeech(appContext) { status.complete(it) }
+        launch {
+            if (status.await() == TextToSpeech.SUCCESS) tts
+                .apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                }
+                .also { send(it) }
+            else logger.w { "Text-to-speech failed to initialize, status changes won't be spoken" }
+        }
+        awaitClose { tts.shutdown() }
+    }
+
+    private companion object {
+        const val UTTERANCE_ID = "ScanStatusAnnouncer"
+    }
+}

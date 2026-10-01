@@ -18,6 +18,7 @@ import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateBluetoothDevices
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateScanConditions
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.DetectedActivitiesSettingsItem
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ScanStatusAnnouncementsSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ExceptedWifis
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningDetails
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningSettings
@@ -73,7 +74,12 @@ internal fun AppSettings(
 internal fun DebugSettingsPage(
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
-    DebugSettings(additionalItems = { DetectedActivitiesSettingsItem() })
+    DebugSettings(
+        additionalItems = {
+            DetectedActivitiesSettingsItem()
+            ScanStatusAnnouncementsSettingsItem()
+        }
+    )
 }
 
 @Composable

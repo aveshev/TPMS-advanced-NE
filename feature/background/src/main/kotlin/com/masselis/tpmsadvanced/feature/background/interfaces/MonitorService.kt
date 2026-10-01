@@ -18,6 +18,9 @@ internal class MonitorService : LifecycleService() {
     override fun onCreate() {
         isRunningMutableStateFlow.value = true
         super.onCreate()
+        // Persistent scanning runs this service: the process is alive whenever there is a status
+        // to announce. A single instance for the process, which outlives the service to say "off".
+        Bindings.featureBackgroundInternal.scanStatusAnnouncer()
     }
 
     override fun onStartCommand(
