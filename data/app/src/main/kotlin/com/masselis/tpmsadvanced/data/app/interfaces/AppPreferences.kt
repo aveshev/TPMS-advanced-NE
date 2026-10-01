@@ -155,8 +155,9 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SUSPEND_CONDITIONS", newValue) }
     }
 
+    /** On by default: a phone idle for that long is not on a moving vehicle, it was left somewhere */
     public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(
-        sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", false)
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", true)
     ) { _, newValue ->
         sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_IN_DOZE", newValue) }
     }
