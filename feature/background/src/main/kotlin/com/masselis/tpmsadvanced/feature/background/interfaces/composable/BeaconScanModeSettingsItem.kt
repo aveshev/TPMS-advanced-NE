@@ -25,7 +25,9 @@ import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCas
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.BALANCED
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_LATENCY
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED_10
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED_20
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED_30
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.OPPORTUNISTIC
 
 /** The mode of the background scan looking for beacons, to compare their battery use and delay */
@@ -72,7 +74,9 @@ private val Mode.label
     get() = when (this) {
         OPPORTUNISTIC -> "Opportunistic"
         LOW_POWER -> "Low power"
-        LOW_POWER_BATCHED -> "Low power, batched every 30 s"
+        LOW_POWER_BATCHED_10 -> "Low power, batched every 10 s"
+        LOW_POWER_BATCHED_20 -> "Low power, batched every 20 s"
+        LOW_POWER_BATCHED_30 -> "Low power, batched every 30 s"
         BALANCED -> "Balanced"
         LOW_LATENCY -> "Low latency"
     }

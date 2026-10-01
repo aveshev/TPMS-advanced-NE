@@ -7,7 +7,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Adve
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED_30
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.OPPORTUNISTIC
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import io.mockk.every
@@ -160,7 +160,7 @@ internal class BeaconPresenceUseCaseTest {
 
     @Test
     fun `a batched scan keeps the beacon nearby between two batches`() = runTest {
-        test().nearby(listOf(BIKE), LOW_POWER_BATCHED).test {
+        test().nearby(listOf(BIKE), LOW_POWER_BATCHED_30).test {
             assertEquals(emptyMap(), awaitItem())
             verify { scanner.advertisements(ScanMode.LOW_POWER, any(), 30.seconds) }
             advertisements.emit(advertisement(BIKE.address, rssi = -70))

@@ -36,7 +36,9 @@ internal class BeaconPresenceUseCase(
     enum class Mode(val scanMode: ScanMode, val reportDelay: Duration = Duration.ZERO) {
         OPPORTUNISTIC(ScanMode.OPPORTUNISTIC),
         LOW_POWER(ScanMode.LOW_POWER),
-        LOW_POWER_BATCHED(ScanMode.LOW_POWER, reportDelay = 30.seconds),
+        LOW_POWER_BATCHED_10(ScanMode.LOW_POWER, reportDelay = 10.seconds),
+        LOW_POWER_BATCHED_20(ScanMode.LOW_POWER, reportDelay = 20.seconds),
+        LOW_POWER_BATCHED_30(ScanMode.LOW_POWER, reportDelay = 30.seconds),
         BALANCED(ScanMode.BALANCED),
         LOW_LATENCY(ScanMode.LOW_LATENCY),
     }

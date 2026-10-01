@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug builds only. Exported for adb, which holds DUMP unlike regular apps -->
+        <receiver
+            android:name="com.masselis.tpmsadvanced.feature.background.interfaces.SetBeaconScanModeReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.masselis.tpmsadvanced.SET_BEACON_SCAN_MODE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
