@@ -6,20 +6,42 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase.UnexpectedStop
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 
 internal class PersistentScanningViewModel(
     private val appPreferences: AppPreferences,
     private val scanPolicyUseCase: ScanPolicyUseCase,
     private val wifiConnectionUseCase: WifiConnectionUseCase,
+    unexpectedStopUseCase: UnexpectedStopUseCase,
     private val controller: MonitoringController,
 ) : ViewModel() {
 
     private val logger = Logger.withTag("PersistentScanningViewModel")
 
     val persistentScanning = appPreferences.persistentScanning
+
+    // Read before anything restarts the service. Consumed even when persistent scanning is off,
+    // so that an old marker can't be reported once it is turned on again.
+    private val mutableUnexpectedStop = MutableStateFlow(
+        unexpectedStopUseCase
+            .consume()
+            ?.takeIf { persistentScanning.value }
+            ?.also { logger.w { "The persistent scanning service was stopped unexpectedly: $it" } }
+    )
+
+    /** Set when the service died behind the user's back since the app was last opened */
+    val unexpectedStop: StateFlow<UnexpectedStop?> = mutableUnexpectedStop.asStateFlow()
+
+    fun acknowledgeUnexpectedStop() {
+        mutableUnexpectedStop.value = null
+    }
 
     val decision: Flow<ScanDecision> = scanPolicyUseCase.decision
 

@@ -8,8 +8,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
@@ -46,6 +49,7 @@ internal val LocalWifiExceptionJourney = compositionLocalOf<PermissionJourney> {
  *
  * Every time the app is opened while persistent scanning is on, it also checks that the service
  * still has what it needs (walking the user through what is missing, once) and that it is running.
+ * When the service died behind the user's back since the last opening, the user is told first.
  */
 @Composable
 public fun PersistentScanningHost(content: @Composable () -> Unit): Unit =
@@ -60,17 +64,41 @@ internal fun PersistentScanningHost(
     content: @Composable () -> Unit,
 ) {
     val persistentScanning by viewModel.persistentScanning.collectAsState()
+    val unexpectedStop by viewModel.unexpectedStop.collectAsState()
     val permissions = rememberMonitoringPermissions(
         confirmBeforeStart = false,
         onGranted = viewModel::ensureRunning,
     )
     val currentPermissions by rememberUpdatedState(permissions)
-    LifecycleStartEffect(persistentScanning) {
+    // Read here to key the effect: the service is restarted once the user read why it stopped
+    val unexpectedStopShown = unexpectedStop != null
+    LifecycleStartEffect(persistentScanning, unexpectedStopShown) {
         // When everything is granted this only makes sure the service runs, without any popup.
         // Coming back from Settings also starts the lifecycle again: the journey started before
         // leaving is resumed by the permissions themselves, it must not be started a second time.
-        if (persistentScanning && currentPermissions.isInProgress().not()) currentPermissions.request()
+        if (persistentScanning && unexpectedStopShown.not() && currentPermissions.isInProgress().not()) {
+            currentPermissions.request()
+        }
         onStopOrDispose { }
+    }
+    // Acknowledged once the instructions are closed too, so the permission journey (and its
+    // dialogs) doesn't start behind them
+    var showKeepAliveInstructions by rememberSaveable { mutableStateOf(false) }
+    unexpectedStop?.also { stop ->
+        if (showKeepAliveInstructions) {
+            KeepAliveInstructions(
+                onDismissRequest = {
+                    showKeepAliveInstructions = false
+                    viewModel.acknowledgeUnexpectedStop()
+                }
+            )
+        } else {
+            UnexpectedStopAlert(
+                unexpectedStop = stop,
+                onDismissRequest = viewModel::acknowledgeUnexpectedStop,
+                onLearnMore = { showKeepAliveInstructions = true },
+            )
+        }
     }
 
     // The WiFi exception needs permissions of its own: they are asked for every time the app is

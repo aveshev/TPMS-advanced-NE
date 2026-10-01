@@ -20,6 +20,8 @@ internal class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in setOf(ACTION_BOOT_COMPLETED, ACTION_MY_PACKAGE_REPLACED)) return
         featureBackgroundInternal
+            // The reboot or the update killed the service, it was not stopped behind the user's back
+            .also { it.unexpectedStopUseCase.stopped() }
             .takeIf { it.appPreferences.persistentScanning.value }
             // A boot start must never crash the app: a permission may have been revoked meanwhile,
             // which makes the system refuse the foreground start

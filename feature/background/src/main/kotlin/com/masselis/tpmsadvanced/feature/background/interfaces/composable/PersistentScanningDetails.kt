@@ -7,6 +7,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -15,7 +18,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsIntro
 import com.masselis.tpmsadvanced.core.ui.SwitchSettingsItem
+import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.BellState
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.KeepAliveInstructions
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.SettingsOnScreenEffect
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.rememberMonitoringPermissions
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
@@ -42,6 +47,8 @@ internal fun PersistentScanningDetails(
     )
     val persistentScanning by viewModel.persistentScanning.collectAsState()
     val decision = viewModel.persistentDecision()
+    var showKeepAliveInstructions by rememberSaveable { mutableStateOf(false) }
+    if (showKeepAliveInstructions) KeepAliveInstructions(onDismissRequest = { showKeepAliveInstructions = false })
     PersistentScanningDetails(
         status = viewModel.status(decision),
         decision = decision ?: ScanDecision.Idle,
@@ -49,6 +56,7 @@ internal fun PersistentScanningDetails(
         onPersistentScanning = { enabled ->
             if (enabled) permissions.request() else viewModel.disablePersistentScanning()
         },
+        onKeepAliveInstructions = { showKeepAliveInstructions = true },
         modifier = modifier,
     )
 }
@@ -59,12 +67,21 @@ private fun PersistentScanningDetails(
     decision: ScanDecision,
     persistentScanning: Boolean,
     onPersistentScanning: (Boolean) -> Unit,
+    onKeepAliveInstructions: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
     @Suppress("MaxLineLength")
     SettingsIntro(
         "Persistent scanning monitors your tyres in the background, even after the phone restarts, without having to start it by hand. To save battery it only scans when it is useful: whenever any of the activate scan conditions is true, such as the phone charging in its mount or Android Auto being connected. The suspend scan conditions, such as being connected to your home (or any other) WiFi, override activate conditions and suspend scanning whenever any of them is true. Scanning while the app is open is never affected."
     )
+    SettingsGroup(Modifier.padding(top = 16.dp)) {
+        TextSettingsItem(
+            headline = "Keep monitoring running on this phone",
+            supporting = "Some phones stop background apps on their own, see which settings prevent it",
+            onClick = onKeepAliveInstructions,
+            opensPage = true,
+        )
+    }
     SettingsGroup(Modifier.padding(top = 24.dp)) {
         SwitchSettingsItem(
             headline = "Persistent scanning",
@@ -109,5 +126,6 @@ internal fun PersistentScanningDetailsPreview() {
         decision = ScanDecision.Suspended(setOf(ScanSuspensionUseCase.Reason.WIFI)),
         persistentScanning = true,
         onPersistentScanning = {},
+        onKeepAliveInstructions = {},
     )
 }
