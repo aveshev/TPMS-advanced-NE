@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.DetectedActivitiesViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.KeepAliveInstructionsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
@@ -12,8 +13,10 @@ import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.KeepAliveInstructionsUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
@@ -32,6 +35,15 @@ public interface Bindings {
     @Provides
     @SingleIn(AppScope::class)
     private fun monitoringController(): MonitoringController = MonitoringController()
+
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun unexpectedStopUseCase(controller: MonitoringController): UnexpectedStopUseCase =
+        UnexpectedStopUseCase(controller.isRunning)
+
+    @Provides
+    private fun keepAliveInstructionsViewModel(): KeepAliveInstructionsViewModel =
+        KeepAliveInstructionsViewModel(KeepAliveInstructionsUseCase())
 
     @Provides
     private fun backgroundViewModel(controller: MonitoringController): BackgroundViewModel =
@@ -102,11 +114,13 @@ public interface Bindings {
         appPreferences: AppPreferences,
         scanPolicyUseCase: ScanPolicyUseCase,
         wifiConnectionUseCase: WifiConnectionUseCase,
+        unexpectedStopUseCase: UnexpectedStopUseCase,
         controller: MonitoringController,
     ): PersistentScanningViewModel = PersistentScanningViewModel(
         appPreferences,
         scanPolicyUseCase,
         wifiConnectionUseCase,
+        unexpectedStopUseCase,
         controller,
     )
 
@@ -133,14 +147,17 @@ public interface Bindings {
 
     public val featureBackgroundInternal: Internal
 
+    @Suppress("LongParameterList")
     @Inject
     public class Internal internal constructor(
         internal val appPreferences: AppPreferences,
         internal val controller: MonitoringController,
+        internal val unexpectedStopUseCase: UnexpectedStopUseCase,
         internal val backgroundViewModel: () -> BackgroundViewModel,
         internal val persistentScanningViewModel: () -> PersistentScanningViewModel,
         internal val persistentScanningSettingsViewModel: () -> PersistentScanningSettingsViewModel,
         internal val detectedActivitiesViewModel: () -> DetectedActivitiesViewModel,
+        internal val keepAliveInstructionsViewModel: () -> KeepAliveInstructionsViewModel,
     )
 
     public companion object : Bindings by appGraph as Bindings {

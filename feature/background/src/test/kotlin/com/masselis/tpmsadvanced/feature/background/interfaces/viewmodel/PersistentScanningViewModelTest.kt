@@ -5,6 +5,9 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase.Cause.LowMemory
+import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase.UnexpectedStop
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
 import io.mockk.every
 import io.mockk.mockk
@@ -15,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 internal class PersistentScanningViewModelTest {
 
@@ -22,6 +26,7 @@ internal class PersistentScanningViewModelTest {
     private lateinit var suspendConditions: MutableStateFlow<Boolean>
     private lateinit var suspendScanningOnWifi: MutableStateFlow<Boolean>
     private lateinit var wifiExceptionEnabled: MutableStateFlow<Boolean>
+    private var unexpectedStop: UnexpectedStop? = null
 
     private fun test() = PersistentScanningViewModel(
         mockk<AppPreferences> {
@@ -32,6 +37,7 @@ internal class PersistentScanningViewModelTest {
         },
         mockk<ScanPolicyUseCase> { every { decision } returns MutableSharedFlow<ScanDecision>() },
         mockk<WifiConnectionUseCase>(),
+        mockk<UnexpectedStopUseCase> { every { consume() } returns unexpectedStop },
         mockk<MonitoringController>(),
     )
 
@@ -41,6 +47,7 @@ internal class PersistentScanningViewModelTest {
         suspendConditions = MutableStateFlow(true)
         suspendScanningOnWifi = MutableStateFlow(true)
         wifiExceptionEnabled = MutableStateFlow(true)
+        unexpectedStop = null
     }
 
     @Test
@@ -74,5 +81,21 @@ internal class PersistentScanningViewModelTest {
     fun `disabling the wifi exception turns the setting off`() {
         test().disableWifiException()
         assertFalse(wifiExceptionEnabled.value)
+    }
+
+    @Test
+    fun `an unexpected stop is reported until acknowledged`() {
+        unexpectedStop = UnexpectedStop(42L, LowMemory)
+        val viewModel = test()
+        assertEquals(unexpectedStop, viewModel.unexpectedStop.value)
+        viewModel.acknowledgeUnexpectedStop()
+        assertNull(viewModel.unexpectedStop.value)
+    }
+
+    @Test
+    fun `an unexpected stop is not reported while persistent scanning is off`() {
+        unexpectedStop = UnexpectedStop(42L, LowMemory)
+        persistentScanning.value = false
+        assertNull(test().unexpectedStop.value)
     }
 }
