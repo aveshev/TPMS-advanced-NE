@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
+import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlin.time.Duration
@@ -46,6 +49,8 @@ internal class ScanPolicyUseCase(
     scope: CoroutineScope,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
+    private val logger = Logger.withTag("ScanPolicy")
+
     /**
      * Each decision along with the mode (persistent scanning or not) it was made for. Shared, so
      * the service and the UI observe the same decision and a single set of system listeners is
@@ -112,8 +117,16 @@ internal class ScanPolicyUseCase(
             scanSuspensionUseCase.suspensionReasons,
             appPreferences.beaconOverridesSuspend,
         ) { fulfilled, reasons, beaconOverridesSuspend ->
-            decide(enabled, fulfilled, reasons, beaconOverridesSuspend)
-        }.flatMapLatest { decision ->
+            decide(enabled, fulfilled, reasons, beaconOverridesSuspend).let { decision ->
+                // What the decision was made from, to tell afterwards why it changed
+                decision to "enabled=$enabled, fulfilled=$fulfilled, suspend reasons=$reasons, " +
+                    "beacon overrides suspend=$beaconOverridesSuspend"
+            }
+        }
+            .distinctUntilChangedBy { (decision) -> decision }
+            .onEach { (decision, inputs) -> logger.i { "Decision: $decision, from $inputs" } }
+            .map { (decision) -> decision }
+            .flatMapLatest { decision ->
             // Names the devices and beacons a condition holds for, the user reads them in the
             // rationale
             when {
