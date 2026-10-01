@@ -46,11 +46,13 @@ internal fun DeveloperOptionsSettings(
     val sensorId by viewModel.showSensorId.collectAsState()
     val sensorFlags by viewModel.showSensorFlags.collectAsState()
     val activities by viewModel.showDetectedActivities.collectAsState()
+    val announcements by viewModel.announceScanStatus.collectAsState()
     val selected = listOfNotNull(
         // Same order as their page
         "Sensor ID".takeIf { sensorId },
         "Sensor flags".takeIf { sensorFlags },
         "Detected activities".takeIf { activities },
+        "Status announcements".takeIf { announcements },
     )
     SettingsGroup(modifier) {
         DemoModeSettingsItem()

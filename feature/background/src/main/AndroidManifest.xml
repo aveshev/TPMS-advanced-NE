@@ -33,6 +33,13 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
 
+    <!-- The default text-to-speech engine, for the status announcements of the debug settings -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application>
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.DisableMonitorBroadcastReceiver" />
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.RestartAppBroadcastReceiver" />

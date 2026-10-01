@@ -8,6 +8,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Detecte
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.KeepAliveInstructionsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanStatusAnnouncementsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
@@ -15,6 +16,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.KeepAliveInstructionsUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanStatusAnnouncer
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
@@ -109,6 +111,19 @@ public interface Bindings {
         GlobalScope + Dispatchers.Default,
     )
 
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun scanStatusAnnouncer(
+        appPreferences: AppPreferences,
+        scanPolicyUseCase: ScanPolicyUseCase,
+    ): ScanStatusAnnouncer = ScanStatusAnnouncer(
+        appPreferences,
+        scanPolicyUseCase,
+        // Text-to-speech and the process lifecycle are used from the main thread
+        GlobalScope + Dispatchers.Main,
+    )
+
     @Provides
     private fun persistentScanningViewModel(
         appPreferences: AppPreferences,
@@ -145,6 +160,11 @@ public interface Bindings {
         activityRecognitionUseCase: ActivityRecognitionUseCase,
     ): DetectedActivitiesViewModel = DetectedActivitiesViewModel(appPreferences, activityRecognitionUseCase)
 
+    @Provides
+    private fun scanStatusAnnouncementsViewModel(
+        appPreferences: AppPreferences,
+    ): ScanStatusAnnouncementsViewModel = ScanStatusAnnouncementsViewModel(appPreferences)
+
     public val featureBackgroundInternal: Internal
 
     @Suppress("LongParameterList")
@@ -153,11 +173,13 @@ public interface Bindings {
         internal val appPreferences: AppPreferences,
         internal val controller: MonitoringController,
         internal val unexpectedStopUseCase: UnexpectedStopUseCase,
+        internal val scanStatusAnnouncer: () -> ScanStatusAnnouncer,
         internal val backgroundViewModel: () -> BackgroundViewModel,
         internal val persistentScanningViewModel: () -> PersistentScanningViewModel,
         internal val persistentScanningSettingsViewModel: () -> PersistentScanningSettingsViewModel,
         internal val detectedActivitiesViewModel: () -> DetectedActivitiesViewModel,
         internal val keepAliveInstructionsViewModel: () -> KeepAliveInstructionsViewModel,
+        internal val scanStatusAnnouncementsViewModel: () -> ScanStatusAnnouncementsViewModel,
     )
 
     public companion object : Bindings by appGraph as Bindings {

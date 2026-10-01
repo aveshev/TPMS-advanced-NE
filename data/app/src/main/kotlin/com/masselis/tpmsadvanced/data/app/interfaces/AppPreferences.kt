@@ -47,7 +47,17 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SHOW_DETECTED_ACTIVITIES", newValue) }
     }
 
-    public val showTimeSinceUpdate: MutableStateFlow<Boolean> = observableStateFlow(
+    /**
+     * Speaks the status of persistent scanning (idle, active, suspended, off) each time it changes,
+     * unless the app is on screen
+     */
+    public val announceScanStatus: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ANNOUNCE_SCAN_STATUS", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ANNOUNCE_SCAN_STATUS", newValue) }
+    }
+
+    public val showTimeSinceUpdate:MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SHOW_TIME_SINCE_UPDATE", true)
     ) { _, newValue ->
         sharedPreferences.edit { putBoolean("SHOW_TIME_SINCE_UPDATE", newValue) }
