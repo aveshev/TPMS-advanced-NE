@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Advertisement
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_LATENCY
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase.Device
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase.Page
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -17,16 +18,19 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+@Suppress("MaxLineLength")
 internal class BeaconDiscoveryUseCaseTest {
 
     private lateinit var advertisements: MutableSharedFlow<Advertisement>
     private lateinit var bluetoothOn: MutableStateFlow<Boolean>
+    private lateinit var reloads: MutableSharedFlow<Unit>
     private lateinit var scanner: BluetoothLeScanner
 
     context(scope: TestScope)
@@ -36,21 +40,50 @@ internal class BeaconDiscoveryUseCaseTest {
     fun setup() {
         advertisements = MutableSharedFlow()
         bluetoothOn = MutableStateFlow(true)
+        reloads = MutableSharedFlow()
         scanner = mockk { every { advertisements(any(), any()) } returns advertisements }
     }
 
     @Test
-    fun `every device heard is listed, refreshed every second`() = runTest {
+    fun `every named device heard is listed, refreshed every second`() = runTest {
         test().devices().test {
             assertEquals(emptyList(), awaitItem())
             verify { scanner.advertisements(LOW_LATENCY, null) }
-            advertisements.emit(advertisement("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", rssi = -84))
+            advertisements.emit(advertisement(BIKE, "CFMOTOR_ee64a312381a", rssi = -84))
             expectNoEvents()
             delay(1.seconds)
-            assertEquals(
-                listOf(Device("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", -84, period = null, isTyreSensor = false)),
-                awaitItem()
-            )
+            assertEquals(listOf(device(BIKE, "CFMOTOR_ee64a312381a", rssi = -84)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `an unnamed device is left out`() = runTest {
+        test().devices().test {
+            assertEquals(emptyList(), awaitItem())
+            advertisements.emit(advertisement("4A:1B:2C:3D:4E:5F", name = null, rssi = -50))
+            delay(1.seconds)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a name sent in some packets only is kept`() = runTest {
+        test().devices().test {
+            assertEquals(emptyList(), awaitItem())
+            advertisements.emit(advertisement(BIKE, "CFMOTOR_ee64a312381a", rssi = -84))
+            advertisements.emit(advertisement(BIKE, name = null, rssi = -84))
+            delay(1.seconds)
+            assertEquals("CFMOTOR_ee64a312381a", awaitItem().single().name)
+        }
+    }
+
+    @Test
+    fun `the signal is the median of the last packets`() = runTest {
+        test().devices().test {
+            assertEquals(emptyList(), awaitItem())
+            listOf(-70, -90, -72, -50, -71).forEach { advertisements.emit(advertisement(BIKE, "Bike", rssi = it)) }
+            delay(1.seconds)
+            assertEquals(-71, awaitItem().single().rssi)
         }
     }
 
@@ -60,7 +93,7 @@ internal class BeaconDiscoveryUseCaseTest {
             assertEquals(emptyList(), awaitItem())
             // 300 ms apart, one packet missed between the third and the fourth
             listOf(0, 300, 600, 1200, 1500, 1800).forEach {
-                advertisements.emit(advertisement("EE:64:A3:12:38:1A", rssi = -84, timestamp = it.milliseconds))
+                advertisements.emit(advertisement(BIKE, "Bike", rssi = -84, timestamp = it.milliseconds))
             }
             delay(1.seconds)
             assertEquals(300.milliseconds, awaitItem().single().period)
@@ -72,7 +105,7 @@ internal class BeaconDiscoveryUseCaseTest {
         test().devices().test {
             assertEquals(emptyList(), awaitItem())
             listOf(0, 300).forEach {
-                advertisements.emit(advertisement("EE:64:A3:12:38:1A", rssi = -84, timestamp = it.milliseconds))
+                advertisements.emit(advertisement(BIKE, "Bike", rssi = -84, timestamp = it.milliseconds))
             }
             delay(1.seconds)
             assertNull(awaitItem().single().period)
@@ -80,41 +113,14 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     @Test
-    fun `a name sent in some packets only is kept`() = runTest {
+    fun `a device gone quiet stays, told as quiet`() = runTest {
         test().devices().test {
             assertEquals(emptyList(), awaitItem())
-            advertisements.emit(advertisement("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", rssi = -84))
-            advertisements.emit(advertisement("EE:64:A3:12:38:1A", name = null, rssi = -80))
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -84))
             delay(1.seconds)
-            assertEquals("CFMOTOR_ee64a312381a", awaitItem().single().name)
-        }
-    }
-
-    @Test
-    fun `the loudest devices come first, then the first found`() = runTest {
-        test().devices().test {
-            assertEquals(emptyList(), awaitItem())
-            advertisements.emit(advertisement("00:00:00:00:00:01", rssi = -95, timestamp = 1.milliseconds))
-            advertisements.emit(advertisement("00:00:00:00:00:02", rssi = -62, timestamp = 2.milliseconds))
-            // Same 10 dB band as the first one: not moved above it for a few dB
-            advertisements.emit(advertisement("00:00:00:00:00:03", rssi = -92, timestamp = 3.milliseconds))
-            delay(1.seconds)
-            assertEquals(
-                listOf("00:00:00:00:00:02", "00:00:00:00:00:01", "00:00:00:00:00:03"),
-                awaitItem().map { it.address }
-            )
-        }
-    }
-
-    @Test
-    fun `a device gone quiet leaves the list`() = runTest {
-        test().devices().test {
-            assertEquals(emptyList(), awaitItem())
-            advertisements.emit(advertisement("EE:64:A3:12:38:1A", rssi = -84))
-            delay(1.seconds)
-            assertEquals(1, awaitItem().size)
+            assertFalse(awaitItem().single().isQuiet)
             delay(30.seconds)
-            assertEquals(emptyList(), awaitItem())
+            assertTrue(awaitItem().single().isQuiet)
         }
     }
 
@@ -128,21 +134,104 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     @Test
+    fun `the page searches for 5 seconds before listing the loudest first`() = runTest {
+        test().page(reloads).test {
+            assertEquals(Page.Searching(5.seconds, found = 0), awaitItem())
+            advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            // Between two steps of the countdown. Counted once the list is refreshed, within a second.
+            delay(2.5.seconds)
+            assertEquals(Page.Searching(3.seconds, found = 2), expectMostRecentItem())
+            delay(2.seconds)
+            assertEquals(Page.Searching(1.seconds, found = 2), expectMostRecentItem())
+            assertEquals(
+                Page.Listed(listOf(device(BIKE, "Bike", rssi = -60), device(TAG, "Tag", rssi = -80)), notShown = 0),
+                awaitItem()
+            )
+        }
+    }
+
+    @Test
+    fun `a device too weak to ever count as nearby is not listed`() = runTest {
+        test().page(reloads).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            advertisements.emit(advertisement(TAG, "Tag", rssi = BeaconPresenceUseCase.MIN_RSSI - 1))
+            assertEquals(listOf(BIKE), awaitListed().devices.map { it.address })
+        }
+    }
+
+    @Test
+    fun `the order stays while signals change, the new devices being counted`() = runTest {
+        test().page(reloads).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
+            assertEquals(listOf(BIKE, TAG), awaitListed().devices.map { it.address })
+            // Louder than the bike now, and a new device
+            repeat(11) { advertisements.emit(advertisement(TAG, "Tag", rssi = -40)) }
+            advertisements.emit(advertisement(WATCH, "Watch", rssi = -50))
+            delay(1.seconds)
+            expectMostRecentItem().let { page ->
+                assertIs<Page.Listed>(page)
+                assertEquals(listOf(BIKE, TAG), page.devices.map { it.address })
+                assertEquals(-40, page.devices.last().rssi)
+                assertEquals(1, page.notShown)
+            }
+        }
+    }
+
+    @Test
+    fun `reloading sorts again, adds the new devices and drops the weak and quiet ones`() = runTest {
+        test().page(reloads).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
+            assertEquals(listOf(BIKE, TAG), awaitListed().devices.map { it.address })
+            delay(25.seconds)
+            repeat(11) { advertisements.emit(advertisement(TAG, "Tag", rssi = -70)) }
+            advertisements.emit(advertisement(WATCH, "Watch", rssi = -50))
+            delay(10.seconds)
+            expectMostRecentItem().let { page ->
+                assertIs<Page.Listed>(page)
+                // Still listed while quiet, until the next reload
+                assertTrue(page.devices.first { it.address == BIKE }.isQuiet)
+                assertEquals(1, page.notShown)
+            }
+            reloads.emit(Unit)
+            assertEquals(Page.Listed(listOf(device(WATCH, "Watch", rssi = -50), device(TAG, "Tag", rssi = -70)), notShown = 0), awaitItem())
+        }
+    }
+
+    @Test
     fun `a resolvable private address may change`() {
         assertTrue(device("4A:1B:2C:3D:4E:5F").mayChangeAddress)
         assertTrue(device("7F:1B:2C:3D:4E:5F").mayChangeAddress)
         // Static random, as the CFMOTOR beacons use
-        assertFalse(device("EE:64:A3:12:38:1A").mayChangeAddress)
+        assertFalse(device(BIKE).mayChangeAddress)
         assertFalse(device("C4:CD:82:63:55:15").mayChangeAddress)
         assertFalse(device("80:EA:CA:10:20:30").mayChangeAddress)
     }
 
-    private fun device(address: String) = Device(address, null, -60, null, isTyreSensor = false)
+    /** Lets the search end, skipping its countdown */
+    private suspend fun app.cash.turbine.ReceiveTurbine<Page>.awaitListed(): Page.Listed {
+        delay(5.seconds)
+        while (true) {
+            val page = awaitItem()
+            if (page is Page.Listed) return page
+        }
+    }
+
+    private fun device(address: String, name: String = "Device", rssi: Int = -60) =
+        Device(address, name, rssi, period = null, isTyreSensor = false, isQuiet = false)
 
     private fun advertisement(
         address: String,
-        name: String? = null,
+        name: String?,
         rssi: Int,
         timestamp: Duration = Duration.ZERO,
     ) = Advertisement(address, name, rssi, timestamp, isTyreSensor = false)
+
+    private companion object {
+        const val BIKE = "EE:64:A3:12:38:1A"
+        const val TAG = "C4:CD:82:63:55:15"
+        const val WATCH = "C4:CD:82:63:55:41"
+    }
 }

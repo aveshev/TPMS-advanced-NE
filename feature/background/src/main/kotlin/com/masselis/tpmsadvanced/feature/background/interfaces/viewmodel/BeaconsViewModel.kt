@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCas
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -35,8 +36,15 @@ internal class BeaconsViewModel(
         .distinctUntilChanged()
         .flatMapLatest { beaconPresenceUseCase.nearby(it, LOW_LATENCY) }
 
-    /** Every device around, to pick a beacon from */
-    val discovered: Flow<List<BeaconDiscoveryUseCase.Device>> = beaconDiscoveryUseCase.devices()
+    private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** The devices around, to pick a beacon from, in an order which only changes on [reload] */
+    val scanPage: Flow<BeaconDiscoveryUseCase.Page> = beaconDiscoveryUseCase.page(reloads)
+
+    /** Sorts the devices again by their current signal, adding the new ones */
+    fun reload() {
+        reloads.tryEmit(Unit)
+    }
 
     /** The mode of the background scan for beacons, a debug option */
     val scanMode: Flow<ScanMode> = appPreferences.beaconScanMode.map { it.asBeaconScanMode() }
