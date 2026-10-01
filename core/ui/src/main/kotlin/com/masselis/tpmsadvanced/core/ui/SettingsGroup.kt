@@ -168,6 +168,7 @@ public fun ActionSettingsItem(
     supporting: String? = null,
     struckOut: Boolean = false,
     enabled: Boolean = true,
+    headlineColor: Color = Color.Unspecified,
     action: @Composable () -> Unit,
 ): Unit = Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -180,6 +181,7 @@ public fun ActionSettingsItem(
         supporting = listOfNotNull(supporting?.let(::AnnotatedString)),
         modifier = Modifier.enabledAlpha(enabled),
         headlineModifier = Modifier.enabledAlpha(struckOut.not()),
+        headlineColor = headlineColor,
         headlineDecoration = TextDecoration.LineThrough.takeIf { struckOut },
     )
     action()
