@@ -42,12 +42,14 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -148,30 +150,30 @@ internal class BluetoothLeScannerImpl(
         }
         .onEach { logger.d("Sensor content: $it") }
 
-    private val lowLatencyScanFlow = scan(ScanSettings.SCAN_MODE_LOW_LATENCY).shared()
-
-    override fun highDutyScan(): Flow<Tyre.SensorInput> = lowLatencyScanFlow
+    override fun highDutyScan(): Flow<Tyre.SensorInput> =
+        shared(ScanSettings.SCAN_MODE_LOW_LATENCY) { scan(ScanSettings.SCAN_MODE_LOW_LATENCY) }
 
     @SuppressLint("MissingPermission")
-    private val balancedScanFlow = scan(ScanSettings.SCAN_MODE_BALANCED).shared()
-
-    override fun normalScan(): Flow<Tyre.SensorInput> = balancedScanFlow
+    override fun normalScan(): Flow<Tyre.SensorInput> =
+        shared(ScanSettings.SCAN_MODE_BALANCED) { scan(ScanSettings.SCAN_MODE_BALANCED) }
 
     @SuppressLint("MissingPermission")
     override fun advertisements(mode: ScanMode, devices: List<DeviceMatch>?): Flow<Advertisement> =
         if (devices?.isEmpty() == true) emptyFlow()
-        else rawScan(
-            devices.orEmpty().flatMap { it.asFilters() },
-            // Every packet, the broadcast period is read from them
-            ScanSettings.Builder().setScanMode(mode.value).build(),
-        ).map { result ->
-            Advertisement(
-                address = result.device.address,
-                name = result.scanRecord?.deviceName,
-                rssi = result.rssi,
-                timestamp = result.timestampNanos.nanoseconds,
-                isTyreSensor = result.scanRecord?.serviceUuids.orEmpty().any { it in SERVICE_UUIDS },
-            )
+        else shared(mode to devices) {
+            rawScan(
+                devices.orEmpty().flatMap { it.asFilters() },
+                // Every packet, the broadcast period is read from them
+                ScanSettings.Builder().setScanMode(mode.value).build(),
+            ).map { result ->
+                Advertisement(
+                    address = result.device.address,
+                    name = result.scanRecord?.deviceName,
+                    rssi = result.rssi,
+                    timestamp = result.timestampNanos.nanoseconds,
+                    isTyreSensor = result.scanRecord?.serviceUuids.orEmpty().any { it in SERVICE_UUIDS },
+                )
+            }
         }
 
     private val ScanMode.value
@@ -192,11 +194,25 @@ internal class BluetoothLeScannerImpl(
         name?.let { add(ScanFilter.Builder().setDeviceName(it).build()) }
     }
 
+    /** The running scans by what they scan for, see [shared] */
+    private val sharedScans = ConcurrentHashMap<Any, Flow<*>>()
+
+    /**
+     * The scan for [key], started by [scan] unless already running. It keeps running for
+     * [SCAN_LINGER] after its last collector is gone, so that coming back to a page reuses it:
+     * starting another one counts towards Android's limit, see [rawScan]. A scan that ended, by
+     * failing or after lingering, is forgotten right away: the next collection starts a new one,
+     * rather than attaching to one that will never deliver anything again.
+     */
     @OptIn(DelicateCoroutinesApi::class)
-    private fun Flow<Tyre.SensorInput>.shared() = this
-        .materializeCompletion()
-        .shareIn(GlobalScope + Dispatchers.Default, WhileSubscribed())
-        .dematerializeCompletion()
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> shared(key: Any, scan: () -> Flow<T>): Flow<T> = sharedScans.getOrPut(key) {
+        scan()
+            .materializeCompletion()
+            .onCompletion { sharedScans.remove(key) }
+            .shareIn(GlobalScope + Dispatchers.Default, WhileSubscribed(SCAN_LINGER))
+            .dematerializeCompletion()
+    } as Flow<T>
 
     @SuppressLint("InlinedApi")
     @Suppress("MagicNumber")
@@ -224,5 +240,7 @@ internal class BluetoothLeScannerImpl(
         private const val MAX_STARTS = 5
         private val START_WINDOW = 30.seconds
         private val START_MARGIN = 1.seconds
+
+        private const val SCAN_LINGER = 30_000L
     }
 }
