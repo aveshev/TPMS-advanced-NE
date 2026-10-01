@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
@@ -11,9 +12,13 @@ import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCas
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class BeaconsViewModel(
@@ -38,8 +43,21 @@ internal class BeaconsViewModel(
 
     private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** The devices around, to pick a beacon from, in an order which only changes on [reload] */
-    val scanPage: Flow<BeaconDiscoveryUseCase.Page> = beaconDiscoveryUseCase.page(reloads)
+    /** Whether the page adding a beacon is seen: it only scans then, see [scanPage] */
+    val scanPageVisible = MutableStateFlow(false)
+
+    /**
+     * The devices around, to pick a beacon from, in an order which only changes on [reload]. Kept
+     * for as long as the page is, the screen turning off only pausing the scan: what was found so
+     * far is still listed when it turns on again.
+     */
+    val scanPage: StateFlow<BeaconDiscoveryUseCase.Page> = beaconDiscoveryUseCase
+        .page(reloads, scanPageVisible)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Lazily,
+            BeaconDiscoveryUseCase.Page.Searching(BeaconDiscoveryUseCase.SEARCH, found = 0),
+        )
 
     /** Sorts the devices again by their current signal, adding the new ones */
     fun reload() {

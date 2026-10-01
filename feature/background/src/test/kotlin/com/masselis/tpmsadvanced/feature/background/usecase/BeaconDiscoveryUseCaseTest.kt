@@ -31,6 +31,7 @@ internal class BeaconDiscoveryUseCaseTest {
     private lateinit var advertisements: MutableSharedFlow<Advertisement>
     private lateinit var bluetoothOn: MutableStateFlow<Boolean>
     private lateinit var reloads: MutableSharedFlow<Unit>
+    private lateinit var scanning: MutableStateFlow<Boolean>
     private lateinit var scanner: BluetoothLeScanner
 
     context(scope: TestScope)
@@ -41,12 +42,13 @@ internal class BeaconDiscoveryUseCaseTest {
         advertisements = MutableSharedFlow()
         bluetoothOn = MutableStateFlow(true)
         reloads = MutableSharedFlow()
+        scanning = MutableStateFlow(true)
         scanner = mockk { every { advertisements(any(), any()) } returns advertisements }
     }
 
     @Test
     fun `every named device heard is listed, refreshed every second`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             verify { scanner.advertisements(LOW_LATENCY, null) }
             advertisements.emit(advertisement(BIKE, "CFMOTOR_ee64a312381a", rssi = -84))
@@ -58,7 +60,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `an unnamed device is left out`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             advertisements.emit(advertisement("4A:1B:2C:3D:4E:5F", name = null, rssi = -50))
             delay(1.seconds)
@@ -68,7 +70,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `a name sent in some packets only is kept`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             advertisements.emit(advertisement(BIKE, "CFMOTOR_ee64a312381a", rssi = -84))
             advertisements.emit(advertisement(BIKE, name = null, rssi = -84))
@@ -79,7 +81,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `the signal is the median of the last packets`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             listOf(-70, -90, -72, -50, -71).forEach { advertisements.emit(advertisement(BIKE, "Bike", rssi = it)) }
             delay(1.seconds)
@@ -89,7 +91,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `the period is the median gap between packets, a missed one not counting`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             // 300 ms apart, one packet missed between the third and the fourth
             listOf(0, 300, 600, 1200, 1500, 1800).forEach {
@@ -102,7 +104,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `no period is told from too few packets`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             listOf(0, 300).forEach {
                 advertisements.emit(advertisement(BIKE, "Bike", rssi = -84, timestamp = it.milliseconds))
@@ -114,7 +116,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `a device gone quiet stays, told as quiet`() = runTest {
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -84))
             delay(1.seconds)
@@ -125,9 +127,9 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     @Test
-    fun `nothing is listed while Bluetooth is off`() = runTest {
+    fun `nothing is scanned while Bluetooth is off`() = runTest {
         bluetoothOn.value = false
-        test().devices().test {
+        test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
             verify(exactly = 0) { scanner.advertisements(any(), any()) }
         }
@@ -135,7 +137,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `the page searches for 5 seconds before listing the loudest first`() = runTest {
-        test().page(reloads).test {
+        test().page(reloads, scanning).test {
             assertEquals(Page.Searching(5.seconds, found = 0), awaitItem())
             advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
@@ -153,7 +155,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `a device too weak to ever count as nearby is not listed`() = runTest {
-        test().page(reloads).test {
+        test().page(reloads, scanning).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             advertisements.emit(advertisement(TAG, "Tag", rssi = BeaconPresenceUseCase.MIN_RSSI - 1))
             assertEquals(listOf(BIKE), awaitListed().devices.map { it.address })
@@ -162,7 +164,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `the order stays while signals change, the new devices being counted`() = runTest {
-        test().page(reloads).test {
+        test().page(reloads, scanning).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
             assertEquals(listOf(BIKE, TAG), awaitListed().devices.map { it.address })
@@ -181,7 +183,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `reloading sorts again, adds the new devices and puts the greyed out ones last`() = runTest {
-        test().page(reloads).test {
+        test().page(reloads, scanning).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
             assertEquals(listOf(BIKE, TAG), awaitListed().devices.map { it.address })
@@ -206,7 +208,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `a listed device getting weak stays, greyed out, until it is loud again`() = runTest {
-        test().page(reloads).test {
+        test().page(reloads, scanning).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             awaitListed()
             repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -95)) }
@@ -226,7 +228,7 @@ internal class BeaconDiscoveryUseCaseTest {
 
     @Test
     fun `the new devices count never goes down until reloading`() = runTest {
-        test().page(reloads).test {
+        test().page(reloads, scanning).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             awaitListed()
             advertisements.emit(advertisement(WATCH, "Watch", rssi = -80))
@@ -247,13 +249,53 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     @Test
-    fun `a resolvable private address may change`() {
-        assertTrue(device("4A:1B:2C:3D:4E:5F").mayChangeAddress)
-        assertTrue(device("7F:1B:2C:3D:4E:5F").mayChangeAddress)
-        // Static random, as the CFMOTOR beacons use
-        assertFalse(device(BIKE).mayChangeAddress)
-        assertFalse(device("C4:CD:82:63:55:15").mayChangeAddress)
-        assertFalse(device("80:EA:CA:10:20:30").mayChangeAddress)
+    fun `a tyre sensor is left out`() = runTest {
+        test().devices(scanning).test {
+            assertEquals(emptyList(), awaitItem())
+            advertisements.emit(advertisement("80:EA:CA:10:20:30", "BR", rssi = -50, isTyreSensor = true))
+            delay(1.seconds)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a device only turns weak a few dB below the threshold it turned strong at`() = runTest {
+        test().devices(scanning).test {
+            assertEquals(emptyList(), awaitItem())
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.STRONG_FROM))
+            delay(1.seconds)
+            assertTrue(awaitItem().single().isStrong)
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.WEAK_BELOW)) }
+            delay(1.seconds)
+            assertTrue(expectMostRecentItem().single().isStrong)
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.WEAK_BELOW - 1)) }
+            delay(1.seconds)
+            assertFalse(expectMostRecentItem().single().isStrong)
+            // And back strong only from the threshold
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.STRONG_FROM - 1)) }
+            delay(1.seconds)
+            assertFalse(expectMostRecentItem().single().isStrong)
+        }
+    }
+
+    @Test
+    fun `pausing the scan keeps the devices found so far`() = runTest {
+        test().page(reloads, scanning).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            assertEquals(listOf(BIKE), awaitListed().devices.map { it.address })
+            scanning.value = false
+            delay(1.seconds)
+            verify(exactly = 1) { scanner.advertisements(any(), any()) }
+            scanning.value = true
+            advertisements.emit(advertisement(TAG, "Tag", rssi = -60))
+            delay(1.seconds)
+            expectMostRecentItem().let { page ->
+                assertIs<Page.Listed>(page)
+                assertEquals(listOf(BIKE), page.devices.map { it.address })
+                assertEquals(1, page.notShown)
+            }
+            verify(exactly = 2) { scanner.advertisements(any(), any()) }
+        }
     }
 
     /** Lets the search end, skipping its countdown */
@@ -266,14 +308,15 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     private fun device(address: String, name: String = "Device", rssi: Int = -60) =
-        Device(address, name, rssi, period = null, isTyreSensor = false, isQuiet = false)
+        Device(address, name, rssi, period = null, isStrong = true, isQuiet = false)
 
     private fun advertisement(
         address: String,
         name: String?,
         rssi: Int,
         timestamp: Duration = Duration.ZERO,
-    ) = Advertisement(address, name, rssi, timestamp, isTyreSensor = false)
+        isTyreSensor: Boolean = false,
+    ) = Advertisement(address, name, rssi, timestamp, isTyreSensor)
 
     private companion object {
         const val BIKE = "EE:64:A3:12:38:1A"

@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.runningFold
@@ -37,26 +37,14 @@ internal class BeaconDiscoveryUseCase(
         val rssi: Int,
         /** The typical time between two of its packets, null until a few were heard */
         val period: Duration?,
-        val isTyreSensor: Boolean,
+        /** Loud enough to count as nearby, see [STRONG_FROM] */
+        val isStrong: Boolean,
         /** Not heard for a while, gone or out of range */
         val isQuiet: Boolean,
     ) {
-        /**
-         * A resolvable private address, the kind phones, watches and earbuds use, changes every few
-         * minutes: such a device can't be recognized later. Told by its two highest bits being 01,
-         * which a public address can have too, hence "may".
-         */
-        @Suppress("MagicNumber")
-        val mayChangeAddress: Boolean
-            get() = address
-                .take(2)
-                .toIntOrNull(16)
-                ?.let { it and 0xC0 == 0x40 }
-                ?: false
-
-        /** Could be a beacon right now: heard lately, loud enough to count as nearby */
+        /** Could be a beacon right now */
         val isCandidate: Boolean
-            get() = isQuiet.not() && rssi >= BeaconPresenceUseCase.MIN_RSSI
+            get() = isStrong && isQuiet.not()
     }
 
     /** What the page adding a beacon shows */
@@ -74,16 +62,17 @@ internal class BeaconDiscoveryUseCase(
 
     /**
      * Searches for [SEARCH], then lists the devices that were candidates at some point, the loudest
-     * first. Once listed, a device stays until the page is closed, greyed out while it isn't a
-     * candidate. The list keeps its order, so that rows don't move under the finger as signals
-     * change, until [reloads] emits: it is then sorted again and the new devices added.
+     * first. Once listed, a device stays for as long as this is collected, greyed out while it isn't
+     * a candidate. The list keeps its order, so that rows don't move under the finger as signals
+     * change, until [reloads] emits: it is then sorted again and the new devices added. Scans only
+     * while [scanning], what was found so far being kept meanwhile.
      */
-    fun page(reloads: Flow<Unit>): Flow<Page> = channelFlow {
+    fun page(reloads: Flow<Unit>, scanning: Flow<Boolean>): Flow<Page> = channelFlow {
         val latest = MutableStateFlow(emptyList<Device>())
         // Every device ever a candidate, in the order they became one
         val qualified = MutableStateFlow(emptySet<String>())
         launch {
-            devices().collect { devices ->
+            devices(scanning).collect { devices ->
                 latest.value = devices
                 qualified.value += devices.filter { it.isCandidate }.map { it.address }
             }
@@ -116,36 +105,38 @@ internal class BeaconDiscoveryUseCase(
         .map { it.address }
 
     /**
-     * The named devices heard since the scan started, in the order they were found, refreshed every
-     * [REFRESH] rather than on every packet. An unnamed device is left out: it is usually one whose
-     * address changes all the time, unusable as a beacon. Empty while Bluetooth is off.
+     * The named devices heard so far, in the order they were found, refreshed every [REFRESH]
+     * rather than on every packet. Scans while [scanning] and Bluetooth is on, the devices heard
+     * being kept otherwise. Left out:
+     * - An unnamed device, usually one whose address changes all the time, unusable as a beacon.
+     * - A tyre sensor: the vehicle's own ones are already bound to it, the others aren't wanted.
      */
-    fun devices(): Flow<List<Device>> = bluetoothOn
-        .distinctUntilChanged()
-        .flatMapLatest { on ->
-            if (on.not()) return@flatMapLatest flowOf(emptyList())
-            merge(
-                scanner
-                    .advertisements(LOW_LATENCY, devices = null)
-                    .map<Advertisement, Advertisement?> { it },
-                flow {
-                    while (true) {
-                        emit(null)
-                        delay(REFRESH)
-                    }
-                },
-            )
-                .runningFold(Heard(emptyMap(), isRefresh = false)) { heard, advertisement ->
-                    advertisement
-                        ?.let {
-                            Heard(heard.devices + (it.address to heard.devices[it.address].plus(it)), isRefresh = false)
-                        }
-                        ?: heard.copy(isRefresh = true)
+    fun devices(scanning: Flow<Boolean>): Flow<List<Device>> = merge(
+        combine(scanning, bluetoothOn) { scanning, on -> scanning && on }
+            .distinctUntilChanged()
+            .flatMapLatest { scan ->
+                if (scan) scanner.advertisements(LOW_LATENCY, devices = null) else emptyFlow()
+            }
+            .map<Advertisement, Advertisement?> { it },
+        flow {
+            while (true) {
+                emit(null)
+                delay(REFRESH)
+            }
+        },
+    )
+        .runningFold(Heard(emptyMap(), isRefresh = false)) { heard, advertisement ->
+            advertisement
+                ?.let {
+                    Heard(heard.devices + (it.address to heard.devices[it.address].plus(it)), isRefresh = false)
                 }
-                .filter { it.isRefresh }
-                .map { heard ->
-                    heard.devices.mapNotNull { (address, device) -> device.asDevice(address) }
-                }
+                ?: heard.copy(isRefresh = true)
+        }
+        .filter { it.isRefresh }
+        .map { heard ->
+            heard.devices.mapNotNull { (address, device) ->
+                device.takeIf { it.isTyreSensor.not() }?.asDevice(address)
+            }
         }
         .distinctUntilChanged()
 
@@ -155,6 +146,7 @@ internal class BeaconDiscoveryUseCase(
         val lastHeard: TimeMark,
         val name: String?,
         val rssis: List<Int>,
+        val isStrong: Boolean,
         val timestamps: List<Duration>,
         val isTyreSensor: Boolean,
     ) {
@@ -162,7 +154,7 @@ internal class BeaconDiscoveryUseCase(
             Device(
                 address = address,
                 name = name,
-                rssi = rssis.sorted().let { it[it.size / 2] },
+                rssi = rssis.median(),
                 period = timestamps
                     .zipWithNext { a, b -> b - a }
                     // The same packet received twice, or on another advertising channel
@@ -171,28 +163,44 @@ internal class BeaconDiscoveryUseCase(
                     // Missed packets make some gaps a multiple of the period: the median ignores them
                     ?.sorted()
                     ?.let { it[it.size / 2] },
-                isTyreSensor = isTyreSensor,
+                isStrong = isStrong,
                 isQuiet = lastHeard.elapsedNow() >= QUIET_AFTER,
             )
         }
     }
 
-    private fun Accumulated?.plus(advertisement: Advertisement) = Accumulated(
-        lastHeard = timeSource.markNow(),
-        // Some devices only send their name in some packets (the scan response)
-        name = advertisement.name ?: this?.name,
-        rssis = (this?.rssis.orEmpty() + advertisement.rssi).takeLast(MAX_PACKETS),
-        timestamps = (this?.timestamps.orEmpty() + advertisement.timestamp).takeLast(MAX_PACKETS),
-        isTyreSensor = advertisement.isTyreSensor || this?.isTyreSensor == true,
-    )
+    private fun Accumulated?.plus(advertisement: Advertisement): Accumulated {
+        val rssis = (this?.rssis.orEmpty() + advertisement.rssi).takeLast(MAX_PACKETS)
+        return Accumulated(
+            lastHeard = timeSource.markNow(),
+            // Some devices only send their name in some packets (the scan response)
+            name = advertisement.name ?: this?.name,
+            rssis = rssis,
+            // A device hovering around the threshold would keep turning on and off otherwise
+            isStrong = rssis
+                .median()
+                .let { it >= STRONG_FROM || (this?.isStrong == true && it >= WEAK_BELOW) },
+            timestamps = (this?.timestamps.orEmpty() + advertisement.timestamp).takeLast(MAX_PACKETS),
+            isTyreSensor = advertisement.isTyreSensor || this?.isTyreSensor == true,
+        )
+    }
 
     companion object {
         /** How long the page searches before listing anything */
         val SEARCH = 5.seconds
+
+        /** Loud enough to count as nearby, like the background scan tells */
+        const val STRONG_FROM = BeaconPresenceUseCase.MIN_RSSI
+
+        /** A strong device only becomes weak below that, a few dB under [STRONG_FROM] */
+        const val WEAK_BELOW = STRONG_FROM - 5
+
         private val COUNTDOWN_STEP = 1.seconds
         private val REFRESH = 1.seconds
         private val QUIET_AFTER = 30.seconds
         private const val MAX_PACKETS = 11
         private const val MIN_GAPS = 3
+
+        private fun List<Int>.median() = sorted().let { it[it.size / 2] }
     }
 }

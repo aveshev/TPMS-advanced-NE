@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.ActionSettingsItem
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
@@ -57,10 +57,12 @@ internal fun BeaconScan(
     viewModel: BeaconsViewModel = viewModel { BeaconsViewModel() },
 ) {
     SettingsOnScreenEffect()
-    // Stops scanning once the page isn't seen any more, the screen being off included
-    val page by viewModel.scanPage.collectAsStateWithLifecycle(
-        initialValue = Page.Searching(BeaconDiscoveryUseCase.SEARCH, found = 0)
-    )
+    // Pauses scanning once the page isn't seen any more, the screen being off included
+    LifecycleStartEffect(viewModel) {
+        viewModel.scanPageVisible.value = true
+        onStopOrDispose { viewModel.scanPageVisible.value = false }
+    }
+    val page by viewModel.scanPage.collectAsState()
     val beacons by viewModel.beacons.collectAsState()
     val bluetoothState = rememberBluetoothState()
     BeaconScan(
@@ -132,15 +134,12 @@ private fun BeaconScan(
                     val isAdded = device.address in added
                     ActionSettingsItem(
                         headline = device.name,
-                        supporting = listOfNotNull(
-                            device.address,
+                        supporting = listOfNotNull(device.address, "Added".takeIf { isAdded })
+                            .joinToString(" · ") + "\n" + listOfNotNull(
                             "${device.rssi} dBm",
                             device.period?.let { "every ${it.asSeconds()}" },
                             "Not heard lately".takeIf { device.isQuiet },
-                            "Weak signal".takeIf { device.isQuiet.not() && device.isCandidate.not() },
-                            "Tyre sensor".takeIf { device.isTyreSensor },
-                            "Address may change".takeIf { device.mayChangeAddress },
-                            "Added".takeIf { isAdded },
+                            "Weak signal".takeIf { device.isQuiet.not() && device.isStrong.not() },
                         ).joinToString(" · "),
                         // Too weak or gone for now, may come back
                         enabled = device.isCandidate,
@@ -172,9 +171,9 @@ private fun BeaconScan(
 private val Int.devices
     get() = if (this == 1) "1 new device" else "$this new devices"
 
-/** "0.30 s" */
+/** "0.3 s" */
 @Suppress("MagicNumber")
-private fun Duration.asSeconds() = String.format(Locale.ROOT, "%.2f s", inWholeMilliseconds / 1000.0)
+private fun Duration.asSeconds() = String.format(Locale.ROOT, "%.1f s", inWholeMilliseconds / 1000.0)
 
 @Suppress("ConstPropertyName")
 internal object BeaconScanTags {
@@ -187,11 +186,10 @@ internal object BeaconScanTags {
 
 @Suppress("MagicNumber")
 private val previewDevices = listOf(
-    Device("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", -62, 303.milliseconds, isTyreSensor = false, isQuiet = false),
-    Device("C4:CD:82:63:55:15", "RE6603100142", -78, 104.milliseconds, isTyreSensor = false, isQuiet = false),
-    Device("4A:1B:2C:3D:4E:5F", "Galaxy Watch", -80, 52.milliseconds, isTyreSensor = false, isQuiet = false),
-    Device("80:EA:CA:10:20:30", "BR", -88, 1.seconds, isTyreSensor = true, isQuiet = false),
-    Device("F3:34:67:CA:7B:EB", "CFMOTOR_f33467ca7beb", -84, null, isTyreSensor = false, isQuiet = true),
+    Device("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", -62, 303.milliseconds, isStrong = true, isQuiet = false),
+    Device("C4:CD:82:63:55:15", "RE6603100142", -78, 104.milliseconds, isStrong = true, isQuiet = false),
+    Device("4A:1B:2C:3D:4E:5F", "Galaxy Watch", -91, 52.milliseconds, isStrong = false, isQuiet = false),
+    Device("F3:34:67:CA:7B:EB", "CFMOTOR_f33467ca7beb", -84, null, isStrong = true, isQuiet = true),
 )
 
 @Suppress("MagicNumber")

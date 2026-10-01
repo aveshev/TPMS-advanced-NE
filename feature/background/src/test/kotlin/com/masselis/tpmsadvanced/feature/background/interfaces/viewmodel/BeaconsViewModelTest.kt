@@ -38,13 +38,13 @@ internal class BeaconsViewModelTest {
 
     @Test
     fun `a device is added as a beacon with its advertised name`() {
-        test().add(Device("C4:CD:82:63:55:15", "RE6603100142", -60, null, isTyreSensor = false, isQuiet = false))
+        test().add(Device("C4:CD:82:63:55:15", "RE6603100142", -60, null, isStrong = true, isQuiet = false))
         assertEquals(listOf(BIKE, Beacon("C4:CD:82:63:55:15", "RE6603100142", label = null)), beacons.value)
     }
 
     @Test
     fun `a device already added is not added twice`() {
-        test().add(Device(BIKE.address, "CFMOTOR_ee64a312381a", -60, null, isTyreSensor = false, isQuiet = false))
+        test().add(Device(BIKE.address, "CFMOTOR_ee64a312381a", -60, null, isStrong = true, isQuiet = false))
         assertEquals(listOf(BIKE), beacons.value)
     }
 
