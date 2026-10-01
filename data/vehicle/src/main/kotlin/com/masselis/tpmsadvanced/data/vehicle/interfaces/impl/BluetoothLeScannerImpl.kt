@@ -22,7 +22,10 @@ import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.dematerializeCompletion
 import com.masselis.tpmsadvanced.core.common.materializeCompletion
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Advertisement
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Failure
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +37,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -43,6 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 @SuppressLint("MissingPermission")
@@ -57,9 +62,10 @@ internal class BluetoothLeScannerImpl(
 
     private val bluetoothAdapter get() = context.getSystemService<BluetoothManager>()?.adapter
 
+    /** Every result of a scan with [filters] and [settings], debug builds adding the mock ones */
     @SuppressLint("InlinedApi")
     @RequiresPermission("android.permission.BLUETOOTH_SCAN")
-    private fun scan(mode: Int) = callbackFlow {
+    private fun rawScan(filters: List<ScanFilter>, settings: ScanSettings) = callbackFlow {
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 launch { send(result) }
@@ -74,7 +80,8 @@ internal class BluetoothLeScannerImpl(
             }
         }
 
-        // Anti-spam mechanism to avoid an exception when requesting 6 scans within a 30s frame
+        // Anti-spam mechanism to avoid an exception when requesting 6 scans within a 30s frame.
+        // Every scan of the app counts, the tyre ones and the others alike.
         delay(5.seconds - (System.currentTimeMillis().milliseconds - lastStartScan))
         // Delay elapsed, set lastStartScan to the current timestamp
         lastStartScan = System.currentTimeMillis().milliseconds
@@ -84,16 +91,7 @@ internal class BluetoothLeScannerImpl(
             close(Failure.ScannerIsNull(bluetoothAdapter?.state))
             awaitCancellation()
         }
-        leScanner.startScan(
-            FILTERS,
-            ScanSettings
-                .Builder()
-                .setScanMode(mode)
-                .setMatchMode(MATCH_MODE_AGGRESSIVE)
-                .setNumOfMatches(MATCH_NUM_ONE_ADVERTISEMENT)
-                .build(),
-            callback
-        )
+        leScanner.startScan(filters, settings, callback)
         awaitClose {
             if (bluetoothAdapter?.isEnabled == true) {
                 leScanner.flushPendingScanResults(callback)
@@ -101,7 +99,18 @@ internal class BluetoothLeScannerImpl(
             }
         }
     }.flowOn(Dispatchers.Main) // System's BluetoothLeScanner class as issues if called on a background thread
-        .withMockAdvertisements(context, FILTERS)
+        .withMockAdvertisements(context, filters)
+
+    @RequiresPermission("android.permission.BLUETOOTH_SCAN")
+    private fun scan(mode: Int) = rawScan(
+        FILTERS,
+        ScanSettings
+            .Builder()
+            .setScanMode(mode)
+            .setMatchMode(MATCH_MODE_AGGRESSIVE)
+            .setNumOfMatches(MATCH_NUM_ONE_ADVERTISEMENT)
+            .build(),
+    )
         .mapNotNull { result ->
             logger.v { "Sensor found during scan. Address: ${result.device.address}, scan bytes: ${result.scanRecord?.bytes?.toHexString()}" }
             (
@@ -137,6 +146,41 @@ internal class BluetoothLeScannerImpl(
 
     override fun normalScan(): Flow<Tyre.SensorInput> = balancedScanFlow
 
+    @SuppressLint("MissingPermission")
+    override fun advertisements(mode: ScanMode, devices: List<DeviceMatch>?): Flow<Advertisement> =
+        if (devices?.isEmpty() == true) emptyFlow()
+        else rawScan(
+            devices.orEmpty().flatMap { it.asFilters() },
+            // Every packet, the broadcast period is read from them
+            ScanSettings.Builder().setScanMode(mode.value).build(),
+        ).map { result ->
+            Advertisement(
+                address = result.device.address,
+                name = result.scanRecord?.deviceName,
+                rssi = result.rssi,
+                timestamp = result.timestampNanos.nanoseconds,
+                isTyreSensor = result.scanRecord?.serviceUuids.orEmpty().any { it in SERVICE_UUIDS },
+            )
+        }
+
+    private val ScanMode.value
+        get() = when (this) {
+            ScanMode.OPPORTUNISTIC -> ScanSettings.SCAN_MODE_OPPORTUNISTIC
+            ScanMode.LOW_POWER -> ScanSettings.SCAN_MODE_LOW_POWER
+            ScanMode.BALANCED -> ScanSettings.SCAN_MODE_BALANCED
+            ScanMode.LOW_LATENCY -> ScanSettings.SCAN_MODE_LOW_LATENCY
+        }
+
+    /**
+     * Either one matches, the system delivering what matches any of the filters. The public API
+     * only filters on a public address, and some phones then miss a random one (most beacons): the
+     * name makes up for it.
+     */
+    private fun DeviceMatch.asFilters(): List<ScanFilter> = buildList {
+        add(ScanFilter.Builder().setDeviceAddress(address).build())
+        name?.let { add(ScanFilter.Builder().setDeviceName(it).build()) }
+    }
+
     @OptIn(DelicateCoroutinesApi::class)
     private fun Flow<Tyre.SensorInput>.shared() = this
         .materializeCompletion()
@@ -156,12 +200,13 @@ internal class BluetoothLeScannerImpl(
 
     @OptIn(ExperimentalUnsignedTypes::class)
     companion object {
-        private val FILTERS = listOf(
+        private val SERVICE_UUIDS = listOf(
             RawSysgration.SERVICE_UUID,
             RawPecham.SERVICE_UUID,
             RawWicarlink.SERVICE_UUID,
             RawBekubeeKy.SERVICE_UUID,
             RawBekubeeTpms.SERVICE_UUID
-        ).map { ScanFilter.Builder().setServiceUuid(it).build() }
+        )
+        private val FILTERS = SERVICE_UUIDS.map { ScanFilter.Builder().setServiceUuid(it).build() }
     }
 }

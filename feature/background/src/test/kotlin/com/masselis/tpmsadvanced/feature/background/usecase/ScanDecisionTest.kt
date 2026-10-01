@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BEACON
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
@@ -150,8 +151,48 @@ internal class ScanDecisionTest {
             ScanDecision.Suspended(setOf(Reason.BLUETOOTH)).explanation()
         )
         assertEquals(
+            "Background scanning is active due to Bike and Car being nearby",
+            ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike", "Car")).explanation()
+        )
+        assertEquals(
+            "Background scanning is active due to a Bluetooth beacon being nearby",
+            ScanDecision.Active(setOf(BEACON)).explanation()
+        )
+        assertEquals(
             "Background scanning is idle: no activate condition is currently fulfilled",
             ScanDecision.Idle.explanation()
+        )
+    }
+
+    @Test
+    fun `the beacon override activates a nearby beacon despite the suspend conditions`() {
+        assertEquals(
+            ScanDecision.Active(setOf(BEACON, CABLE)),
+            decide(setOf(BEACON, CABLE), setOf(BEACON, CABLE), setOf(WIFI, Reason.BLUETOOTH), beaconOverridesSuspend = true)
+        )
+    }
+
+    @Test
+    fun `the beacon override does not apply while the phone is idle`() {
+        assertEquals(
+            ScanDecision.Suspended(setOf(WIFI, DOZE)),
+            decide(setOf(BEACON), setOf(BEACON), setOf(WIFI, DOZE), beaconOverridesSuspend = true)
+        )
+    }
+
+    @Test
+    fun `the beacon override needs a beacon nearby`() {
+        assertEquals(
+            ScanDecision.Suspended(setOf(WIFI)),
+            decide(setOf(BEACON, CABLE), setOf(CABLE), setOf(WIFI), beaconOverridesSuspend = true)
+        )
+    }
+
+    @Test
+    fun `a nearby beacon is suspended like any other condition without the override`() {
+        assertEquals(
+            ScanDecision.Suspended(setOf(WIFI)),
+            decide(setOf(BEACON), setOf(BEACON), setOf(WIFI))
         )
     }
 }

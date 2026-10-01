@@ -106,7 +106,8 @@ internal fun Flow<ScanResult>.withMockAdvertisements(
                                 ?: error("No Bluetooth adapter"),
                             rssi = intent.number(EXTRA_RSSI)?.toInt() ?: DEFAULT_RSSI,
                         )
-                        .also { result -> check(filters.any { it.matches(result) }) { "Matches none of the scan filters" } }
+                        // No filter at all is an unfiltered scan, which receives everything
+                        .also { result -> check(filters.isEmpty() || filters.any { it.matches(result) }) { "Matches none of the scan filters" } }
                 }
                     .onSuccess { logger.d { "Mock advertisement received from ${it.device.address}" } }
                     .onSuccess { trySend(it) }

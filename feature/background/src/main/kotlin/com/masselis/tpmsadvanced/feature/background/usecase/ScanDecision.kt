@@ -1,20 +1,24 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BEACON
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
 
 internal sealed interface ScanDecision {
 
-    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, BLUETOOTH, STAY_ACTIVE, ALWAYS }
+    enum class ActivateCause { MANUAL, CABLE, WIRELESS, ANDROID_AUTO, BLUETOOTH, BEACON, STAY_ACTIVE, ALWAYS }
 
     /**
      * Background scanning is running, for at least one of [causes]. [bluetoothDevices] names the
-     * connected devices behind [ActivateCause.BLUETOOTH].
+     * connected devices behind [ActivateCause.BLUETOOTH], [beacons] the nearby beacons behind
+     * [ActivateCause.BEACON].
      */
     data class Active(
         val causes: Set<ActivateCause>,
         val bluetoothDevices: List<String> = emptyList(),
+        val beacons: List<String> = emptyList(),
     ) : ScanDecision
 
     /**
@@ -33,18 +37,23 @@ internal sealed interface ScanDecision {
 /**
  * Persistent scanning is active if ANY enabled activate condition is fulfilled and NONE of the
  * suspend conditions is. [ALWAYS] (the activate conditions being turned off) is always fulfilled
- * and makes every other one irrelevant.
+ * and makes every other one irrelevant. With [beaconOverridesSuspend], a nearby beacon scans
+ * whatever the suspend conditions, but the phone being idle (Doze).
  */
 internal fun decide(
     enabled: Set<ScanDecision.ActivateCause>,
     fulfilled: Set<ScanDecision.ActivateCause>,
     suspendReasons: Set<Reason>,
+    beaconOverridesSuspend: Boolean = false,
 ): ScanDecision {
     val causes = if (ALWAYS in enabled) setOf(ALWAYS) else enabled intersect fulfilled
     return when {
         causes.isEmpty() -> ScanDecision.Idle
-        suspendReasons.isNotEmpty() -> ScanDecision.Suspended(suspendReasons)
-        else -> ScanDecision.Active(causes)
+        suspendReasons.isEmpty() -> ScanDecision.Active(causes)
+        // The beacon tells the vehicle is around. A phone idle for that long was rather forgotten
+        // in it, and there is no stopping then since the beacon never leaves.
+        beaconOverridesSuspend && BEACON in causes && DOZE !in suspendReasons -> ScanDecision.Active(causes)
+        else -> ScanDecision.Suspended(suspendReasons)
     }
 }
 
@@ -54,7 +63,11 @@ internal fun ScanDecision.explanation(): String = when (this) {
         if (ALWAYS in causes) "Background scanning is active because you chose it to be always active"
         else "Background scanning is active due to ${
             causes.joinToString(", ") {
-                if (it == BLUETOOTH) bluetoothDevices.connectedLabel() else it.label
+                when (it) {
+                    BLUETOOTH -> bluetoothDevices.connectedLabel()
+                    BEACON -> beacons.nearbyLabel()
+                    else -> it.label
+                }
             }
         }"
 
@@ -88,14 +101,24 @@ private val ScanDecision.ActivateCause.label
         ScanDecision.ActivateCause.ANDROID_AUTO -> "Android Auto being connected"
         // Told with the devices' names, see connectedLabel()
         BLUETOOTH -> "a Bluetooth device being connected"
+        // Told with the beacons' names, see nearbyLabel()
+        BEACON -> "a Bluetooth beacon being nearby"
         ScanDecision.ActivateCause.STAY_ACTIVE -> "staying active after the last activate condition ended"
         ALWAYS -> "the activate conditions being turned off"
     }
 
 /** "A being connected", "A and B being connected", "A, B and C being connected" */
-private fun List<String>.connectedLabel(): String = when (size) {
+private fun List<String>.connectedLabel(): String =
     // The device disconnected in the meantime, its name is gone before the decision changes
-    0 -> "a Bluetooth device being connected"
-    1 -> "${single()} being connected"
-    else -> "${dropLast(1).joinToString(", ")} and ${last()} being connected"
+    namesLabel(fallback = "a Bluetooth device") + " being connected"
+
+/** "A being nearby", "A and B being nearby", "A, B and C being nearby" */
+private fun List<String>.nearbyLabel(): String =
+    // The beacon went away in the meantime, its name is gone before the decision changes
+    namesLabel(fallback = "a Bluetooth beacon") + " being nearby"
+
+private fun List<String>.namesLabel(fallback: String): String = when (size) {
+    0 -> fallback
+    1 -> single()
+    else -> "${dropLast(1).joinToString(", ")} and ${last()}"
 }

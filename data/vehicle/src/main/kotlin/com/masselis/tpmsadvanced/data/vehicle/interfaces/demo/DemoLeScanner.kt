@@ -9,6 +9,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 
 @Suppress("MagicNumber")
@@ -120,6 +121,12 @@ public class DemoLeScanner : BluetoothLeScanner {
     override fun highDutyScan(): Flow<Tyre.SensorInput> = source
 
     override fun normalScan(): Flow<Tyre.SensorInput> = source
+
+    // No device around in the demo
+    override fun advertisements(
+        mode: BluetoothLeScanner.ScanMode,
+        devices: List<BluetoothLeScanner.DeviceMatch>?,
+    ): Flow<BluetoothLeScanner.Advertisement> = emptyFlow()
 
     override fun missingPermission(): List<String> = emptyList()
 
