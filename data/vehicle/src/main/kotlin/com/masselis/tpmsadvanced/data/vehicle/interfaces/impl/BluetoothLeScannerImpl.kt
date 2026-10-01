@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE
 import android.bluetooth.le.ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock.elapsedRealtime
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
@@ -45,6 +46,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -58,7 +61,9 @@ internal class BluetoothLeScannerImpl(
 
     private val logger = Logger.withTag("BluetoothLeScannerImpl")
 
-    private var lastStartScan = Duration.ZERO
+    /** When the last scans started, on the clock of `SystemClock.elapsedRealtime()`, see [rawScan] */
+    private var lastStarts = emptyList<Duration>()
+    private val startLock = Mutex()
 
     private val bluetoothAdapter get() = context.getSystemService<BluetoothManager>()?.adapter
 
@@ -80,11 +85,17 @@ internal class BluetoothLeScannerImpl(
             }
         }
 
-        // Anti-spam mechanism to avoid an exception when requesting 6 scans within a 30s frame.
-        // Every scan of the app counts, the tyre ones and the others alike.
-        delay(5.seconds - (System.currentTimeMillis().milliseconds - lastStartScan))
-        // Delay elapsed, set lastStartScan to the current timestamp
-        lastStartScan = System.currentTimeMillis().milliseconds
+        // Android refuses a start once the app started MAX_STARTS scans within START_WINDOW, and
+        // silently: no onScanFailed(), the scan just never delivers anything ("scanning too
+        // frequently" in the system log). Every scan of the app counts, the tyre ones and the
+        // others alike, so each start waits for the oldest of the last ones to be out of the window.
+        startLock.withLock {
+            lastStarts
+                .takeIf { it.size >= MAX_STARTS }
+                ?.first()
+                ?.let { oldest -> delay(oldest + START_WINDOW + START_MARGIN - elapsedRealtime().milliseconds) }
+            lastStarts = (lastStarts + elapsedRealtime().milliseconds).takeLast(MAX_STARTS)
+        }
 
         val leScanner = bluetoothAdapter?.bluetoothLeScanner
         if (leScanner == null) {
@@ -208,5 +219,10 @@ internal class BluetoothLeScannerImpl(
             RawBekubeeTpms.SERVICE_UUID
         )
         private val FILTERS = SERVICE_UUIDS.map { ScanFilter.Builder().setServiceUuid(it).build() }
+
+        // Android's limit, see AppScanStats in the Bluetooth stack
+        private const val MAX_STARTS = 5
+        private val START_WINDOW = 30.seconds
+        private val START_MARGIN = 1.seconds
     }
 }
