@@ -54,7 +54,7 @@ internal class BeaconDiscoveryUseCase(
                 ?.let { it and 0xC0 == 0x40 }
                 ?: false
 
-        /** Could be a beacon: heard lately, loud enough to ever count as nearby */
+        /** Could be a beacon right now: heard lately, loud enough to count as nearby */
         val isCandidate: Boolean
             get() = isQuiet.not() && rssi >= BeaconPresenceUseCase.MIN_RSSI
     }
@@ -66,41 +66,53 @@ internal class BeaconDiscoveryUseCase(
 
         /**
          * [devices] in a fixed order, the loudest first when they were listed, their signal kept up
-         * to date. [notShown] counts the candidates heard since, listed by the next reload.
+         * to date. [notShown] counts the devices that became candidates since, listed by the next
+         * reload: it only grows until then.
          */
         data class Listed(val devices: List<Device>, val notShown: Int) : Page
     }
 
     /**
-     * Searches for [SEARCH], then lists the candidates, the loudest first. The list keeps its order,
-     * so that rows don't move under the finger as signals change, until [reloads] emits: it is then
-     * sorted again, its quiet and weak devices left out and the new ones added.
+     * Searches for [SEARCH], then lists the devices that were candidates at some point, the loudest
+     * first. Once listed, a device stays until the page is closed, greyed out while it isn't a
+     * candidate. The list keeps its order, so that rows don't move under the finger as signals
+     * change, until [reloads] emits: it is then sorted again and the new devices added.
      */
     fun page(reloads: Flow<Unit>): Flow<Page> = channelFlow {
         val latest = MutableStateFlow(emptyList<Device>())
-        launch { devices().collect { latest.value = it } }
+        // Every device ever a candidate, in the order they became one
+        val qualified = MutableStateFlow(emptySet<String>())
+        launch {
+            devices().collect { devices ->
+                latest.value = devices
+                qualified.value += devices.filter { it.isCandidate }.map { it.address }
+            }
+        }
         val start = timeSource.markNow()
         while (start.elapsedNow() < SEARCH) {
-            send(Page.Searching(SEARCH - start.elapsedNow(), latest.value.count { it.isCandidate }))
+            send(Page.Searching(SEARCH - start.elapsedNow(), qualified.value.size))
             delay(minOf(COUNTDOWN_STEP, SEARCH - start.elapsedNow()))
         }
-        val order = MutableStateFlow(latest.value.sortedCandidates())
-        launch { reloads.collect { order.value = latest.value.sortedCandidates() } }
-        combine(order, latest) { order, latest ->
+        val order = MutableStateFlow(latest.value.sorted(qualified.value))
+        launch { reloads.collect { order.value = latest.value.sorted(qualified.value) } }
+        combine(order, latest, qualified) { order, latest, qualified ->
             val byAddress = latest.associateBy { it.address }
             Page.Listed(
                 devices = order.mapNotNull { byAddress[it] },
-                notShown = latest.count { it.isCandidate && it.address !in order },
+                notShown = qualified.count { it !in order },
             )
         }
             .distinctUntilChanged()
             .collect { send(it) }
     }
 
-    private fun List<Device>.sortedCandidates() = this
-        .filter { it.isCandidate }
-        // Stable: equal signals stay in the order they were found
-        .sortedByDescending { it.rssi }
+    /**
+     * The [qualified] devices, the candidates first then the greyed out ones, each the loudest
+     * first. Stable: equal ones stay in the order they were found.
+     */
+    private fun List<Device>.sorted(qualified: Set<String>) = this
+        .filter { it.address in qualified }
+        .sortedWith(compareBy<Device> { it.isCandidate.not() }.thenByDescending { it.rssi })
         .map { it.address }
 
     /**

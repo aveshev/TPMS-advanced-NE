@@ -180,7 +180,7 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     @Test
-    fun `reloading sorts again, adds the new devices and drops the weak and quiet ones`() = runTest {
+    fun `reloading sorts again, adds the new devices and puts the greyed out ones last`() = runTest {
         test().page(reloads).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
@@ -191,12 +191,58 @@ internal class BeaconDiscoveryUseCaseTest {
             delay(10.seconds)
             expectMostRecentItem().let { page ->
                 assertIs<Page.Listed>(page)
-                // Still listed while quiet, until the next reload
+                // Still listed while quiet, greyed out
                 assertTrue(page.devices.first { it.address == BIKE }.isQuiet)
                 assertEquals(1, page.notShown)
             }
             reloads.emit(Unit)
-            assertEquals(Page.Listed(listOf(device(WATCH, "Watch", rssi = -50), device(TAG, "Tag", rssi = -70)), notShown = 0), awaitItem())
+            awaitItem().let { page ->
+                assertIs<Page.Listed>(page)
+                assertEquals(listOf(WATCH, TAG, BIKE), page.devices.map { it.address })
+                assertEquals(0, page.notShown)
+            }
+        }
+    }
+
+    @Test
+    fun `a listed device getting weak stays, greyed out, until it is loud again`() = runTest {
+        test().page(reloads).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            awaitListed()
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -95)) }
+            delay(1.seconds)
+            expectMostRecentItem().let { page ->
+                assertIs<Page.Listed>(page)
+                assertFalse(page.devices.single().isCandidate)
+            }
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -60)) }
+            delay(1.seconds)
+            expectMostRecentItem().let { page ->
+                assertIs<Page.Listed>(page)
+                assertTrue(page.devices.single().isCandidate)
+            }
+        }
+    }
+
+    @Test
+    fun `the new devices count never goes down until reloading`() = runTest {
+        test().page(reloads).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            awaitListed()
+            advertisements.emit(advertisement(WATCH, "Watch", rssi = -80))
+            delay(1.seconds)
+            assertEquals(1, (expectMostRecentItem() as Page.Listed).notShown)
+            // Below the threshold a moment later: still counted
+            repeat(11) { advertisements.emit(advertisement(WATCH, "Watch", rssi = -95)) }
+            delay(1.seconds)
+            expectNoEvents()
+            reloads.emit(Unit)
+            awaitItem().let { page ->
+                assertIs<Page.Listed>(page)
+                // Added, greyed out after the loud ones
+                assertEquals(listOf(BIKE, WATCH), page.devices.map { it.address })
+                assertEquals(0, page.notShown)
+            }
         }
     }
 

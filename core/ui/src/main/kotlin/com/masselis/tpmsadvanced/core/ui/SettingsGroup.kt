@@ -158,7 +158,8 @@ public fun SwitchNavigationSettingsItem(
 /**
  * A [SettingsGroup] item with a button at its end, such as one removing the item. [struckOut]
  * greys out and strikes through the headline alone, without changing the item's height, the
- * [action] staying usable (e.g. to undo a removal).
+ * [action] staying usable (e.g. to undo a removal). Without [enabled], the texts are greyed out,
+ * the [action] staying usable too.
  */
 @Composable
 public fun ActionSettingsItem(
@@ -166,6 +167,7 @@ public fun ActionSettingsItem(
     modifier: Modifier = Modifier,
     supporting: String? = null,
     struckOut: Boolean = false,
+    enabled: Boolean = true,
     action: @Composable () -> Unit,
 ): Unit = Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -176,6 +178,7 @@ public fun ActionSettingsItem(
     ItemTexts(
         headline = headline,
         supporting = listOfNotNull(supporting?.let(::AnnotatedString)),
+        modifier = Modifier.enabledAlpha(enabled),
         headlineModifier = Modifier.enabledAlpha(struckOut.not()),
         headlineDecoration = TextDecoration.LineThrough.takeIf { struckOut },
     )

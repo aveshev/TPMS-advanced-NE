@@ -137,10 +137,13 @@ private fun BeaconScan(
                             "${device.rssi} dBm",
                             device.period?.let { "every ${it.asSeconds()}" },
                             "Not heard lately".takeIf { device.isQuiet },
+                            "Weak signal".takeIf { device.isQuiet.not() && device.isCandidate.not() },
                             "Tyre sensor".takeIf { device.isTyreSensor },
                             "Address may change".takeIf { device.mayChangeAddress },
                             "Added".takeIf { isAdded },
                         ).joinToString(" · "),
+                        // Too weak or gone for now, may come back
+                        enabled = device.isCandidate,
                         modifier = Modifier.testTag("${BeaconScanTags.device}_${device.address}"),
                     ) {
                         if (isAdded) {
@@ -187,6 +190,7 @@ private val previewDevices = listOf(
     Device("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", -62, 303.milliseconds, isTyreSensor = false, isQuiet = false),
     Device("C4:CD:82:63:55:15", "RE6603100142", -78, 104.milliseconds, isTyreSensor = false, isQuiet = false),
     Device("4A:1B:2C:3D:4E:5F", "Galaxy Watch", -80, 52.milliseconds, isTyreSensor = false, isQuiet = false),
+    Device("80:EA:CA:10:20:30", "BR", -88, 1.seconds, isTyreSensor = true, isQuiet = false),
     Device("F3:34:67:CA:7B:EB", "CFMOTOR_f33467ca7beb", -84, null, isTyreSensor = false, isQuiet = true),
 )
 
