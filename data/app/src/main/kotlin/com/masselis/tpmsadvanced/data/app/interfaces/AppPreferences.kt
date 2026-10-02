@@ -151,7 +151,7 @@ public class AppPreferences internal constructor(
     }
 
     /**
-     * A nearby beacon overrides every suspend condition but the phone being idle (Doze): it tells
+     * A nearby beacon overrides every suspend condition but the phone being idle: it tells
      * the vehicle is around, while a phone left still for a long time was likely forgotten in it
      */
     public val beaconOverridesSuspend: MutableStateFlow<Boolean> = observableStateFlow(
@@ -208,11 +208,25 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SUSPEND_CONDITIONS", newValue) }
     }
 
-    /** On by default: a phone idle for that long is not on a moving vehicle, it was left somewhere */
+    /**
+     * On by default: a phone idle for that long is not on a moving vehicle, it was left somewhere.
+     * What "idle" means is [phoneIdleMechanism].
+     */
     public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", true)
     ) { _, newValue ->
         sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_IN_DOZE", newValue) }
+    }
+
+    /**
+     * The name of the mechanism telling the phone is idle for [suspendScanningInDoze], a debug
+     * option. Left as a name like [beaconScanMode]: the reader falls back on its default for an
+     * unknown one.
+     */
+    public val phoneIdleMechanism: MutableStateFlow<String?> = observableStateFlow(
+        sharedPreferences.getString("PHONE_IDLE_MECHANISM", null)
+    ) { _, newValue ->
+        sharedPreferences.edit { putString("PHONE_IDLE_MECHANISM", newValue) }
     }
 
     public val suspendScanningOnWifi: MutableStateFlow<Boolean> = observableStateFlow(

@@ -3,7 +3,7 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import app.cash.turbine.test
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.BLUETOOTH
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.IDLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase.State.Connected
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase.State.Disconnected
@@ -20,7 +20,7 @@ import kotlin.test.assertEquals
 internal class ScanSuspensionUseCaseTest {
 
     private lateinit var appPreferences: AppPreferences
-    private lateinit var deviceIdleModeUseCase: DeviceIdleModeUseCase
+    private lateinit var phoneIdleUseCase: PhoneIdleUseCase
     private lateinit var wifiConnectionUseCase: WifiConnectionUseCase
     private lateinit var bluetoothDevicesUseCase: BluetoothDevicesUseCase
 
@@ -29,7 +29,7 @@ internal class ScanSuspensionUseCaseTest {
     private lateinit var suspendScanningOnWifi: MutableStateFlow<Boolean>
     private lateinit var wifiExceptionEnabled: MutableStateFlow<Boolean>
     private lateinit var exceptedWifiSsids: MutableStateFlow<Set<String>>
-    private lateinit var isDeviceIdle: MutableStateFlow<Boolean>
+    private lateinit var phoneIdle: MutableStateFlow<Boolean>
     private lateinit var wifiState: MutableStateFlow<WifiConnectionUseCase.State>
     private lateinit var suspendScanningOnBluetooth: MutableStateFlow<Boolean>
     private lateinit var suspendBluetoothDevices: MutableStateFlow<Set<String>>
@@ -37,7 +37,7 @@ internal class ScanSuspensionUseCaseTest {
 
     private fun test() = ScanSuspensionUseCase(
         appPreferences,
-        deviceIdleModeUseCase,
+        phoneIdleUseCase,
         wifiConnectionUseCase,
         bluetoothDevicesUseCase,
     )
@@ -49,7 +49,7 @@ internal class ScanSuspensionUseCaseTest {
         suspendScanningOnWifi = MutableStateFlow(false)
         wifiExceptionEnabled = MutableStateFlow(false)
         exceptedWifiSsids = MutableStateFlow(emptySet())
-        isDeviceIdle = MutableStateFlow(false)
+        phoneIdle = MutableStateFlow(false)
         wifiState = MutableStateFlow(Disconnected)
         suspendScanningOnBluetooth = MutableStateFlow(false)
         suspendBluetoothDevices = MutableStateFlow(emptySet())
@@ -64,7 +64,7 @@ internal class ScanSuspensionUseCaseTest {
             every { suspendScanningOnBluetooth } returns this@ScanSuspensionUseCaseTest.suspendScanningOnBluetooth
             every { suspendBluetoothDevices } returns this@ScanSuspensionUseCaseTest.suspendBluetoothDevices
         }
-        deviceIdleModeUseCase = mockk { every { isDeviceIdle } returns this@ScanSuspensionUseCaseTest.isDeviceIdle }
+        phoneIdleUseCase = mockk { every { isIdle } returns this@ScanSuspensionUseCaseTest.phoneIdle }
         wifiConnectionUseCase = mockk { every { state } returns this@ScanSuspensionUseCaseTest.wifiState }
         bluetoothDevicesUseCase = mockk {
             every { connected } returns bluetoothConnected.map { addresses ->
@@ -82,7 +82,7 @@ internal class ScanSuspensionUseCaseTest {
 
     @Test
     fun `does not suspend for doze when the toggle is off even if the device is idle`() = runTest {
-        isDeviceIdle.value = true
+        phoneIdle.value = true
         test().suspensionReasons.test {
             assertEquals(emptySet(), awaitItem())
         }
@@ -91,24 +91,24 @@ internal class ScanSuspensionUseCaseTest {
     @Test
     fun `suspends when doze is enabled and the device is idle`() = runTest {
         suspendScanningInDoze.value = true
-        isDeviceIdle.value = true
+        phoneIdle.value = true
         test().suspensionReasons.test {
-            assertEquals(setOf(DOZE), awaitItem())
+            assertEquals(setOf(IDLE), awaitItem())
         }
     }
 
     @Test
     fun `turning the suspend conditions off lifts every suspension`() = runTest {
         suspendScanningInDoze.value = true
-        isDeviceIdle.value = true
+        phoneIdle.value = true
         suspendScanningOnWifi.value = true
         wifiState.value = Connected("Home")
         test().suspensionReasons.test {
-            assertEquals(setOf(DOZE, WIFI), awaitItem())
+            assertEquals(setOf(IDLE, WIFI), awaitItem())
             suspendConditions.value = false
             assertEquals(emptySet(), awaitItem())
             suspendConditions.value = true
-            assertEquals(setOf(DOZE, WIFI), awaitItem())
+            assertEquals(setOf(IDLE, WIFI), awaitItem())
         }
     }
 
@@ -154,11 +154,11 @@ internal class ScanSuspensionUseCaseTest {
     @Test
     fun `combines both reasons when both conditions are met`() = runTest {
         suspendScanningInDoze.value = true
-        isDeviceIdle.value = true
+        phoneIdle.value = true
         suspendScanningOnWifi.value = true
         wifiState.value = Connected("HomeNetwork")
         test().suspensionReasons.test {
-            assertEquals(setOf(DOZE, WIFI), awaitItem())
+            assertEquals(setOf(IDLE, WIFI), awaitItem())
         }
     }
 

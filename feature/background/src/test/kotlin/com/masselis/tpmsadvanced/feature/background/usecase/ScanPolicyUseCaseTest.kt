@@ -225,9 +225,9 @@ internal class ScanPolicyUseCaseTest {
     @Test
     fun `Android Auto is suspended by a suspend condition like any other`() = runTest {
         androidAuto.value = true
-        suspensionReasons.value = setOf(Reason.DOZE)
+        suspensionReasons.value = setOf(Reason.IDLE)
         test().decision.test {
-            assertEquals(ScanDecision.Suspended(setOf(Reason.DOZE)), awaitItem())
+            assertEquals(ScanDecision.Suspended(setOf(Reason.IDLE)), awaitItem())
         }
     }
 
@@ -537,8 +537,8 @@ internal class ScanPolicyUseCaseTest {
         suspensionReasons.value = setOf(Reason.WIFI)
         test().decision.test {
             assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
-            suspensionReasons.value = setOf(Reason.WIFI, Reason.DOZE)
-            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI, Reason.DOZE)), awaitItem())
+            suspensionReasons.value = setOf(Reason.WIFI, Reason.IDLE)
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI, Reason.IDLE)), awaitItem())
         }
     }
 

@@ -6,7 +6,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.IDLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
 import io.mockk.every
 import io.mockk.mockk
@@ -45,7 +45,7 @@ internal class ScanStatusAnnouncerTest {
             decision.emit(ScanDecision.Idle)
             decision.emit(ScanDecision.Active(setOf(CABLE)))
             assertEquals("TPMS active, cable", awaitItem())
-            decision.emit(ScanDecision.Suspended(setOf(DOZE)))
+            decision.emit(ScanDecision.Suspended(setOf(IDLE)))
             assertEquals("TPMS suspended, sleep", awaitItem())
             decision.emit(ScanDecision.Idle)
             assertEquals("TPMS idle", awaitItem())
@@ -62,7 +62,7 @@ internal class ScanStatusAnnouncerTest {
             assertEquals("TPMS active, stay", awaitItem())
             decision.emit(ScanDecision.Suspended(setOf(WIFI)))
             assertEquals("TPMS suspended, WiFi", awaitItem())
-            decision.emit(ScanDecision.Suspended(setOf(WIFI, DOZE)))
+            decision.emit(ScanDecision.Suspended(setOf(WIFI, IDLE)))
             assertEquals("TPMS suspended, sleep and WiFi", awaitItem())
         }
     }
