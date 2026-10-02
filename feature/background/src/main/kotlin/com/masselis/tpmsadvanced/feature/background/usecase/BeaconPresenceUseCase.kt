@@ -9,6 +9,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Scan
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.runningFold
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -28,40 +28,25 @@ import kotlin.time.TimeSource
 internal class BeaconPresenceUseCase(
     private val scanner: BluetoothLeScanner,
     private val bluetoothOn: Flow<Boolean>,
+    /** The signal (dBm) from which a beacon counts as nearby */
+    private val minRssi: StateFlow<Int>,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     private val logger = Logger.withTag("BeaconPresenceUseCase")
 
-    /** How the beacons are scanned for: how much the radio listens, and how batched the results are */
-    enum class Mode(val scanMode: ScanMode, val reportDelay: Duration = Duration.ZERO) {
-        OPPORTUNISTIC(ScanMode.OPPORTUNISTIC),
-        LOW_POWER(ScanMode.LOW_POWER),
-        LOW_POWER_BATCHED_10(ScanMode.LOW_POWER, reportDelay = 10.seconds),
-        LOW_POWER_BATCHED_20(ScanMode.LOW_POWER, reportDelay = 20.seconds),
-        LOW_POWER_BATCHED_30(ScanMode.LOW_POWER, reportDelay = 30.seconds),
-        BALANCED(ScanMode.BALANCED),
-        LOW_LATENCY(ScanMode.LOW_LATENCY),
-    }
-
     /**
      * The addresses of the [beacons] heard nearby, with the signal (dBm) of their last packet. A
-     * beacon is nearby while one of its packets louder than [MIN_RSSI] was heard within [WINDOW]:
-     * a beacon far away (the neighbour's) doesn't count, nor does one gone quiet. Packets of a
-     * batched [mode] come up to its report delay late, all at once: the window is longer by as much,
-     * so that the beacon doesn't seem gone between two batches. Scans while Bluetooth is on, and
-     * again after a failure.
+     * beacon is nearby while one of its packets at least as loud as [minRssi] was heard within
+     * [WINDOW]: a beacon far away (the neighbour's) doesn't count, nor does one gone quiet. Scans
+     * while Bluetooth is on, and again after a failure.
      */
-    fun nearby(beacons: List<Beacon>, mode: Mode): Flow<Map<String, Int>> = bluetoothOn
+    fun nearby(beacons: List<Beacon>, mode: ScanMode): Flow<Map<String, Int>> = bluetoothOn
         .distinctUntilChanged()
         .flatMapLatest { on ->
             if (on.not()) return@flatMapLatest flowOf(emptyMap())
             merge(
                 scanner
-                    .advertisements(
-                        mode.scanMode,
-                        beacons.map { DeviceMatch(it.address, it.advertisedName) },
-                        mode.reportDelay,
-                    )
+                    .advertisements(mode, beacons.map { DeviceMatch(it.address, it.advertisedName) })
                     // Scanning too often, permission revoked meanwhile, etc: tried again later
                     .retryWhen { cause, _ ->
                         logger.w(cause) { "Beacon scan failed, retrying in $RETRY_DELAY" }
@@ -71,7 +56,7 @@ internal class BeaconPresenceUseCase(
                     .mapNotNull { advertisement ->
                         beacons
                             .firstOrNull { it.isSending(advertisement) }
-                            ?.takeIf { advertisement.rssi >= MIN_RSSI }
+                            ?.takeIf { advertisement.rssi >= minRssi.value }
                             ?.let { Heard(it.address, advertisement.rssi, timeSource.markNow()) }
                     },
                 // Packets stop coming when a beacon goes away: the time passing is what tells it
@@ -84,7 +69,13 @@ internal class BeaconPresenceUseCase(
             )
                 .runningFold(emptyMap<String, Heard>()) { heard, event ->
                     (event?.let { heard + (it.address to it) } ?: heard)
-                        .filterValues { it.at.elapsedNow() < WINDOW + mode.reportDelay }
+                        .filterValues { it.at.elapsedNow() < WINDOW }
+                        .also { next ->
+                            if (next.keys != heard.keys) logger.i {
+                                "Nearby beacons with $mode, from ${minRssi.value} dBm: " +
+                                    next.values.joinToString { "${it.address} at ${it.rssi} dBm" }.ifEmpty { "none" }
+                            }
+                        }
                 }
                 .map { heard -> heard.mapValues { (_, it) -> it.rssi } }
         }
@@ -97,15 +88,16 @@ internal class BeaconPresenceUseCase(
             (advertisedName != null && advertisement.name == advertisedName)
 
     companion object {
+        /** The modes the background scan for beacons can use, a debug option */
+        val BACKGROUND_SCAN_MODES = listOf(ScanMode.LOW_POWER, ScanMode.BALANCED)
+
         /** The mode of the background scan for beacons when the debug option was never set */
-        val DEFAULT_SCAN_MODE = Mode.OPPORTUNISTIC
+        val DEFAULT_SCAN_MODE = ScanMode.LOW_POWER
 
         /** The mode a stored name stands for, the default one for an unknown or missing name */
-        fun String?.asBeaconScanMode(): Mode =
-            Mode.entries.firstOrNull { it.name == this } ?: DEFAULT_SCAN_MODE
+        fun String?.asBeaconScanMode(): ScanMode =
+            BACKGROUND_SCAN_MODES.firstOrNull { it.name == this } ?: DEFAULT_SCAN_MODE
 
-        /** Weaker than that, the beacon is likely someone else's or across the street */
-        const val MIN_RSSI = -85
         private val WINDOW = 30.seconds
         private val TICK = 5.seconds
         private val RETRY_DELAY = 30.seconds

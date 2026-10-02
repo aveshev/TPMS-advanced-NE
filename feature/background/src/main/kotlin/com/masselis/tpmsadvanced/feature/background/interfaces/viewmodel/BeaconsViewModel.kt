@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_LATENCY
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_LATENCY
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -25,6 +27,7 @@ internal class BeaconsViewModel(
     private val appPreferences: AppPreferences,
     beaconPresenceUseCase: BeaconPresenceUseCase,
     beaconDiscoveryUseCase: BeaconDiscoveryUseCase,
+    scanPolicyUseCase: ScanPolicyUseCase,
 ) : ViewModel() {
 
     val activateOnBeacon = appPreferences.activateOnBeacon
@@ -40,6 +43,15 @@ internal class BeaconsViewModel(
         .map { beacons -> beacons.map { it.copy(label = null) } }
         .distinctUntilChanged()
         .flatMapLatest { beaconPresenceUseCase.nearby(it, LOW_LATENCY) }
+
+    /**
+     * The saved beacons the background scan still counts as nearby, maybe from a single packet
+     * this page's scan missed: they keep scanning active for a while after their last loud packet.
+     * Empty while beacons don't activate scanning, rather than scanning in the background for it.
+     */
+    val wasNearby: Flow<Set<String>> = activateOnBeacon.flatMapLatest { enabled ->
+        if (enabled) scanPolicyUseCase.nearbyBeacons.map { it.keys } else flowOf(emptySet())
+    }
 
     private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -65,11 +77,14 @@ internal class BeaconsViewModel(
     }
 
     /** The mode of the background scan for beacons, a debug option */
-    val scanMode: Flow<Mode> = appPreferences.beaconScanMode.map { it.asBeaconScanMode() }
+    val scanMode: Flow<ScanMode> = appPreferences.beaconScanMode.map { it.asBeaconScanMode() }
 
-    fun setScanMode(mode: Mode) {
+    fun setScanMode(mode: ScanMode) {
         appPreferences.beaconScanMode.value = mode.name
     }
+
+    /** The signal (dBm) from which a beacon counts as nearby, a debug option */
+    val minRssi = appPreferences.beaconMinRssi
 
     /** Adds the device as a beacon, once */
     fun add(device: BeaconDiscoveryUseCase.Device) {

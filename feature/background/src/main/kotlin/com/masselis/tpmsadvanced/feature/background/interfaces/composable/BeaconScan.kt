@@ -1,10 +1,13 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -12,11 +15,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -68,6 +73,7 @@ internal fun BeaconScan(
         page = page.takeIf { bluetoothState.isEnabled },
         added = beacons.map { it.address }.toSet(),
         onAdd = viewModel::add,
+        onRemove = { viewModel.remove(setOf(it)) },
         onReload = viewModel::reload,
         onTurnOnBluetooth = bluetoothState::askEnable,
         modifier = modifier,
@@ -81,14 +87,15 @@ private fun BeaconScan(
     page: Page?,
     added: Set<String>,
     onAdd: (Device) -> Unit,
+    onRemove: (String) -> Unit,
     onReload: () -> Unit,
     onTurnOnBluetooth: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
     SettingsIntro(
-        "Hold the phone next to the beacon: the devices with the strongest signal come first. A beacon must advertise all the time, every second or more often, keep its address, and send a name."
+        "Come close to your vehicle: the beacons with the strongest signal are shown at the top of the list."
     )
-    SettingsSectionHeader("Scanning…")
+    SettingsSectionHeader("Scanning")
     SettingsGroup {
         when (page) {
             null -> TextSettingsItem(
@@ -98,45 +105,31 @@ private fun BeaconScan(
                 modifier = Modifier.testTag(BeaconScanTags.bluetoothOff),
             )
 
-            is Page.Searching -> SettingsItem(Modifier.testTag(BeaconScanTags.searching)) {
-                Column {
-                    Text(
-                        "Listing beacons in ${ceil(page.remaining.inWholeMilliseconds / 1000.0).toInt()} s",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        "${page.found} found so far",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                    LinearProgressIndicator(
-                        progress = { 1f - (page.remaining / BeaconDiscoveryUseCase.SEARCH).toFloat() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp, bottom = 4.dp),
-                    )
-                }
-            }
-
-            is Page.Listed -> ActionSettingsItem(
-                headline = when (page.notShown) {
-                    0 -> "No new beacons"
-                    1 -> "1 new beacon"
-                    else -> "${page.notShown} new beacons"
-                },
-                supporting = "Reload to list them".takeIf { page.notShown > 0 },
-                headlineColor = if (page.notShown > 0) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                modifier = Modifier.testTag(BeaconScanTags.notShown),
-            ) {
-                TextButton(onClick = onReload, modifier = Modifier.testTag(BeaconScanTags.reload)) {
-                    Text("Reload")
-                }
-            }
+            // The same layout while searching and once listed, so that nothing jumps in between
+            else -> ScanningItem(page, onReload)
         }
     }
     if (page !is Page.Listed) return@Column
-    SettingsSectionHeader("Beacons around")
+    SettingsSectionHeader("Beacons found") {
+        // Sorts again by the current signal, the new beacons included
+        // Greyed out while already sorted
+        IconButton(
+            onClick = onReload,
+            enabled = page.isSorted.not(),
+            // The header's green, plain grey while disabled rather than a faded green
+            colors = IconButtonDefaults.iconButtonColors(
+                contentColor = MaterialTheme.colorScheme.primary,
+                disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA),
+            ),
+            modifier = Modifier.testTag(BeaconScanTags.sort),
+        ) {
+            Text(
+                "\u21C5",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.semantics { contentDescription = "Sort by signal" },
+            )
+        }
+    }
     SettingsGroup {
         if (page.devices.isEmpty()) SettingsItem { Text("No beacon nearby") }
         page.devices.forEach { device ->
@@ -155,12 +148,13 @@ private fun BeaconScan(
                 modifier = Modifier.testTag("${BeaconScanTags.device}_${device.address}"),
             ) {
                 if (isAdded) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.check_24px),
-                        contentDescription = "Added",
-                        // Where the button would be
-                        modifier = Modifier.padding(12.dp),
-                    )
+                    IconButton(onClick = { onRemove(device.address) }) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.close_24px),
+                            contentDescription = "Remove ${device.name}",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 } else {
                     IconButton(onClick = { onAdd(device) }) {
                         Icon(
@@ -174,17 +168,89 @@ private fun BeaconScan(
     }
 }
 
-/** "0.3 s" */
+/**
+ * While searching, counts down to the list with the devices found so far. Once listed, tells how
+ * many devices became candidates since the list was sorted, to reload it with them.
+ */
 @Suppress("MagicNumber")
-private fun Duration.asSeconds() = String.format(Locale.ROOT, "%.1f s", inWholeMilliseconds / 1000.0)
+@Composable
+private fun ScanningItem(page: Page, onReload: () -> Unit) =
+    SettingsItem(Modifier.testTag(BeaconScanTags.scanning)) {
+        val notShown = (page as? Page.Listed)?.notShown ?: 0
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                // As tall as the reload button, which comes and goes
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        when (page) {
+                            is Page.Searching ->
+                                "Listing beacons in ${ceil(page.remaining.inWholeMilliseconds / 1000.0).toInt()} s"
+                            is Page.Listed -> "Listening for new beacons…"
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        when {
+                            page is Page.Searching -> "${page.found} found so far"
+                            notShown == 0 -> "No new beacons"
+                            notShown == 1 -> "1 additional beacon found"
+                            else -> "$notShown additional beacons found"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = when {
+                            page is Page.Searching -> MaterialTheme.colorScheme.onSurfaceVariant
+                            notShown > 0 -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
+                        },
+                        modifier = Modifier.testTag(BeaconScanTags.notShown),
+                    )
+                }
+                if (notShown > 0) TextButton(
+                    onClick = onReload,
+                    modifier = Modifier.testTag(BeaconScanTags.reload),
+                ) {
+                    Text("Reload")
+                }
+            }
+            val progressModifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 4.dp)
+            when (page) {
+                is Page.Searching -> LinearProgressIndicator(
+                    progress = { 1f - (page.remaining / BeaconDiscoveryUseCase.SEARCH).toFloat() },
+                    modifier = progressModifier,
+                )
+                // Listens as long as the page is seen: never done
+                is Page.Listed -> LinearProgressIndicator(modifier = progressModifier)
+            }
+        }
+    }
+
+private const val DISABLED_ALPHA = 0.38f
+
+/** "0.3 s", "0.02 s" or "0.005 s": 0.1 s steps unless shorter, so that a fast beacon isn't "0.0 s" */
+@Suppress("MagicNumber")
+private fun Duration.asSeconds() = String.format(
+    Locale.ROOT,
+    when {
+        this >= 100.milliseconds -> "%.1f s"
+        this >= 10.milliseconds -> "%.2f s"
+        else -> "%.3f s"
+    },
+    inWholeMicroseconds / 1_000_000.0,
+)
 
 @Suppress("ConstPropertyName")
 internal object BeaconScanTags {
     const val device = "BeaconScanTags_device"
     const val bluetoothOff = "BeaconScanTags_bluetoothOff"
-    const val searching = "BeaconScanTags_searching"
+    const val scanning = "BeaconScanTags_scanning"
     const val notShown = "BeaconScanTags_notShown"
     const val reload = "BeaconScanTags_reload"
+    const val sort = "BeaconScanTags_sort"
 }
 
 @Suppress("MagicNumber")
@@ -202,6 +268,7 @@ internal fun BeaconScanListPreview() = BeaconScan(
     page = Page.Listed(previewDevices, notShown = 2),
     added = setOf("EE:64:A3:12:38:1A"),
     onAdd = {},
+    onRemove = {},
     onReload = {},
     onTurnOnBluetooth = {},
 )
@@ -210,9 +277,10 @@ internal fun BeaconScanListPreview() = BeaconScan(
 @Preview
 @Composable
 internal fun BeaconScanSearchingPreview() = BeaconScan(
-    page = Page.Searching(3.seconds, found = 4),
+    page = Page.Searching(2.seconds, found = 4),
     added = emptySet(),
     onAdd = {},
+    onRemove = {},
     onReload = {},
     onTurnOnBluetooth = {},
 )

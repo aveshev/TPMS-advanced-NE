@@ -17,64 +17,56 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.BALANCED
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_LATENCY
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_POWER
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BeaconsViewModel
 import com.masselis.tpmsadvanced.feature.background.ioc.Bindings.Companion.BeaconsViewModel
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase
 
-/** The mode of the background scan looking for beacons, to compare their battery use and delay */
+/** The signal from which a beacon counts as nearby, to tune how far from the vehicle it triggers */
 @Composable
-public fun BeaconScanModeSettingsItem(modifier: Modifier = Modifier): Unit =
-    BeaconScanModeSettingsItem(modifier, viewModel { BeaconsViewModel() })
+public fun BeaconMinRssiSettingsItem(modifier: Modifier = Modifier): Unit =
+    BeaconMinRssiSettingsItem(modifier, viewModel { BeaconsViewModel() })
 
 @Composable
-internal fun BeaconScanModeSettingsItem(
+internal fun BeaconMinRssiSettingsItem(
     modifier: Modifier = Modifier,
     viewModel: BeaconsViewModel = viewModel { BeaconsViewModel() },
 ) {
-    val mode by viewModel.scanMode.collectAsState(initial = BeaconPresenceUseCase.DEFAULT_SCAN_MODE)
+    val minRssi by viewModel.minRssi.collectAsState()
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box(modifier) {
         TextSettingsItem(
-            headline = "Beacon scan mode",
-            supporting = "${mode.label}, while looking for beacons in the background",
+            headline = "Beacon signal threshold",
+            supporting = "$minRssi dBm, from which a beacon counts as nearby",
             onClick = { expanded = true },
-            modifier = Modifier.testTag(BeaconScanModeSettingsItemTags.scanMode),
+            modifier = Modifier.testTag(BeaconMinRssiSettingsItemTags.minRssi),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            BeaconPresenceUseCase.BACKGROUND_SCAN_MODES.forEach { option ->
+            OPTIONS.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = { Text("$option dBm") },
                     onClick = {
-                        viewModel.setScanMode(option)
+                        viewModel.minRssi.value = option
                         expanded = false
                     },
                     trailingIcon = {
-                        if (option == mode) Icon(
+                        if (option == minRssi) Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.check_24px),
                             contentDescription = "Selected",
                         )
                     },
-                    modifier = Modifier.testTag("${BeaconScanModeSettingsItemTags.option}_${option.name}"),
+                    modifier = Modifier.testTag("${BeaconMinRssiSettingsItemTags.option}_$option"),
                 )
             }
         }
     }
 }
 
-private val ScanMode.label
-    get() = when (this) {
-        LOW_POWER -> "Low power"
-        BALANCED -> "Balanced"
-        LOW_LATENCY -> "Low latency"
-    }
+// From right next to the phone to a few meters away
+@Suppress("MagicNumber")
+private val OPTIONS = (-60 downTo -100 step 5).toList()
 
 @Suppress("ConstPropertyName")
-internal object BeaconScanModeSettingsItemTags {
-    const val scanMode = "BeaconScanModeSettingsItemTags_scanMode"
-    const val option = "BeaconScanModeSettingsItemTags_option"
+internal object BeaconMinRssiSettingsItemTags {
+    const val minRssi = "BeaconMinRssiSettingsItemTags_minRssi"
+    const val option = "BeaconMinRssiSettingsItemTags_option"
 }

@@ -171,6 +171,16 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putString("BEACON_SCAN_MODE", newValue) }
     }
 
+    /**
+     * The signal (dBm) from which one of the [beacons] counts as nearby, a debug option. Weaker
+     * than that, it is likely someone else's or across the street.
+     */
+    public val beaconMinRssi: MutableStateFlow<Int> = observableStateFlow(
+        sharedPreferences.getInt("BEACON_MIN_RSSI", DEFAULT_BEACON_MIN_RSSI)
+    ) { _, newValue ->
+        sharedPreferences.edit { putInt("BEACON_MIN_RSSI", newValue) }
+    }
+
     /** Keeps scanning for [stayActiveMinutes] once every activate condition has ended */
     public val stayActive: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("STAY_ACTIVE", false)
@@ -287,8 +297,10 @@ public class AppPreferences internal constructor(
             sharedPreferences.edit { putLong("VC", currentVersionCode) }
     }
 
-    private companion object {
-        const val DEFAULT_STAY_ACTIVE_MINUTES = 10
-        const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 7f
+    public companion object {
+        /** See [beaconMinRssi] */
+        public const val DEFAULT_BEACON_MIN_RSSI: Int = -85
+        private const val DEFAULT_STAY_ACTIVE_MINUTES = 10
+        private const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 7f
     }
 }

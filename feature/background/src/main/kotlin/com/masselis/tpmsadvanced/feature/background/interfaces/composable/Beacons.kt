@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,6 +21,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,6 +63,7 @@ internal fun Beacons(
     val overridesSuspend by viewModel.beaconOverridesSuspend.collectAsState()
     // Scans only while the page is seen, not while the scan page is opened above it
     val nearby by viewModel.nearby.collectAsStateWithLifecycle(initialValue = emptyMap())
+    val wasNearby by viewModel.wasNearby.collectAsStateWithLifecycle(initialValue = emptySet())
     // Saved, so that a rotation keeps what was removed so far
     var removed by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var renaming by rememberSaveable { mutableStateOf<String?>(null) }
@@ -71,13 +76,20 @@ internal fun Beacons(
         beacons = beacons,
         removed = removed.toSet(),
         nearby = nearby.takeIf { bluetoothState.isEnabled },
+        wasNearby = wasNearby,
         overridesSuspend = overridesSuspend,
         onOverridesSuspend = { viewModel.beaconOverridesSuspend.value = it },
         onRename = { renaming = it },
         onRemove = { removed = removed + it },
         onUndo = { removed = removed - it },
         onTurnOnBluetooth = bluetoothState::askEnable,
-        openBeaconScan = openBeaconScan,
+        // Removed for good first, so that the page is drawn afresh when back: the scan page may add
+        // one of them again meanwhile
+        openBeaconScan = {
+            viewModel.remove(removed.toSet())
+            removed = emptyList()
+            openBeaconScan()
+        },
         modifier = modifier,
     )
     beacons
@@ -98,6 +110,8 @@ private fun Beacons(
     removed: Set<String>,
     // Null while Bluetooth is off: unknown then
     nearby: Map<String, Int>?,
+    // Still counted as nearby by the background scan, not heard by this page's
+    wasNearby: Set<String>,
     overridesSuspend: Boolean,
     onOverridesSuspend: (Boolean) -> Unit,
     onRename: (String) -> Unit,
@@ -108,7 +122,7 @@ private fun Beacons(
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
     SettingsIntro(
-        "Background scanning activates while any of these beacons is nearby: a Bluetooth device which advertises all the time, such as your vehicle's dashboard or a tag left in it. Unlike a connected device, it doesn't need to be paired."
+        "Some newer cars and motorcycles feature always-on or on-while-riding BLE beacons that can be used to activate scanning. These likely won't show up on your phone's Bluetooth pairing screen, but you can add them here.\n\nNOTE: AirTags and similar personal trackers use proprietary protocols, hide their names and randomize their addresses, so they aren't supported."
     )
     SettingsSectionHeader("Activate scanning when nearby")
     SettingsGroup {
@@ -119,15 +133,27 @@ private fun Beacons(
             modifier = Modifier.testTag(BeaconsTags.bluetoothOff),
         )
         if (beacons.isEmpty()) SettingsItem { Text("No beacon added yet") }
-        beacons.forEach { beacon ->
+        // The last added first
+        beacons.asReversed().forEach { beacon ->
             val isRemoved = beacon.address in removed
             ActionSettingsItem(
                 headline = beacon.displayName,
                 supporting = listOfNotNull(
                     // Already the headline otherwise
-                    beacon.address.takeIf { beacon.displayName != it },
-                    nearby?.let { nearby -> nearby[beacon.address]?.let { "Nearby, $it dBm" } ?: "Not nearby" },
-                ).joinToString(" · ").takeIf { it.isNotEmpty() },
+                    beacon.address.takeIf { beacon.displayName != it }?.let(::AnnotatedString),
+                    nearby?.let { nearby ->
+                        // Nearby: its signal, in the green of what's going well
+                        (nearby[beacon.address]?.let { "$it dBm" } ?: "Was nearby".takeIf { beacon.address in wasNearby })
+                            ?.let { text ->
+                                buildAnnotatedString {
+                                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append(text) }
+                                }
+                            }
+                            ?: AnnotatedString("Not nearby")
+                    },
+                )
+                    .takeIf { it.isNotEmpty() }
+                    ?.reduce { line, part -> line + AnnotatedString(" · ") + part },
                 struckOut = isRemoved,
                 modifier = Modifier.testTag("${BeaconsTags.beacon}_${beacon.address}"),
             ) {
@@ -166,7 +192,7 @@ private fun Beacons(
     SettingsGroup {
         SwitchSettingsItem(
             headline = "Override suspend conditions",
-            supporting = "Scans while a beacon is nearby, even on WiFi or connected to a device that suspends scanning. Not while the phone is idle: it was likely forgotten in the vehicle.",
+            supporting = "(except phone idle)",
             checked = overridesSuspend,
             onCheckedChange = onOverridesSuspend,
             modifier = Modifier.testTag(BeaconsTags.overridesSuspend),
@@ -234,6 +260,7 @@ private fun BeaconsPreview(beacons: List<Beacon>, nearby: Map<String, Int>?) = B
     beacons = beacons,
     removed = setOf("C4:CD:82:63:55:15"),
     nearby = nearby,
+    wasNearby = setOf("F3:34:67:CA:7B:EB"),
     overridesSuspend = true,
     onOverridesSuspend = {},
     onRename = {},

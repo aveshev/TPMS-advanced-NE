@@ -5,10 +5,8 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Advertisement
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER_BATCHED_30
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.OPPORTUNISTIC
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.BALANCED
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_POWER
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import io.mockk.every
 import io.mockk.mockk
@@ -29,16 +27,18 @@ internal class BeaconPresenceUseCaseTest {
 
     private lateinit var advertisements: MutableSharedFlow<Advertisement>
     private lateinit var bluetoothOn: MutableStateFlow<Boolean>
+    private lateinit var minRssi: MutableStateFlow<Int>
     private lateinit var scanner: BluetoothLeScanner
 
     context(scope: TestScope)
-    private fun test() = BeaconPresenceUseCase(scanner, bluetoothOn, scope.testScheduler.timeSource)
+    private fun test() = BeaconPresenceUseCase(scanner, bluetoothOn, minRssi, scope.testScheduler.timeSource)
 
     @Before
     fun setup() {
         advertisements = MutableSharedFlow()
         bluetoothOn = MutableStateFlow(true)
-        scanner = mockk { every { advertisements(any(), any(), any()) } returns advertisements }
+        minRssi = MutableStateFlow(-85)
+        scanner = mockk { every { advertisements(any(), any()) } returns advertisements }
     }
 
     @Test
@@ -74,8 +74,20 @@ internal class BeaconPresenceUseCaseTest {
     fun `a beacon too far away is not nearby`() = runTest {
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
-            advertisements.emit(advertisement(BIKE.address, rssi = BeaconPresenceUseCase.MIN_RSSI - 1))
+            advertisements.emit(advertisement(BIKE.address, rssi = -86))
             expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `the threshold set applies to the next packets`() = runTest {
+        test().nearby(listOf(BIKE), LOW_POWER).test {
+            assertEquals(emptyMap(), awaitItem())
+            minRssi.value = -70
+            advertisements.emit(advertisement(BIKE.address, rssi = -75))
+            expectNoEvents()
+            advertisements.emit(advertisement(BIKE.address, rssi = -70))
+            assertEquals(mapOf(BIKE.address to -70), awaitItem())
         }
     }
 
@@ -119,7 +131,7 @@ internal class BeaconPresenceUseCaseTest {
         bluetoothOn.value = false
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
-            verify(exactly = 0) { scanner.advertisements(any(), any(), any()) }
+            verify(exactly = 0) { scanner.advertisements(any(), any()) }
             bluetoothOn.value = true
             advertisements.emit(advertisement(BIKE.address, rssi = -70))
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
@@ -131,13 +143,12 @@ internal class BeaconPresenceUseCaseTest {
     @Test
     fun `scans for the beacons by address and advertised name with the mode asked for`() = runTest {
         val nameless = Beacon("C4:CD:82:63:55:15", advertisedName = null, label = "Tag")
-        test().nearby(listOf(BIKE, nameless), OPPORTUNISTIC).test {
+        test().nearby(listOf(BIKE, nameless), BALANCED).test {
             assertEquals(emptyMap(), awaitItem())
             verify {
                 scanner.advertisements(
-                    ScanMode.OPPORTUNISTIC,
+                    BALANCED,
                     listOf(DeviceMatch(BIKE.address, BIKE.advertisedName), DeviceMatch(nameless.address, null)),
-                    Duration.ZERO,
                 )
             }
         }
@@ -146,7 +157,7 @@ internal class BeaconPresenceUseCaseTest {
     @Test
     fun `a failed scan is tried again later`() = runTest {
         var attempts = 0
-        every { scanner.advertisements(any(), any(), any()) } returns flow {
+        every { scanner.advertisements(any(), any()) } returns flow {
             attempts++
             if (attempts == 1) error("Scanning too frequently")
             emit(advertisement(BIKE.address, rssi = -70))
@@ -159,24 +170,12 @@ internal class BeaconPresenceUseCaseTest {
     }
 
     @Test
-    fun `a batched scan keeps the beacon nearby between two batches`() = runTest {
-        test().nearby(listOf(BIKE), LOW_POWER_BATCHED_30).test {
-            assertEquals(emptyMap(), awaitItem())
-            verify { scanner.advertisements(ScanMode.LOW_POWER, any(), 30.seconds) }
-            advertisements.emit(advertisement(BIKE.address, rssi = -70))
-            assertEquals(mapOf(BIKE.address to -70), awaitItem())
-            // The next batch is due
-            delay(35.seconds)
-            expectNoEvents()
-            delay(30.seconds)
-            assertEquals(emptyMap(), awaitItem())
-        }
-    }
-
-    @Test
     fun `an unknown or missing scan mode falls back on the default one`() {
-        assertEquals(LOW_POWER, "LOW_POWER".asBeaconScanMode())
-        assertEquals(BeaconPresenceUseCase.DEFAULT_SCAN_MODE, "AMBIENT_DISCOVERY".asBeaconScanMode())
+        assertEquals(BALANCED, "BALANCED".asBeaconScanMode())
+        assertEquals(LOW_POWER, BeaconPresenceUseCase.DEFAULT_SCAN_MODE)
+        // Not offered for the background scan, or not any more
+        assertEquals(BeaconPresenceUseCase.DEFAULT_SCAN_MODE, "LOW_LATENCY".asBeaconScanMode())
+        assertEquals(BeaconPresenceUseCase.DEFAULT_SCAN_MODE, "LOW_POWER_BATCHED_10".asBeaconScanMode())
         assertEquals(BeaconPresenceUseCase.DEFAULT_SCAN_MODE, null.asBeaconScanMode())
     }
 

@@ -2,7 +2,7 @@ package com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel
 
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
-import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Mode.LOW_POWER
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode.LOW_POWER
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase.Device
 import io.mockk.every
 import io.mockk.mockk
@@ -25,6 +25,7 @@ internal class BeaconsViewModelTest {
             every { beacons } returns this@BeaconsViewModelTest.beacons
             every { beaconScanMode } returns this@BeaconsViewModelTest.beaconScanMode
         },
+        mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
     )

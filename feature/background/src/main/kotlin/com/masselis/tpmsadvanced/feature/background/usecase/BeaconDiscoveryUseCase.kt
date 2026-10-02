@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Scan
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
@@ -15,10 +16,12 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -28,6 +31,8 @@ import kotlin.time.TimeSource
 internal class BeaconDiscoveryUseCase(
     private val scanner: BluetoothLeScanner,
     private val bluetoothOn: Flow<Boolean>,
+    /** The signal (dBm) from which a device is loud enough to count as nearby */
+    private val minRssi: StateFlow<Int>,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     data class Device(
@@ -37,7 +42,7 @@ internal class BeaconDiscoveryUseCase(
         val rssi: Int,
         /** The typical time between two of its packets, null until a few were heard */
         val period: Duration?,
-        /** Loud enough to count as nearby, see [STRONG_FROM] */
+        /** Loud enough to count as nearby, see [minRssi] */
         val isStrong: Boolean,
         /** Not heard for a while, gone or out of range */
         val isQuiet: Boolean,
@@ -55,9 +60,10 @@ internal class BeaconDiscoveryUseCase(
         /**
          * [devices] in a fixed order, the loudest first when they were listed, their signal kept up
          * to date. [notShown] counts the devices that became candidates since, listed by the next
-         * reload: it only grows until then.
+         * reload: it only grows until then. [isSorted] tells a reload would change nothing: same
+         * devices, same order.
          */
-        data class Listed(val devices: List<Device>, val notShown: Int) : Page
+        data class Listed(val devices: List<Device>, val notShown: Int, val isSorted: Boolean = true) : Page
     }
 
     /**
@@ -82,15 +88,22 @@ internal class BeaconDiscoveryUseCase(
             send(Page.Searching(SEARCH - start.elapsedNow(), qualified.value.size))
             delay(minOf(COUNTDOWN_STEP, SEARCH - start.elapsedNow()))
         }
-        val order = MutableStateFlow(latest.value.sorted(qualified.value))
-        launch { reloads.collect { order.value = latest.value.sorted(qualified.value) } }
-        combine(order, latest, qualified) { order, latest, qualified ->
-            val byAddress = latest.associateBy { it.address }
-            Page.Listed(
-                devices = order.mapNotNull { byAddress[it] },
-                notShown = qualified.count { it !in order },
-            )
-        }
+        // Each reload a new one, even when the order comes out the same
+        val order = MutableStateFlow(Sorting(latest.value.sorted(qualified.value)))
+        launch { reloads.collect { order.value = Sorting(latest.value.sorted(qualified.value)) } }
+        combine(order, latest, qualified, ::Triple)
+            .runningFold(null as Pair<Sorting, Page.Listed>?) { previous, (sorting, latest, qualified) ->
+                val byAddress = latest.associateBy { it.address }
+                sorting to Page.Listed(
+                    devices = sorting.order.mapNotNull { byAddress[it] },
+                    notShown = qualified.count { it !in sorting.order },
+                    // Unsorted until the next reload once it was, rather than flickering as signals
+                    // hover around each other's
+                    isSorted = latest.sorted(qualified) == sorting.order &&
+                        previous?.takeIf { (it, _) -> it === sorting }?.second?.isSorted != false,
+                )
+            }
+            .mapNotNull { it?.second }
             .distinctUntilChanged()
             .collect { send(it) }
     }
@@ -140,6 +153,9 @@ internal class BeaconDiscoveryUseCase(
         }
         .distinctUntilChanged()
 
+    /** An order of the listed devices, by address. Not a data class: told apart by identity. */
+    private class Sorting(val order: List<String>)
+
     private data class Heard(val devices: Map<String, Accumulated>, val isRefresh: Boolean)
 
     private class Accumulated(
@@ -156,9 +172,20 @@ internal class BeaconDiscoveryUseCase(
                 name = name,
                 rssi = rssis.median(),
                 period = timestamps
-                    .zipWithNext { a, b -> b - a }
+                    .zipWithNext()
                     // The same packet received twice, or on another advertising channel
-                    .filter { it.isPositive() }
+                    .filter { (a, b) -> b > a }
+                    .let { pairs ->
+                        // Some devices send bursts of packets a few ms apart then go quiet, a tyre
+                        // sensor for minutes: what matters is the time between two bursts' starts
+                        pairs
+                            .filter { (a, b) -> b - a >= BURST }
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { ends -> listOf(timestamps.first()) + ends.map { (_, start) -> start } }
+                            ?.zipWithNext { a, b -> b - a }
+                            // Never quiet for that long: always sending this fast, not bursting
+                            ?: pairs.map { (a, b) -> b - a }
+                    }
                     .takeIf { it.size >= MIN_GAPS }
                     // Missed packets make some gaps a multiple of the period: the median ignores them
                     ?.sorted()
@@ -176,30 +203,34 @@ internal class BeaconDiscoveryUseCase(
             // Some devices only send their name in some packets (the scan response)
             name = advertisement.name ?: this?.name,
             rssis = rssis,
-            // A device hovering around the threshold would keep turning on and off otherwise
+            // A device hovering around the threshold would keep turning on and off otherwise: a strong
+            // one only becomes weak a few dB under it
             isStrong = rssis
                 .median()
-                .let { it >= STRONG_FROM || (this?.isStrong == true && it >= WEAK_BELOW) },
-            timestamps = (this?.timestamps.orEmpty() + advertisement.timestamp).takeLast(MAX_PACKETS),
+                .let { it >= minRssi.value || (this?.isStrong == true && it >= minRssi.value - HYSTERESIS) },
+            timestamps = (this?.timestamps.orEmpty() + advertisement.timestamp).takeLast(MAX_TIMESTAMPS),
             isTyreSensor = advertisement.isTyreSensor || this?.isTyreSensor == true,
         )
     }
 
     companion object {
         /** How long the page searches before listing anything */
-        val SEARCH = 5.seconds
+        val SEARCH = 3.seconds
 
-        /** Loud enough to count as nearby, like the background scan tells */
-        const val STRONG_FROM = BeaconPresenceUseCase.MIN_RSSI
-
-        /** A strong device only becomes weak below that, a few dB under [STRONG_FROM] */
-        const val WEAK_BELOW = STRONG_FROM - 5
+        /** How far under the threshold a strong device's signal falls before it becomes weak, in dB */
+        const val HYSTERESIS = 5
 
         private val COUNTDOWN_STEP = 1.seconds
         private val REFRESH = 1.seconds
         private val QUIET_AFTER = 30.seconds
         private const val MAX_PACKETS = 11
         private const val MIN_GAPS = 3
+
+        /** Packets closer than that belong to the same burst */
+        private val BURST = 50.milliseconds
+
+        /** Enough for a few bursts of a few packets each */
+        private const val MAX_TIMESTAMPS = 50
 
         private fun List<Int>.median() = sorted().let { it[it.size / 2] }
     }

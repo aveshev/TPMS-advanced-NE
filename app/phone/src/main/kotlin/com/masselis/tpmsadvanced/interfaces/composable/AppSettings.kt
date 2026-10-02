@@ -16,6 +16,7 @@ import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateBluetoothDevices
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconMinRssiSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconScan
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconScanModeSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Beacons
@@ -82,6 +83,7 @@ internal fun DebugSettingsPage(
             DetectedActivitiesSettingsItem()
             ScanStatusAnnouncementsSettingsItem()
             BeaconScanModeSettingsItem()
+            BeaconMinRssiSettingsItem()
         }
     )
 }

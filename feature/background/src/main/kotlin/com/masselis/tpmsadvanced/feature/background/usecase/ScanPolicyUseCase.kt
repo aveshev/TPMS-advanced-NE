@@ -83,9 +83,9 @@ internal class ScanPolicyUseCase(
     /**
      * The addresses of the beacons nearby, from a single scan shared by the decision and the names
      * it tells. Renaming a beacon doesn't restart it, and a stale value isn't replayed to a new
-     * subscriber.
+     * subscriber. Starts a scan of its own when collected while not deciding on beacons.
      */
-    private val nearbyBeacons: SharedFlow<Map<String, Int>> = combine(
+    val nearbyBeacons: SharedFlow<Map<String, Int>> = combine(
         appPreferences
             .beacons
             .map { beacons -> beacons.map { it.copy(label = null) } }

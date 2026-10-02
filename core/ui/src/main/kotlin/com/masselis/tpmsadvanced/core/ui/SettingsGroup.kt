@@ -50,17 +50,30 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 
-/** The title above a [SettingsGroup] */
+/**
+ * The title above a [SettingsGroup], with an optional [action] at its end acting on the whole
+ * group, such as a text button sorting it
+ */
 @Composable
 public fun SettingsSectionHeader(
     text: String,
     modifier: Modifier = Modifier,
-): Unit = Text(
-    text = text,
-    style = MaterialTheme.typography.titleSmall,
-    color = MaterialTheme.colorScheme.primary,
-    modifier = modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
-)
+    action: (@Composable () -> Unit)? = null,
+): Unit = Row(
+    // Along the bottom of the title, so that the button doesn't make the header any taller
+    verticalAlignment = Alignment.Bottom,
+    modifier = modifier.padding(end = 4.dp),
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .weight(1f)
+            .padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
+    )
+    action?.invoke()
+}
 
 /**
  * Settings items drawn like the Android settings app: one card per item, separated by a thin gap,
@@ -165,7 +178,8 @@ public fun SwitchNavigationSettingsItem(
 public fun ActionSettingsItem(
     headline: String,
     modifier: Modifier = Modifier,
-    supporting: String? = null,
+    // A String, or an AnnotatedString to style part of it
+    supporting: CharSequence? = null,
     struckOut: Boolean = false,
     enabled: Boolean = true,
     headlineColor: Color = Color.Unspecified,
@@ -178,7 +192,7 @@ public fun ActionSettingsItem(
 ) {
     ItemTexts(
         headline = headline,
-        supporting = listOfNotNull(supporting?.let(::AnnotatedString)),
+        supporting = listOfNotNull(supporting?.let { it as? AnnotatedString ?: AnnotatedString(it.toString()) }),
         modifier = Modifier.enabledAlpha(enabled),
         headlineModifier = Modifier.enabledAlpha(struckOut.not()),
         headlineColor = headlineColor,

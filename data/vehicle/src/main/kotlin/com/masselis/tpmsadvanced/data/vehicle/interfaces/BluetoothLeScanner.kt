@@ -13,10 +13,8 @@ public interface BluetoothLeScanner {
         public class Scan(reason: Int) : Exception("Failure.Scan(reason=$reason)")
     }
 
-    /** How much the radio listens, from not at all by itself to all the time */
+    /** How much the radio listens, from a small part of the time to all the time */
     public enum class ScanMode {
-        /** Never scans by itself, only gets what the scans of other apps receive */
-        OPPORTUNISTIC,
         LOW_POWER,
         BALANCED,
         LOW_LATENCY,
@@ -42,15 +40,8 @@ public interface BluetoothLeScanner {
     /**
      * Every advertisement of the devices matching [devices], or of every device around when null.
      * Completes right away for an empty [devices]: no filter at all would mean every device instead.
-     * With a [reportDelay], the Bluetooth chip holds the advertisements and hands them over in
-     * batches, waking the phone less often: they come up to [reportDelay] late. Without the chip
-     * supporting it, they come right away.
      */
-    public fun advertisements(
-        mode: ScanMode,
-        devices: List<DeviceMatch>?,
-        reportDelay: Duration = Duration.ZERO,
-    ): Flow<Advertisement>
+    public fun advertisements(mode: ScanMode, devices: List<DeviceMatch>?): Flow<Advertisement>
 
     public fun missingPermission(): List<String>
 

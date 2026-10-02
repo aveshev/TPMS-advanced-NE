@@ -75,19 +75,23 @@ public interface Bindings {
     private fun beaconPresenceUseCase(
         scanner: BluetoothLeScanner,
         bluetoothDevicesUseCase: BluetoothDevicesUseCase,
+        appPreferences: AppPreferences,
     ): BeaconPresenceUseCase = BeaconPresenceUseCase(
         scanner,
         // The paired devices are only unknown while Bluetooth is off
         bluetoothDevicesUseCase.paired.map { it != null },
+        appPreferences.beaconMinRssi,
     )
 
     @Provides
     private fun beaconDiscoveryUseCase(
         scanner: BluetoothLeScanner,
         bluetoothDevicesUseCase: BluetoothDevicesUseCase,
+        appPreferences: AppPreferences,
     ): BeaconDiscoveryUseCase = BeaconDiscoveryUseCase(
         scanner,
         bluetoothDevicesUseCase.paired.map { it != null },
+        appPreferences.beaconMinRssi,
     )
 
     @Provides
@@ -95,7 +99,13 @@ public interface Bindings {
         appPreferences: AppPreferences,
         beaconPresenceUseCase: BeaconPresenceUseCase,
         beaconDiscoveryUseCase: BeaconDiscoveryUseCase,
-    ): BeaconsViewModel = BeaconsViewModel(appPreferences, beaconPresenceUseCase, beaconDiscoveryUseCase)
+        scanPolicyUseCase: ScanPolicyUseCase,
+    ): BeaconsViewModel = BeaconsViewModel(
+        appPreferences,
+        beaconPresenceUseCase,
+        beaconDiscoveryUseCase,
+        scanPolicyUseCase,
+    )
 
     @Provides
     @SingleIn(AppScope::class)

@@ -32,10 +32,11 @@ internal class BeaconDiscoveryUseCaseTest {
     private lateinit var bluetoothOn: MutableStateFlow<Boolean>
     private lateinit var reloads: MutableSharedFlow<Unit>
     private lateinit var scanning: MutableStateFlow<Boolean>
+    private lateinit var minRssi: MutableStateFlow<Int>
     private lateinit var scanner: BluetoothLeScanner
 
     context(scope: TestScope)
-    private fun test() = BeaconDiscoveryUseCase(scanner, bluetoothOn, scope.testScheduler.timeSource)
+    private fun test() = BeaconDiscoveryUseCase(scanner, bluetoothOn, minRssi, scope.testScheduler.timeSource)
 
     @Before
     fun setup() {
@@ -43,14 +44,15 @@ internal class BeaconDiscoveryUseCaseTest {
         bluetoothOn = MutableStateFlow(true)
         reloads = MutableSharedFlow()
         scanning = MutableStateFlow(true)
-        scanner = mockk { every { advertisements(any(), any(), any()) } returns advertisements }
+        minRssi = MutableStateFlow(-85)
+        scanner = mockk { every { advertisements(any(), any()) } returns advertisements }
     }
 
     @Test
     fun `every named device heard is listed, refreshed every second`() = runTest {
         test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
-            verify { scanner.advertisements(LOW_LATENCY, null, Duration.ZERO) }
+            verify { scanner.advertisements(LOW_LATENCY, null) }
             advertisements.emit(advertisement(BIKE, "CFMOTOR_ee64a312381a", rssi = -84))
             expectNoEvents()
             delay(1.seconds)
@@ -103,6 +105,33 @@ internal class BeaconDiscoveryUseCaseTest {
     }
 
     @Test
+    fun `a device sending bursts has the period between their starts`() = runTest {
+        test().devices(scanning).test {
+            assertEquals(emptyList(), awaitItem())
+            // Bursts of 5 packets 10 ms apart, every 4 s
+            listOf(0, 4000, 8000, 12000).forEach { burst ->
+                repeat(5) {
+                    advertisements.emit(advertisement(BIKE, "Bike", rssi = -84, timestamp = (burst + it * 10).milliseconds))
+                }
+            }
+            delay(1.seconds)
+            assertEquals(4.seconds, awaitItem().single().period)
+        }
+    }
+
+    @Test
+    fun `a device always sending faster than a burst has the period between its packets`() = runTest {
+        test().devices(scanning).test {
+            assertEquals(emptyList(), awaitItem())
+            repeat(10) {
+                advertisements.emit(advertisement(BIKE, "Bike", rssi = -84, timestamp = (it * 20).milliseconds))
+            }
+            delay(1.seconds)
+            assertEquals(20.milliseconds, awaitItem().single().period)
+        }
+    }
+
+    @Test
     fun `no period is told from too few packets`() = runTest {
         test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
@@ -131,20 +160,18 @@ internal class BeaconDiscoveryUseCaseTest {
         bluetoothOn.value = false
         test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
-            verify(exactly = 0) { scanner.advertisements(any(), any(), any()) }
+            verify(exactly = 0) { scanner.advertisements(any(), any()) }
         }
     }
 
     @Test
-    fun `the page searches for 5 seconds before listing the loudest first`() = runTest {
+    fun `the page searches for 3 seconds before listing the loudest first`() = runTest {
         test().page(reloads, scanning).test {
-            assertEquals(Page.Searching(5.seconds, found = 0), awaitItem())
+            assertEquals(Page.Searching(3.seconds, found = 0), awaitItem())
             advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
             // Between two steps of the countdown. Counted once the list is refreshed, within a second.
             delay(2.5.seconds)
-            assertEquals(Page.Searching(3.seconds, found = 2), expectMostRecentItem())
-            delay(2.seconds)
             assertEquals(Page.Searching(1.seconds, found = 2), expectMostRecentItem())
             assertEquals(
                 Page.Listed(listOf(device(BIKE, "Bike", rssi = -60), device(TAG, "Tag", rssi = -80)), notShown = 0),
@@ -157,7 +184,7 @@ internal class BeaconDiscoveryUseCaseTest {
     fun `a device too weak to ever count as nearby is not listed`() = runTest {
         test().page(reloads, scanning).test {
             advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
-            advertisements.emit(advertisement(TAG, "Tag", rssi = BeaconPresenceUseCase.MIN_RSSI - 1))
+            advertisements.emit(advertisement(TAG, "Tag", rssi = -86))
             assertEquals(listOf(BIKE), awaitListed().devices.map { it.address })
         }
     }
@@ -178,6 +205,32 @@ internal class BeaconDiscoveryUseCaseTest {
                 assertEquals(-40, page.devices.last().rssi)
                 assertEquals(1, page.notShown)
             }
+        }
+    }
+
+    @Test
+    fun `the list is unsorted from a signal change or a new device moving it until reloaded`() = runTest {
+        test().page(reloads, scanning).test {
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -60))
+            advertisements.emit(advertisement(TAG, "Tag", rssi = -80))
+            assertTrue(awaitListed().isSorted)
+            // Still behind the bike
+            repeat(11) { advertisements.emit(advertisement(TAG, "Tag", rssi = -70)) }
+            delay(1.seconds)
+            assertTrue(assertIs<Page.Listed>(expectMostRecentItem()).isSorted)
+            // Louder than the bike now
+            repeat(11) { advertisements.emit(advertisement(TAG, "Tag", rssi = -40)) }
+            delay(1.seconds)
+            assertFalse(assertIs<Page.Listed>(expectMostRecentItem()).isSorted)
+            // Behind the bike again, still unsorted until reloaded
+            repeat(11) { advertisements.emit(advertisement(TAG, "Tag", rssi = -70)) }
+            delay(1.seconds)
+            assertFalse(assertIs<Page.Listed>(expectMostRecentItem()).isSorted)
+            reloads.emit(Unit)
+            assertTrue(assertIs<Page.Listed>(expectMostRecentItem()).isSorted)
+            advertisements.emit(advertisement(WATCH, "Watch", rssi = -50))
+            delay(1.seconds)
+            assertFalse(assertIs<Page.Listed>(expectMostRecentItem()).isSorted)
         }
     }
 
@@ -262,17 +315,37 @@ internal class BeaconDiscoveryUseCaseTest {
     fun `a device only turns weak a few dB below the threshold it turned strong at`() = runTest {
         test().devices(scanning).test {
             assertEquals(emptyList(), awaitItem())
-            advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.STRONG_FROM))
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -85))
             delay(1.seconds)
             assertTrue(awaitItem().single().isStrong)
-            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.WEAK_BELOW)) }
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -90)) }
             delay(1.seconds)
             assertTrue(expectMostRecentItem().single().isStrong)
-            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.WEAK_BELOW - 1)) }
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -91)) }
             delay(1.seconds)
             assertFalse(expectMostRecentItem().single().isStrong)
             // And back strong only from the threshold
-            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = BeaconDiscoveryUseCase.STRONG_FROM - 1)) }
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -86)) }
+            delay(1.seconds)
+            assertFalse(expectMostRecentItem().single().isStrong)
+        }
+    }
+
+    @Test
+    fun `the hysteresis follows the threshold set`() = runTest {
+        minRssi.value = -70
+        test().devices(scanning).test {
+            assertEquals(emptyList(), awaitItem())
+            advertisements.emit(advertisement(BIKE, "Bike", rssi = -71))
+            delay(1.seconds)
+            assertFalse(awaitItem().single().isStrong)
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -70)) }
+            delay(1.seconds)
+            assertTrue(expectMostRecentItem().single().isStrong)
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -75)) }
+            delay(1.seconds)
+            assertTrue(expectMostRecentItem().single().isStrong)
+            repeat(11) { advertisements.emit(advertisement(BIKE, "Bike", rssi = -76)) }
             delay(1.seconds)
             assertFalse(expectMostRecentItem().single().isStrong)
         }
@@ -285,7 +358,7 @@ internal class BeaconDiscoveryUseCaseTest {
             assertEquals(listOf(BIKE), awaitListed().devices.map { it.address })
             scanning.value = false
             delay(1.seconds)
-            verify(exactly = 1) { scanner.advertisements(any(), any(), any()) }
+            verify(exactly = 1) { scanner.advertisements(any(), any()) }
             scanning.value = true
             advertisements.emit(advertisement(TAG, "Tag", rssi = -60))
             delay(1.seconds)
@@ -294,7 +367,7 @@ internal class BeaconDiscoveryUseCaseTest {
                 assertEquals(listOf(BIKE), page.devices.map { it.address })
                 assertEquals(1, page.notShown)
             }
-            verify(exactly = 2) { scanner.advertisements(any(), any(), any()) }
+            verify(exactly = 2) { scanner.advertisements(any(), any()) }
         }
     }
 
