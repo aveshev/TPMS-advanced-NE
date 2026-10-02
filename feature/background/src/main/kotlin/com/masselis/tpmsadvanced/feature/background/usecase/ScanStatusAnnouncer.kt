@@ -5,8 +5,6 @@ import android.media.AudioAttributes
 import android.os.PowerManager
 import android.speech.tts.TextToSpeech
 import androidx.core.content.getSystemService
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ProcessLifecycleOwner
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
@@ -16,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -30,8 +29,8 @@ import kotlinx.coroutines.launch
 
 /**
  * A debug option: speaks the status of persistent scanning each time it changes ("TPMS active"...),
- * to hear when the phone switches modes with the screen off or in a pocket. Quiet while the app is
- * in front of the user, who sees the status on the bell instead.
+ * to hear when the phone switches modes with the screen off or in a pocket. Quiet while the main
+ * screen is in front of the user, who sees the status on the bell instead.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class ScanStatusAnnouncer(
@@ -43,6 +42,12 @@ internal class ScanStatusAnnouncer(
     // Lazy: only needed once there is something to say
     private val powerManager by lazy { appContext.getSystemService<PowerManager>()!! }
     private val keyguardManager by lazy { appContext.getSystemService<KeyguardManager>()!! }
+
+    /**
+     * How many main screens are started, see QuietScanStatusAnnouncementsEffect. A count rather
+     * than a flag: while navigating back to it, the main screen starts before the previous one stops.
+     */
+    val mainScreensStarted = MutableStateFlow(0)
 
     /** What to say about each status change, the status at the time of collecting excluded */
     val statusChanges: Flow<String> = scanPolicyUseCase
@@ -59,9 +64,9 @@ internal class ScanStatusAnnouncer(
         .distinctUntilChanged()
         .drop(1)
 
-    /** Screen off, locked, or showing another app */
+    /** Screen off, locked, or showing anything but the main screen (another app included) */
     private val isUnattended: Boolean
-        get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED).not() ||
+        get() = mainScreensStarted.value == 0 ||
                 powerManager.isInteractive.not() ||
                 keyguardManager.isKeyguardLocked
 
