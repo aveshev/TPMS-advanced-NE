@@ -65,6 +65,7 @@ import com.masselis.tpmsadvanced.core.ui.Spotlight
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.DetectedActivitiesIndicator
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.QuietScanStatusAnnouncementsEffect
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
@@ -140,6 +141,8 @@ internal fun VehicleHome(
                         .padding(paddingValues)
                         .fillMaxSize()
                     composable(route = "${Path.Home(vehicleComponent.vehicle.uuid)}") {
+                        // The bell tells the status here, nothing to hear
+                        QuietScanStatusAnnouncementsEffect()
                         CurrentVehicle(
                             snackbarHostState = snackbarHostState,
                             modifier = modifier
