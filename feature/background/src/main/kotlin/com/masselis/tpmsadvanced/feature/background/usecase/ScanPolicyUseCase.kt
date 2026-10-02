@@ -1,9 +1,12 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
+import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase.Companion.asBeaconScanMode
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BEACON
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
@@ -18,6 +21,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
@@ -25,6 +29,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlin.time.Duration
@@ -40,9 +45,12 @@ internal class ScanPolicyUseCase(
     private val chargingStateUseCase: ChargingStateUseCase,
     private val androidAutoUseCase: AndroidAutoUseCase,
     private val bluetoothDevicesUseCase: BluetoothDevicesUseCase,
+    private val beaconPresenceUseCase: BeaconPresenceUseCase,
     scope: CoroutineScope,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
+    private val logger = Logger.withTag("ScanPolicy")
+
     /**
      * Each decision along with the mode (persistent scanning or not) it was made for. Shared, so
      * the service and the UI observe the same decision and a single set of system listeners is
@@ -72,6 +80,25 @@ internal class ScanPolicyUseCase(
         .filterNotNull()
         .distinctUntilChanged()
 
+    /**
+     * The addresses of the beacons nearby, from a single scan shared by the decision and the names
+     * it tells. Renaming a beacon doesn't restart it, and a stale value isn't replayed to a new
+     * subscriber. Starts a scan of its own when collected while not deciding on beacons.
+     */
+    val nearbyBeacons: SharedFlow<Map<String, Int>> = combine(
+        appPreferences
+            .beacons
+            .map { beacons -> beacons.map { it.copy(label = null) } }
+            .distinctUntilChanged(),
+        appPreferences
+            .beaconScanMode
+            .map { it.asBeaconScanMode() }
+            .distinctUntilChanged(),
+        ::Pair,
+    )
+        .flatMapLatest { (beacons, mode) -> beaconPresenceUseCase.nearby(beacons, mode) }
+        .shareIn(scope, WhileSubscribed(replayExpirationMillis = 0), replay = 1)
+
     /** The latest [decision] if one is known for the current mode, without waiting for it */
     val currentDecision: ScanDecision?
         get() = decisionByMode
@@ -88,16 +115,27 @@ internal class ScanPolicyUseCase(
         combine(
             fulfilledCauses(enabled, stayActiveMinutes.minutes),
             scanSuspensionUseCase.suspensionReasons,
-        ) { fulfilled, reasons ->
-            decide(enabled, fulfilled, reasons)
-        }.flatMapLatest { decision ->
-            // Names the devices a Bluetooth condition holds for, the user reads them in the rationale
+            appPreferences.beaconOverridesSuspend,
+        ) { fulfilled, reasons, beaconOverridesSuspend ->
+            decide(enabled, fulfilled, reasons, beaconOverridesSuspend).let { decision ->
+                // What the decision was made from, to tell afterwards why it changed
+                decision to "enabled=$enabled, fulfilled=$fulfilled, suspend reasons=$reasons, " +
+                    "beacon overrides suspend=$beaconOverridesSuspend"
+            }
+        }
+            .distinctUntilChangedBy { (decision) -> decision }
+            .onEach { (decision, inputs) -> logger.i { "Decision: $decision, from $inputs" } }
+            .map { (decision) -> decision }
+            .flatMapLatest { decision ->
+            // Names the devices and beacons a condition holds for, the user reads them in the
+            // rationale
             when {
-                decision is ScanDecision.Active && BLUETOOTH in decision.causes ->
-                    appPreferences
-                        .activateBluetoothDevices
-                        .connectedNames()
-                        .map { decision.copy(bluetoothDevices = it) }
+                decision is ScanDecision.Active -> combine(
+                    if (BLUETOOTH in decision.causes) appPreferences.activateBluetoothDevices.connectedNames()
+                    else flowOf(emptyList()),
+                    if (BEACON in decision.causes) nearbyBeaconNames()
+                    else flowOf(emptyList()),
+                ) { devices, beacons -> decision.copy(bluetoothDevices = devices, beacons = beacons) }
 
                 decision is ScanDecision.Suspended && Reason.BLUETOOTH in decision.reasons ->
                     appPreferences
@@ -122,6 +160,16 @@ internal class ScanPolicyUseCase(
             // of it: that stale decision isn't worth telling
             .filter { it.isNotEmpty() }
 
+    /** The names of the beacons nearby, like [connectedNames] */
+    private fun nearbyBeaconNames(): Flow<List<String>> =
+        combine(appPreferences.beacons, nearbyBeacons) { beacons, nearby ->
+            beacons
+                .filter { it.address in nearby }
+                .map { it.displayName }
+                .sortedBy { it.lowercase() }
+        }
+            .filter { it.isNotEmpty() }
+
     private fun enabledCauses(): Flow<Set<ActivateCause>> = combine(
         appPreferences.activateConditions,
         combine(
@@ -140,7 +188,13 @@ internal class ScanPolicyUseCase(
                 // the device picker with none of them paired turns the condition off instead.
                 if (bluetooth && bluetoothDevices.isNotEmpty()) add(BLUETOOTH)
             }
-        },
+        }.combine(
+            // Without any beacon to look for, the condition is the same as off: leaving the beacons
+            // page like this turns it off
+            combine(appPreferences.activateOnBeacon, appPreferences.beacons) { beacon, beacons ->
+                beacon && beacons.isNotEmpty()
+            }
+        ) { selected, beacon -> if (beacon) selected + BEACON else selected },
         appPreferences.stayActive,
     ) { conditions, selected, stayActive ->
         buildSet {
@@ -178,6 +232,14 @@ internal class ScanPolicyUseCase(
             }
             if (ANDROID_AUTO in enabled) {
                 add(androidAutoUseCase.connected.map { if (it) setOf(ANDROID_AUTO) else emptySet() })
+            }
+            if (BEACON in enabled) {
+                add(
+                    nearbyBeacons
+                        .map { if (it.isEmpty()) emptySet() else setOf(BEACON) }
+                        // The signal of each packet changes the map, not the cause
+                        .distinctUntilChanged()
+                )
             }
             if (BLUETOOTH in enabled) {
                 add(

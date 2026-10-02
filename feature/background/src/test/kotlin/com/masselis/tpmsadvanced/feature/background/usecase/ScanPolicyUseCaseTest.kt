@@ -2,8 +2,10 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 
 import app.cash.turbine.test
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.Beacon
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase.State
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BEACON
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
@@ -43,6 +45,10 @@ internal class ScanPolicyUseCaseTest {
     private lateinit var androidAuto: MutableStateFlow<Boolean>
     private lateinit var bluetoothConnected: MutableStateFlow<Set<String>>
     private lateinit var suspendBluetoothDevices: MutableStateFlow<Set<String>>
+    private lateinit var activateOnBeacon: MutableStateFlow<Boolean>
+    private lateinit var beacons: MutableStateFlow<List<Beacon>>
+    private lateinit var beaconOverridesSuspend: MutableStateFlow<Boolean>
+    private lateinit var nearbyBeacons: MutableStateFlow<Map<String, Int>>
 
     context(scope: TestScope)
     private fun test() = ScanPolicyUseCase(
@@ -57,6 +63,10 @@ internal class ScanPolicyUseCaseTest {
             every { suspendBluetoothDevices } returns this@ScanPolicyUseCaseTest.suspendBluetoothDevices
             every { stayActive } returns this@ScanPolicyUseCaseTest.stayActive
             every { stayActiveMinutes } returns this@ScanPolicyUseCaseTest.stayActiveMinutes
+            every { activateOnBeacon } returns this@ScanPolicyUseCaseTest.activateOnBeacon
+            every { beacons } returns this@ScanPolicyUseCaseTest.beacons
+            every { beaconOverridesSuspend } returns this@ScanPolicyUseCaseTest.beaconOverridesSuspend
+            every { beaconScanMode } returns MutableStateFlow(null)
         },
         mockk<ScanSuspensionUseCase> {
             every { this@mockk.suspensionReasons } returns this@ScanPolicyUseCaseTest.suspensionReasons
@@ -69,6 +79,7 @@ internal class ScanPolicyUseCaseTest {
                 addresses.map { PairedDevice(it, it, isAudio = true) }.toSet()
             }
         },
+        mockk<BeaconPresenceUseCase> { every { nearby(any(), any()) } returns nearbyBeacons },
         scope.backgroundScope,
         scope.testScheduler.timeSource,
     )
@@ -89,6 +100,10 @@ internal class ScanPolicyUseCaseTest {
         androidAuto = MutableStateFlow(false)
         bluetoothConnected = MutableStateFlow(emptySet())
         suspendBluetoothDevices = MutableStateFlow(emptySet())
+        activateOnBeacon = MutableStateFlow(false)
+        beacons = MutableStateFlow(emptyList())
+        beaconOverridesSuspend = MutableStateFlow(false)
+        nearbyBeacons = MutableStateFlow(emptyMap())
     }
 
     @Test
@@ -415,5 +430,165 @@ internal class ScanPolicyUseCaseTest {
             delay(4.minutes + 1.seconds)
             assertEquals(ScanDecision.Idle, awaitItem())
         }
+    }
+
+    @Test
+    fun `a beacon coming nearby activates scanning and going away goes back to idle`() = runTest {
+        activateOnBeacon.value = true
+        beacons.value = listOf(BIKE, CAR)
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+            nearbyBeacons.value = mapOf(BIKE.address to -70)
+            assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
+            nearbyBeacons.value = emptyMap()
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `every beacon nearby is named, by the name the user gave it first`() = runTest {
+        activateOnBeacon.value = true
+        beacons.value = listOf(BIKE, CAR)
+        nearbyBeacons.value = mapOf(BIKE.address to -70, CAR.address to -80)
+        test().decision.test {
+            assertEquals(
+                ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike", "CFMOTOR_f33467ca7beb")),
+                awaitItem()
+            )
+        }
+    }
+
+    @Test
+    fun `the signal of a beacon changing does not tell the decision again`() = runTest {
+        activateOnBeacon.value = true
+        beacons.value = listOf(BIKE)
+        nearbyBeacons.value = mapOf(BIKE.address to -70)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
+            nearbyBeacons.value = mapOf(BIKE.address to -60)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a disabled beacon condition is ignored`() = runTest {
+        beacons.value = listOf(BIKE)
+        nearbyBeacons.value = mapOf(BIKE.address to -70)
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the beacon condition alone is enough to not always scan`() = runTest {
+        activateOnCableCharging.value = false
+        activateOnWirelessCharging.value = false
+        activateOnAndroidAuto.value = false
+        activateOnBeacon.value = true
+        beacons.value = listOf(BIKE)
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the beacon condition without any beacon always scans, like when nothing is selected`() = runTest {
+        activateOnCableCharging.value = false
+        activateOnWirelessCharging.value = false
+        activateOnAndroidAuto.value = false
+        activateOnBeacon.value = true
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(ALWAYS)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `a beacon is suspended like any other activation without the override`() = runTest {
+        activateOnBeacon.value = true
+        beacons.value = listOf(BIKE)
+        nearbyBeacons.value = mapOf(BIKE.address to -70)
+        suspensionReasons.value = setOf(Reason.WIFI)
+        test().decision.test {
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `with the override a nearby beacon scans despite the suspend conditions`() = runTest {
+        activateOnBeacon.value = true
+        beaconOverridesSuspend.value = true
+        beacons.value = listOf(BIKE)
+        suspensionReasons.value = setOf(Reason.WIFI)
+        test().decision.test {
+            assertEquals(ScanDecision.Idle, awaitItem())
+            nearbyBeacons.value = mapOf(BIKE.address to -70)
+            assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
+            nearbyBeacons.value = emptyMap()
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the override does not apply to the phone being idle`() = runTest {
+        activateOnBeacon.value = true
+        beaconOverridesSuspend.value = true
+        beacons.value = listOf(BIKE)
+        nearbyBeacons.value = mapOf(BIKE.address to -70)
+        suspensionReasons.value = setOf(Reason.WIFI)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
+            suspensionReasons.value = setOf(Reason.WIFI, Reason.DOZE)
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI, Reason.DOZE)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `the override only applies to the beacon, not to the other conditions`() = runTest {
+        activateOnBeacon.value = true
+        beaconOverridesSuspend.value = true
+        beacons.value = listOf(BIKE)
+        charging.value = State(cable = true, wireless = false)
+        suspensionReasons.value = setOf(Reason.WIFI)
+        test().decision.test {
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `a beacon going away while the override held scanning leaves no stay`() = runTest {
+        stayActive.value = true
+        activateOnBeacon.value = true
+        beaconOverridesSuspend.value = true
+        beacons.value = listOf(BIKE)
+        nearbyBeacons.value = mapOf(BIKE.address to -70)
+        suspensionReasons.value = setOf(Reason.WIFI)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
+            // Back home with the vehicle gone: nothing to stay active for
+            nearbyBeacons.value = emptyMap()
+            assertEquals(ScanDecision.Idle, awaitItem())
+            delay(30.minutes)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `staying active applies to a beacon going away like to any condition`() = runTest {
+        stayActive.value = true
+        activateOnBeacon.value = true
+        beacons.value = listOf(BIKE)
+        nearbyBeacons.value = mapOf(BIKE.address to -70)
+        test().decision.test {
+            assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
+            nearbyBeacons.value = emptyMap()
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            delay(10.minutes + 1.seconds)
+            assertEquals(ScanDecision.Idle, awaitItem())
+        }
+    }
+
+    private companion object {
+        val BIKE = Beacon("EE:64:A3:12:38:1A", "CFMOTOR_ee64a312381a", label = "Bike")
+        val CAR = Beacon("F3:34:67:CA:7B:EB", "CFMOTOR_f33467ca7beb", label = null)
     }
 }

@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE
 import android.bluetooth.le.ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock.elapsedRealtime
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
@@ -22,7 +23,10 @@ import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.dematerializeCompletion
 import com.masselis.tpmsadvanced.core.common.materializeCompletion
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Advertisement
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Failure
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -34,15 +38,21 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 @SuppressLint("MissingPermission")
@@ -53,13 +63,16 @@ internal class BluetoothLeScannerImpl(
 
     private val logger = Logger.withTag("BluetoothLeScannerImpl")
 
-    private var lastStartScan = Duration.ZERO
+    /** When the last scans started, on the clock of `SystemClock.elapsedRealtime()`, see [rawScan] */
+    private var lastStarts = emptyList<Duration>()
+    private val startLock = Mutex()
 
     private val bluetoothAdapter get() = context.getSystemService<BluetoothManager>()?.adapter
 
+    /** Every result of a scan with [filters] and [settings], debug builds adding the mock ones */
     @SuppressLint("InlinedApi")
     @RequiresPermission("android.permission.BLUETOOTH_SCAN")
-    private fun scan(mode: Int) = callbackFlow {
+    private fun rawScan(filters: List<ScanFilter>, settings: ScanSettings) = callbackFlow {
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 launch { send(result) }
@@ -74,26 +87,24 @@ internal class BluetoothLeScannerImpl(
             }
         }
 
-        // Anti-spam mechanism to avoid an exception when requesting 6 scans within a 30s frame
-        delay(5.seconds - (System.currentTimeMillis().milliseconds - lastStartScan))
-        // Delay elapsed, set lastStartScan to the current timestamp
-        lastStartScan = System.currentTimeMillis().milliseconds
+        // Android refuses a start once the app started MAX_STARTS scans within START_WINDOW, and
+        // silently: no onScanFailed(), the scan just never delivers anything ("scanning too
+        // frequently" in the system log). Every scan of the app counts, the tyre ones and the
+        // others alike, so each start waits for the oldest of the last ones to be out of the window.
+        startLock.withLock {
+            lastStarts
+                .takeIf { it.size >= MAX_STARTS }
+                ?.first()
+                ?.let { oldest -> delay(oldest + START_WINDOW + START_MARGIN - elapsedRealtime().milliseconds) }
+            lastStarts = (lastStarts + elapsedRealtime().milliseconds).takeLast(MAX_STARTS)
+        }
 
         val leScanner = bluetoothAdapter?.bluetoothLeScanner
         if (leScanner == null) {
             close(Failure.ScannerIsNull(bluetoothAdapter?.state))
             awaitCancellation()
         }
-        leScanner.startScan(
-            FILTERS,
-            ScanSettings
-                .Builder()
-                .setScanMode(mode)
-                .setMatchMode(MATCH_MODE_AGGRESSIVE)
-                .setNumOfMatches(MATCH_NUM_ONE_ADVERTISEMENT)
-                .build(),
-            callback
-        )
+        leScanner.startScan(filters, settings, callback)
         awaitClose {
             if (bluetoothAdapter?.isEnabled == true) {
                 leScanner.flushPendingScanResults(callback)
@@ -101,7 +112,18 @@ internal class BluetoothLeScannerImpl(
             }
         }
     }.flowOn(Dispatchers.Main) // System's BluetoothLeScanner class as issues if called on a background thread
-        .withMockAdvertisements(context, FILTERS)
+        .withMockAdvertisements(context, filters)
+
+    @RequiresPermission("android.permission.BLUETOOTH_SCAN")
+    private fun scan(mode: Int) = rawScan(
+        FILTERS,
+        ScanSettings
+            .Builder()
+            .setScanMode(mode)
+            .setMatchMode(MATCH_MODE_AGGRESSIVE)
+            .setNumOfMatches(MATCH_NUM_ONE_ADVERTISEMENT)
+            .build(),
+    )
         .mapNotNull { result ->
             logger.v { "Sensor found during scan. Address: ${result.device.address}, scan bytes: ${result.scanRecord?.bytes?.toHexString()}" }
             (
@@ -128,20 +150,71 @@ internal class BluetoothLeScannerImpl(
         }
         .onEach { logger.d("Sensor content: $it") }
 
-    private val lowLatencyScanFlow = scan(ScanSettings.SCAN_MODE_LOW_LATENCY).shared()
-
-    override fun highDutyScan(): Flow<Tyre.SensorInput> = lowLatencyScanFlow
+    override fun highDutyScan(): Flow<Tyre.SensorInput> =
+        shared(ScanSettings.SCAN_MODE_LOW_LATENCY) { scan(ScanSettings.SCAN_MODE_LOW_LATENCY) }
 
     @SuppressLint("MissingPermission")
-    private val balancedScanFlow = scan(ScanSettings.SCAN_MODE_BALANCED).shared()
+    override fun normalScan(): Flow<Tyre.SensorInput> =
+        shared(ScanSettings.SCAN_MODE_BALANCED) { scan(ScanSettings.SCAN_MODE_BALANCED) }
 
-    override fun normalScan(): Flow<Tyre.SensorInput> = balancedScanFlow
+    @SuppressLint("MissingPermission")
+    override fun advertisements(mode: ScanMode, devices: List<DeviceMatch>?): Flow<Advertisement> =
+        if (devices?.isEmpty() == true) emptyFlow()
+        else shared(mode to devices) {
+            rawScan(
+                devices.orEmpty().flatMap { it.asFilters() },
+                // Every packet, the broadcast period is read from them
+                ScanSettings
+                    .Builder()
+                    .setScanMode(mode.value)
+                    .build(),
+            ).map { result ->
+                Advertisement(
+                    address = result.device.address,
+                    name = result.scanRecord?.deviceName,
+                    rssi = result.rssi,
+                    timestamp = result.timestampNanos.nanoseconds,
+                    isTyreSensor = result.scanRecord?.serviceUuids.orEmpty().any { it in SERVICE_UUIDS },
+                )
+            }
+        }
 
+    private val ScanMode.value
+        get() = when (this) {
+            ScanMode.LOW_POWER -> ScanSettings.SCAN_MODE_LOW_POWER
+            ScanMode.BALANCED -> ScanSettings.SCAN_MODE_BALANCED
+            ScanMode.LOW_LATENCY -> ScanSettings.SCAN_MODE_LOW_LATENCY
+        }
+
+    /**
+     * Either one matches, the system delivering what matches any of the filters. The public API
+     * only filters on a public address, and some phones then miss a random one (most beacons): the
+     * name makes up for it.
+     */
+    private fun DeviceMatch.asFilters(): List<ScanFilter> = buildList {
+        add(ScanFilter.Builder().setDeviceAddress(address).build())
+        name?.let { add(ScanFilter.Builder().setDeviceName(it).build()) }
+    }
+
+    /** The running scans by what they scan for, see [shared] */
+    private val sharedScans = ConcurrentHashMap<Any, Flow<*>>()
+
+    /**
+     * The scan for [key], started by [scan] unless already running. It keeps running for
+     * [SCAN_LINGER] after its last collector is gone, so that coming back to a page reuses it:
+     * starting another one counts towards Android's limit, see [rawScan]. A scan that ended, by
+     * failing or after lingering, is forgotten right away: the next collection starts a new one,
+     * rather than attaching to one that will never deliver anything again.
+     */
     @OptIn(DelicateCoroutinesApi::class)
-    private fun Flow<Tyre.SensorInput>.shared() = this
-        .materializeCompletion()
-        .shareIn(GlobalScope + Dispatchers.Default, WhileSubscribed())
-        .dematerializeCompletion()
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> shared(key: Any, scan: () -> Flow<T>): Flow<T> = sharedScans.getOrPut(key) {
+        scan()
+            .materializeCompletion()
+            .onCompletion { sharedScans.remove(key) }
+            .shareIn(GlobalScope + Dispatchers.Default, WhileSubscribed(SCAN_LINGER))
+            .dematerializeCompletion()
+    } as Flow<T>
 
     @SuppressLint("InlinedApi")
     @Suppress("MagicNumber")
@@ -156,12 +229,20 @@ internal class BluetoothLeScannerImpl(
 
     @OptIn(ExperimentalUnsignedTypes::class)
     companion object {
-        private val FILTERS = listOf(
+        private val SERVICE_UUIDS = listOf(
             RawSysgration.SERVICE_UUID,
             RawPecham.SERVICE_UUID,
             RawWicarlink.SERVICE_UUID,
             RawBekubeeKy.SERVICE_UUID,
             RawBekubeeTpms.SERVICE_UUID
-        ).map { ScanFilter.Builder().setServiceUuid(it).build() }
+        )
+        private val FILTERS = SERVICE_UUIDS.map { ScanFilter.Builder().setServiceUuid(it).build() }
+
+        // Android's limit, see AppScanStats in the Bluetooth stack
+        private const val MAX_STARTS = 5
+        private val START_WINDOW = 30.seconds
+        private val START_MARGIN = 1.seconds
+
+        private const val SCAN_LINGER = 30_000L
     }
 }

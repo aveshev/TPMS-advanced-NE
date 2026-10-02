@@ -8,6 +8,8 @@ import androidx.core.content.edit
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.core.common.observableStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.json.JSONArray
+import org.json.JSONObject
 
 public class AppPreferences internal constructor(
     context: Context
@@ -128,6 +130,57 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putStringSet("ACTIVATE_BLUETOOTH_DEVICES", newValue) }
     }
 
+    /** Scans while one of [beacons] is nearby */
+    public val activateOnBeacon: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("ACTIVATE_ON_BEACON", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("ACTIVATE_ON_BEACON", newValue) }
+    }
+
+    /** The beacons of [activateOnBeacon], in the order they were added */
+    public val beacons: MutableStateFlow<List<Beacon>> = observableStateFlow(
+        sharedPreferences
+            .getString("BEACONS", null)
+            ?.let(::JSONArray)
+            ?.let { array -> List(array.length()) { array.getJSONObject(it).asBeacon() } }
+            .orEmpty()
+    ) { _, newValue ->
+        sharedPreferences.edit {
+            putString("BEACONS", JSONArray(newValue.map { it.asJson() }).toString())
+        }
+    }
+
+    /**
+     * A nearby beacon overrides every suspend condition but the phone being idle (Doze): it tells
+     * the vehicle is around, while a phone left still for a long time was likely forgotten in it
+     */
+    public val beaconOverridesSuspend: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("BEACON_OVERRIDES_SUSPEND", false)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("BEACON_OVERRIDES_SUSPEND", newValue) }
+    }
+
+    /**
+     * The name of the BLE scan mode looking for [beacons] in the background, a debug option. Left
+     * as a name: the modes belong to the scanner, the reader falls back on its default for an
+     * unknown one.
+     */
+    public val beaconScanMode: MutableStateFlow<String?> = observableStateFlow(
+        sharedPreferences.getString("BEACON_SCAN_MODE", null)
+    ) { _, newValue ->
+        sharedPreferences.edit { putString("BEACON_SCAN_MODE", newValue) }
+    }
+
+    /**
+     * The signal (dBm) from which one of the [beacons] counts as nearby, a debug option. Weaker
+     * than that, it is likely someone else's or across the street.
+     */
+    public val beaconMinRssi: MutableStateFlow<Int> = observableStateFlow(
+        sharedPreferences.getInt("BEACON_MIN_RSSI", DEFAULT_BEACON_MIN_RSSI)
+    ) { _, newValue ->
+        sharedPreferences.edit { putInt("BEACON_MIN_RSSI", newValue) }
+    }
+
     /** Keeps scanning for [stayActiveMinutes] once every activate condition has ended */
     public val stayActive: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("STAY_ACTIVE", false)
@@ -155,8 +208,9 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putBoolean("SUSPEND_CONDITIONS", newValue) }
     }
 
+    /** On by default: a phone idle for that long is not on a moving vehicle, it was left somewhere */
     public val suspendScanningInDoze: MutableStateFlow<Boolean> = observableStateFlow(
-        sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", false)
+        sharedPreferences.getBoolean("SUSPEND_SCANNING_IN_DOZE", true)
     ) { _, newValue ->
         sharedPreferences.edit { putBoolean("SUSPEND_SCANNING_IN_DOZE", newValue) }
     }
@@ -193,6 +247,31 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putStringSet("SUSPEND_BLUETOOTH_DEVICES", newValue) }
     }
 
+    /**
+     * A device recognized by its advertisements, by [address] or by [advertisedName] since some
+     * phones fail to match a random address. [label] is the name the user gave it, never matched.
+     */
+    public data class Beacon(
+        val address: String,
+        val advertisedName: String?,
+        val label: String?,
+    ) {
+        /** What the user reads: their own name for it first, the advertised one, else its address */
+        val displayName: String get() = label ?: advertisedName ?: address
+    }
+
+    private fun JSONObject.asBeacon() = Beacon(
+        address = getString("address"),
+        advertisedName = optString("advertisedName").takeIf { has("advertisedName") },
+        label = optString("label").takeIf { has("label") },
+    )
+
+    private fun Beacon.asJson() = JSONObject()
+        .put("address", address)
+        // put() with null removes the key, which is how a missing name is told apart
+        .put("advertisedName", advertisedName)
+        .put("label", label)
+
     private val packageInfo
         get() = appContext
             .packageManager
@@ -218,8 +297,10 @@ public class AppPreferences internal constructor(
             sharedPreferences.edit { putLong("VC", currentVersionCode) }
     }
 
-    private companion object {
-        const val DEFAULT_STAY_ACTIVE_MINUTES = 10
-        const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 7f
+    public companion object {
+        /** See [beaconMinRssi] */
+        public const val DEFAULT_BEACON_MIN_RSSI: Int = -85
+        private const val DEFAULT_STAY_ACTIVE_MINUTES = 10
+        private const val DEFAULT_PRESSURE_LOSS_MIN_DROP = 7f
     }
 }
