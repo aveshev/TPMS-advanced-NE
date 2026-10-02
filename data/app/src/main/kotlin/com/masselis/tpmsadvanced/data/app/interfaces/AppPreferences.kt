@@ -51,7 +51,7 @@ public class AppPreferences internal constructor(
 
     /**
      * Speaks the status of persistent scanning (idle, active, suspended, off) each time it changes,
-     * unless the app is on screen
+     * unless the main screen is shown
      */
     public val announceScanStatus: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("ANNOUNCE_SCAN_STATUS", false)
