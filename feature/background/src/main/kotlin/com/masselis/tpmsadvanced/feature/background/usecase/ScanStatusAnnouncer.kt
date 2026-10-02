@@ -8,7 +8,17 @@ import androidx.core.content.getSystemService
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ALWAYS
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.ANDROID_AUTO
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BEACON
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.STAY_ACTIVE
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,9 +38,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 /**
- * A debug option: speaks the status of persistent scanning each time it changes ("TPMS active"...),
- * to hear when the phone switches modes with the screen off or in a pocket. Quiet while the main
- * screen is in front of the user, who sees the status on the bell instead.
+ * A debug option: speaks the status of persistent scanning and its reasons each time they change
+ * ("TPMS active, cable"...), to hear when the phone switches modes with the screen off or in a
+ * pocket. Quiet while the main screen is in front of the user, who sees the status on the bell
+ * instead.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class ScanStatusAnnouncer(
@@ -49,18 +60,26 @@ internal class ScanStatusAnnouncer(
      */
     val mainScreensStarted = MutableStateFlow(0)
 
-    /** What to say about each status change, the status at the time of collecting excluded */
+    /** What to say about each change of status or reasons, the one at the time of collecting excluded */
     val statusChanges: Flow<String> = scanPolicyUseCase
         .decision
         .map { decision ->
             when (decision) {
                 // Without persistent scanning, the decision is the one of the manual button
-                is ScanDecision.Active -> if (MANUAL in decision.causes) "TPMS off" else "TPMS active"
-                is ScanDecision.Suspended -> "TPMS suspended"
+                is ScanDecision.Active -> if (MANUAL in decision.causes) "TPMS off" else decision
+                    .causes
+                    .sorted()
+                    .joinToString(" and ", prefix = "TPMS active, ") { it.spoken }
+
+                is ScanDecision.Suspended -> decision
+                    .reasons
+                    .sorted()
+                    .joinToString(" and ", prefix = "TPMS suspended, ") { it.spoken }
+
                 ScanDecision.Idle -> "TPMS idle"
             }
         }
-        // Several decisions share a status (another activate cause...), they say nothing new
+        // A change of reasons is told too, but not a change of the devices' names behind them
         .distinctUntilChanged()
         .drop(1)
 
@@ -107,5 +126,26 @@ internal class ScanStatusAnnouncer(
 
     private companion object {
         const val UTTERANCE_ID = "ScanStatusAnnouncer"
+
+        // Short words for the ear, the full sentences are on the bell, see explanation()
+        val ScanDecision.ActivateCause.spoken
+            get() = when (this) {
+                MANUAL -> "manual"
+                CABLE -> "cable"
+                WIRELESS -> "wireless"
+                ANDROID_AUTO -> "Auto"
+                ActivateCause.BLUETOOTH -> "Bluetooth"
+                BEACON -> "beacon"
+                STAY_ACTIVE -> "stay"
+                ALWAYS -> "always"
+            }
+
+        val Reason.spoken
+            get() = when (this) {
+                // Not "idle", which would sound like the idle status
+                DOZE -> "sleep"
+                WIFI -> "WiFi"
+                Reason.BLUETOOTH -> "Bluetooth"
+            }
     }
 }
