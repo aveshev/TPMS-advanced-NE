@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase.Activity
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase.Activity.Type.ON_FOOT
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase.Activity.Type.STILL
+import com.masselis.tpmsadvanced.feature.background.usecase.PhoneIdleUseCase.Mechanism.DEEP_DOZE
 import com.masselis.tpmsadvanced.feature.background.usecase.PhoneIdleUseCase.Mechanism.NO_SIGNIFICANT_MOTION
 import com.masselis.tpmsadvanced.feature.background.usecase.PhoneIdleUseCase.Mechanism.STANDING_STILL
 import io.mockk.every
@@ -64,7 +65,17 @@ internal class PhoneIdleUseCaseTest {
     private fun still(confidence: Int) = listOf(Activity(STILL, confidence), Activity(ON_FOOT, 100 - confidence))
 
     @Test
-    fun `deep doze decides by default`() = runTest {
+    fun `no significant motion decides by default`() = runTest {
+        test().isIdle.test {
+            assertEquals(false, awaitItem())
+            assertEquals(true, awaitItem())
+            assertEquals(5.minutes, currentTime.milliseconds)
+        }
+    }
+
+    @Test
+    fun `deep doze decides once selected`() = runTest {
+        mechanism.value = DEEP_DOZE.name
         test().isIdle.test {
             assertEquals(false, awaitItem())
             deviceIdle.value = true
@@ -108,13 +119,15 @@ internal class PhoneIdleUseCaseTest {
     }
 
     @Test
-    fun `never idle without a significant motion sensor`() = runTest {
+    fun `falls back on deep doze without a significant motion sensor`() = runTest {
         motions = null
         mechanism.value = NO_SIGNIFICANT_MOTION.name
         test().isIdle.test {
             assertEquals(false, awaitItem())
             advanceTimeBy(10.minutes)
             expectNoEvents()
+            deviceIdle.value = true
+            assertEquals(true, awaitItem())
         }
     }
 
@@ -172,6 +185,7 @@ internal class PhoneIdleUseCaseTest {
 
     @Test
     fun `selecting another mechanism switches to what it tells`() = runTest {
+        mechanism.value = DEEP_DOZE.name
         test().isIdle.test {
             assertEquals(false, awaitItem())
             advanceTimeBy(6.minutes)

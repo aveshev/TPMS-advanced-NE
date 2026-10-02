@@ -54,7 +54,10 @@ internal class PhoneIdleUseCase(
         /** The system's Deep Doze, which some phones enter while carried */
         DEEP_DOZE,
 
-        /** No significant motion reported by the system for [QUIET_PERIOD] */
+        /**
+         * No significant motion reported by the system for [QUIET_PERIOD]. Deep Doze instead on a
+         * phone without the sensor.
+         */
         NO_SIGNIFICANT_MOTION,
 
         /** Detected as still with [STILL_MIN_CONFIDENCE] at least, for [QUIET_PERIOD] */
@@ -104,10 +107,10 @@ internal class PhoneIdleUseCase(
             waitQuietPeriod(NO_SIGNIFICANT_MOTION)
             emit(true)
         }
-        ?: flow {
-            logger.w { "No significant motion sensor: $NO_SIGNIFICANT_MOTION never tells the phone is idle" }
-            emit(false)
-        }
+        // As the default mechanism, it must still tell something
+        ?: deviceIdleModeUseCase
+            .isDeviceIdle
+            .onStart { logger.w { "No significant motion sensor: $NO_SIGNIFICANT_MOTION falls back on $DEEP_DOZE" } }
 
     private fun standingStill(): Flow<Boolean> = flow {
         if (activityRecognitionUseCase.isPermitted().not()) {
@@ -167,7 +170,9 @@ internal class PhoneIdleUseCase(
         private val CHECK_STEP = 30.seconds
         private val LATE_THRESHOLD = 5.seconds
 
-        val DEFAULT_MECHANISM = DEEP_DOZE
+        // Deep Doze is entered by some phones while carried on a ride (a Pixel 7), significant motion
+        // was right on every ride tried
+        val DEFAULT_MECHANISM = NO_SIGNIFICANT_MOTION
 
         /** The mechanism a stored name stands for, the default one for an unknown or missing name */
         fun String?.asPhoneIdleMechanism(): Mechanism =
