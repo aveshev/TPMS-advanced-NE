@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Detecte
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.KeepAliveInstructionsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PersistentScanningViewModel
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PhoneIdleMechanismViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanStatusAnnouncementsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
@@ -19,9 +20,12 @@ import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseC
 import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.KeepAliveInstructionsUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.PhoneIdleUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanStatusAnnouncer
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScreenStateUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.SignificantMotionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
 import dev.zacsweers.metro.AppScope
@@ -59,6 +63,34 @@ public interface Bindings {
     @Provides
     @SingleIn(AppScope::class)
     private fun deviceIdleModeUseCase(): DeviceIdleModeUseCase = DeviceIdleModeUseCase()
+
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun screenStateUseCase(): ScreenStateUseCase = ScreenStateUseCase()
+
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun significantMotionUseCase(): SignificantMotionUseCase = SignificantMotionUseCase()
+
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun phoneIdleUseCase(
+        appPreferences: AppPreferences,
+        deviceIdleModeUseCase: DeviceIdleModeUseCase,
+        screenStateUseCase: ScreenStateUseCase,
+        chargingStateUseCase: ChargingStateUseCase,
+        significantMotionUseCase: SignificantMotionUseCase,
+        activityRecognitionUseCase: ActivityRecognitionUseCase,
+    ): PhoneIdleUseCase = PhoneIdleUseCase(
+        appPreferences,
+        deviceIdleModeUseCase,
+        screenStateUseCase,
+        chargingStateUseCase,
+        significantMotionUseCase,
+        activityRecognitionUseCase,
+        GlobalScope + Dispatchers.Default,
+    )
 
     @Provides
     @SingleIn(AppScope::class)
@@ -111,12 +143,12 @@ public interface Bindings {
     @SingleIn(AppScope::class)
     private fun scanSuspensionUseCase(
         appPreferences: AppPreferences,
-        deviceIdleModeUseCase: DeviceIdleModeUseCase,
+        phoneIdleUseCase: PhoneIdleUseCase,
         wifiConnectionUseCase: WifiConnectionUseCase,
         bluetoothDevicesUseCase: BluetoothDevicesUseCase,
     ): ScanSuspensionUseCase = ScanSuspensionUseCase(
         appPreferences,
-        deviceIdleModeUseCase,
+        phoneIdleUseCase,
         wifiConnectionUseCase,
         bluetoothDevicesUseCase,
     )
@@ -205,6 +237,12 @@ public interface Bindings {
     ): DetectedActivitiesViewModel = DetectedActivitiesViewModel(appPreferences, activityRecognitionUseCase)
 
     @Provides
+    private fun phoneIdleMechanismViewModel(
+        appPreferences: AppPreferences,
+        activityRecognitionUseCase: ActivityRecognitionUseCase,
+    ): PhoneIdleMechanismViewModel = PhoneIdleMechanismViewModel(appPreferences, activityRecognitionUseCase)
+
+    @Provides
     private fun scanStatusAnnouncementsViewModel(
         appPreferences: AppPreferences,
     ): ScanStatusAnnouncementsViewModel = ScanStatusAnnouncementsViewModel(appPreferences)
@@ -225,6 +263,7 @@ public interface Bindings {
         internal val keepAliveInstructionsViewModel: () -> KeepAliveInstructionsViewModel,
         internal val scanStatusAnnouncementsViewModel: () -> ScanStatusAnnouncementsViewModel,
         internal val beaconsViewModel: () -> BeaconsViewModel,
+        internal val phoneIdleMechanismViewModel: () -> PhoneIdleMechanismViewModel,
     )
 
     public companion object : Bindings by appGraph as Bindings {

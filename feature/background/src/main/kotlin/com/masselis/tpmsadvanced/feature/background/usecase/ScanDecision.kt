@@ -4,7 +4,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BEACON
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.BLUETOOTH
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.IDLE
 
 internal sealed interface ScanDecision {
 
@@ -38,7 +38,7 @@ internal sealed interface ScanDecision {
  * Persistent scanning is active if ANY enabled activate condition is fulfilled and NONE of the
  * suspend conditions is. [ALWAYS] (the activate conditions being turned off) is always fulfilled
  * and makes every other one irrelevant. With [beaconOverridesSuspend], a nearby beacon scans
- * whatever the suspend conditions, but the phone being idle (Doze).
+ * whatever the suspend conditions, but the phone being idle.
  */
 internal fun decide(
     enabled: Set<ScanDecision.ActivateCause>,
@@ -52,7 +52,7 @@ internal fun decide(
         suspendReasons.isEmpty() -> ScanDecision.Active(causes)
         // The beacon tells the vehicle is around. A phone idle for that long was rather forgotten
         // in it, and there is no stopping then since the beacon never leaves.
-        beaconOverridesSuspend && BEACON in causes && DOZE !in suspendReasons -> ScanDecision.Active(causes)
+        beaconOverridesSuspend && BEACON in causes && IDLE !in suspendReasons -> ScanDecision.Active(causes)
         else -> ScanDecision.Suspended(suspendReasons)
     }
 }
@@ -75,7 +75,7 @@ internal fun ScanDecision.explanation(): String = when (this) {
         "Background scanning is suspended due to ${
             reasons.joinToString(", ") {
                 when (it) {
-                    Reason.DOZE -> "the phone being idle (Doze)"
+                    Reason.IDLE -> "the phone being idle"
                     Reason.WIFI -> "WiFi being connected"
                     Reason.BLUETOOTH -> bluetoothDevices.connectedLabel()
                 }

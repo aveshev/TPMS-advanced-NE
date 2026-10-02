@@ -10,18 +10,18 @@ import kotlinx.coroutines.flow.flowOf
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class ScanSuspensionUseCase(
     appPreferences: AppPreferences,
-    deviceIdleModeUseCase: DeviceIdleModeUseCase,
+    phoneIdleUseCase: PhoneIdleUseCase,
     wifiConnectionUseCase: WifiConnectionUseCase,
     bluetoothDevicesUseCase: BluetoothDevicesUseCase,
 ) {
-    enum class Reason { DOZE, WIFI, BLUETOOTH }
+    enum class Reason { IDLE, WIFI, BLUETOOTH }
 
     val suspensionReasons: Flow<Set<Reason>> = appPreferences.suspendConditions.flatMapLatest { conditions ->
         // Turned off, no condition applies: none of the system listeners is needed
         if (conditions.not()) return@flatMapLatest flowOf(emptySet())
         combine(
             appPreferences.suspendScanningInDoze.flatMapLatest { enabled ->
-                if (enabled) deviceIdleModeUseCase.isDeviceIdle else flowOf(false)
+                if (enabled) phoneIdleUseCase.isIdle else flowOf(false)
             },
             appPreferences.suspendScanningOnWifi.flatMapLatest { enabled ->
                 if (enabled) {
@@ -47,9 +47,9 @@ internal class ScanSuspensionUseCase(
                     flowOf(false)
                 }
             },
-        ) { doze, wifi, bluetooth ->
+        ) { idle, wifi, bluetooth ->
             buildSet {
-                if (doze) add(Reason.DOZE)
+                if (idle) add(Reason.IDLE)
                 if (wifi) add(Reason.WIFI)
                 if (bluetooth) add(Reason.BLUETOOTH)
             }

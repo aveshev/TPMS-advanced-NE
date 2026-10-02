@@ -22,6 +22,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Beacon
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.Beacons
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateScanConditions
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.DetectedActivitiesSettingsItem
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PhoneIdleMechanismSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ScanStatusAnnouncementsSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ExceptedWifis
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.PersistentScanningDetails
@@ -84,6 +85,7 @@ internal fun DebugSettingsPage(
             ScanStatusAnnouncementsSettingsItem()
             BeaconScanModeSettingsItem()
             BeaconMinRssiSettingsItem()
+            PhoneIdleMechanismSettingsItem()
         }
     )
 }

@@ -105,8 +105,8 @@ internal class ActivityRecognitionUseCase(scope: CoroutineScope) {
     }
 
     private companion object {
-        // Shorter than what a production use would pick: this is a debugging aid, only listened to
-        // while the home screen is visible
-        const val UPDATE_INTERVAL_MS = 10_000L
+        // Each update wakes the phone up: often enough for PhoneIdleUseCase to tell a stop from a
+        // ride, which it keeps listening to in the background
+        const val UPDATE_INTERVAL_MS = 30_000L
     }
 }

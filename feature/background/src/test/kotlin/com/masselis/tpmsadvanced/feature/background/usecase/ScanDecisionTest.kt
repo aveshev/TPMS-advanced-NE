@@ -8,7 +8,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.WIRELESS
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.DOZE
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.IDLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -61,8 +61,8 @@ internal class ScanDecisionTest {
     @Test
     fun `every holding suspend condition is reported`() {
         assertEquals(
-            ScanDecision.Suspended(setOf(DOZE, WIFI)),
-            decide(setOf(CABLE), setOf(CABLE), setOf(DOZE, WIFI))
+            ScanDecision.Suspended(setOf(IDLE, WIFI)),
+            decide(setOf(CABLE), setOf(CABLE), setOf(IDLE, WIFI))
         )
     }
 
@@ -90,8 +90,8 @@ internal class ScanDecisionTest {
     @Test
     fun `always scanning is still subject to suspend conditions`() {
         assertEquals(
-            ScanDecision.Suspended(setOf(DOZE)),
-            decide(setOf(ALWAYS), emptySet(), setOf(DOZE))
+            ScanDecision.Suspended(setOf(IDLE)),
+            decide(setOf(ALWAYS), emptySet(), setOf(IDLE))
         )
     }
 
@@ -131,8 +131,8 @@ internal class ScanDecisionTest {
             ScanDecision.Active(setOf(MANUAL)).explanation()
         )
         assertEquals(
-            "Background scanning is suspended due to the phone being idle (Doze), WiFi being connected",
-            ScanDecision.Suspended(setOf(DOZE, WIFI)).explanation()
+            "Background scanning is suspended due to the phone being idle, WiFi being connected",
+            ScanDecision.Suspended(setOf(IDLE, WIFI)).explanation()
         )
         assertEquals(
             "Background scanning is active due to soundcore Liberty 5 being connected",
@@ -180,8 +180,8 @@ internal class ScanDecisionTest {
     @Test
     fun `the beacon override does not apply while the phone is idle`() {
         assertEquals(
-            ScanDecision.Suspended(setOf(WIFI, DOZE)),
-            decide(setOf(BEACON), setOf(BEACON), setOf(WIFI, DOZE), beaconOverridesSuspend = true)
+            ScanDecision.Suspended(setOf(WIFI, IDLE)),
+            decide(setOf(BEACON), setOf(BEACON), setOf(WIFI, IDLE), beaconOverridesSuspend = true)
         )
     }
 
