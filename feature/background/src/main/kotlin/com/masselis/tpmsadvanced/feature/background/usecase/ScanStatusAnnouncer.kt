@@ -19,6 +19,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.Activat
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.IDLE
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason.WIFI
+import java.util.Locale
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -104,7 +105,7 @@ internal class ScanStatusAnnouncer(
             .launchIn(scope)
     }
 
-    /** The default engine once it is ready, shut down when the collection ends */
+    /** The default engine once it is ready, in English, shut down when the collection ends */
     private fun textToSpeech(): Flow<TextToSpeech> = callbackFlow {
         val status = CompletableDeferred<Int>()
         val tts = TextToSpeech(appContext) { status.complete(it) }
@@ -117,6 +118,11 @@ internal class ScanStatusAnnouncer(
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build()
                     )
+                    // The announcements are English, while the engine follows the phone's language:
+                    // a Russian voice mangles "TPMS"
+                    setLanguage(Locale.US)
+                        .takeIf { it < TextToSpeech.LANG_AVAILABLE }
+                        ?.also { logger.w { "English is not available ($it), spoken in the default language" } }
                 }
                 .also { send(it) }
             else logger.w { "Text-to-speech failed to initialize, status changes won't be spoken" }
