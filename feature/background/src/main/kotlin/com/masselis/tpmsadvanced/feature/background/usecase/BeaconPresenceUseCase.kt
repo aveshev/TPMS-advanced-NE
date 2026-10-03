@@ -36,9 +36,10 @@ internal class BeaconPresenceUseCase(
 
     /**
      * The addresses of the [beacons] heard nearby, with the signal (dBm) of their last packet. A
-     * beacon is nearby while one of its packets at least as loud as [minRssi] was heard within
-     * [WINDOW]: a beacon far away (the neighbour's) doesn't count, nor does one gone quiet. Scans
-     * while Bluetooth is on, and again after a failure.
+     * beacon becomes nearby once [MIN_PACKETS] of its packets at least as loud as [minRssi] were
+     * heard within [WINDOW], and stays so while one of them was: a beacon far away (the
+     * neighbour's) doesn't count, nor does a single stray packet, nor one gone quiet. Scans while
+     * Bluetooth is on, and again after a failure.
      */
     fun nearby(beacons: List<Beacon>, mode: ScanMode): Flow<Map<String, Int>> = bluetoothOn
         .distinctUntilChanged()
@@ -56,32 +57,59 @@ internal class BeaconPresenceUseCase(
                     .mapNotNull { advertisement ->
                         beacons
                             .firstOrNull { it.isSending(advertisement) }
-                            ?.takeIf { advertisement.rssi >= minRssi.value }
-                            ?.let { Heard(it.address, advertisement.rssi, timeSource.markNow()) }
+                            // Without a measured signal, how far it is isn't known
+                            ?.takeIf { advertisement.hasRssi && advertisement.rssi >= minRssi.value }
+                            ?.let { Packet(it.address, advertisement.rssi, timeSource.markNow()) }
                     },
                 // Packets stop coming when a beacon goes away: the time passing is what tells it
-                flow<Heard?> {
+                flow<Packet?> {
                     while (true) {
                         delay(TICK)
                         emit(null)
                     }
                 },
             )
-                .runningFold(emptyMap<String, Heard>()) { heard, event ->
-                    (event?.let { heard + (it.address to it) } ?: heard)
-                        .filterValues { it.at.elapsedNow() < WINDOW }
+                .runningFold(emptyMap<String, Heard>()) { heard, packet ->
+                    heard
+                        .let { heard ->
+                            packet
+                                ?.let { heard[it.address].plus(it) }
+                                ?.let { heard + (packet.address to it) }
+                                ?: heard
+                        }
+                        .mapValues { (_, it) -> it.withinWindow() }
+                        .filterValues { it.packets.isNotEmpty() }
                         .also { next ->
-                            if (next.keys != heard.keys) logger.i {
+                            if (next.nearby().keys != heard.nearby().keys) logger.i {
                                 "Nearby beacons with $mode, from ${minRssi.value} dBm: " +
-                                    next.values.joinToString { "${it.address} at ${it.rssi} dBm" }.ifEmpty { "none" }
+                                    next
+                                        .nearby()
+                                        .values
+                                        .joinToString { "${it.address} at ${it.rssi} dBm" }
+                                        .ifEmpty { "none" }
                             }
                         }
                 }
-                .map { heard -> heard.mapValues { (_, it) -> it.rssi } }
+                .map { heard -> heard.nearby().mapValues { (_, it) -> it.rssi } }
         }
         .distinctUntilChanged()
 
-    private class Heard(val address: String, val rssi: Int, val at: TimeMark)
+    private class Packet(val address: String, val rssi: Int, val at: TimeMark)
+
+    /** The last loud packets of a beacon within [WINDOW], the last one first: [MIN_PACKETS] at most */
+    private class Heard(val packets: List<Packet>, val isNearby: Boolean) {
+        val address get() = packets.first().address
+        val rssi get() = packets.first().rssi
+
+        // Once nearby, a single packet within the window keeps it so: only becoming nearby needs more
+        fun withinWindow() = Heard(packets.filter { it.at.elapsedNow() < WINDOW }, isNearby)
+    }
+
+    private fun Heard?.plus(packet: Packet) = (listOf(packet) + this?.packets.orEmpty())
+        .take(MIN_PACKETS)
+        .let { packets -> Heard(packets, this?.isNearby == true || packets.size >= MIN_PACKETS) }
+
+    private fun Map<String, Heard>.nearby() = filterValues { it.isNearby }
 
     private fun Beacon.isSending(advertisement: Advertisement) =
         advertisement.address.equals(address, ignoreCase = true) ||
@@ -99,6 +127,9 @@ internal class BeaconPresenceUseCase(
             BACKGROUND_SCAN_MODES.firstOrNull { it.name == this } ?: DEFAULT_SCAN_MODE
 
         private val WINDOW = 30.seconds
+
+        // A single packet may be a stray one: the neighbour's beacon heard through a reflection
+        private const val MIN_PACKETS = 2
         private val TICK = 5.seconds
         private val RETRY_DELAY = 30.seconds
     }
