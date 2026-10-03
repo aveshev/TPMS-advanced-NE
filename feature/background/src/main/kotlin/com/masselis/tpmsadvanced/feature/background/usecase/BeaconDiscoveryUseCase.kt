@@ -130,6 +130,8 @@ internal class BeaconDiscoveryUseCase(
             .flatMapLatest { scan ->
                 if (scan) scanner.advertisements(LOW_LATENCY, devices = null) else emptyFlow()
             }
+            // Without a signal, it would be listed as the loudest device around
+            .filter { it.hasRssi }
             .map<Advertisement, Advertisement?> { it },
         flow {
             while (true) {
