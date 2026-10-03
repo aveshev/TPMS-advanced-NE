@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -67,9 +68,13 @@ internal fun Beacons(
     // Saved, so that a rotation keeps what was removed so far
     var removed by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var renaming by rememberSaveable { mutableStateOf<String?>(null) }
+    // Opening the scan page above this one leaves the composition too, while the user is about to
+    // add a beacon: the condition must not be turned off then. Not saved, back from the scan page
+    // this page is composed afresh.
+    var scanOpened by remember { mutableStateOf(false) }
     OnLeaveEffect {
         viewModel.remove(removed.toSet())
-        viewModel.disableIfNoBeacon()
+        if (scanOpened.not()) viewModel.disableIfNoBeacon()
     }
     val bluetoothState = rememberBluetoothState()
     Beacons(
@@ -88,6 +93,7 @@ internal fun Beacons(
         openBeaconScan = {
             viewModel.remove(removed.toSet())
             removed = emptyList()
+            scanOpened = true
             openBeaconScan()
         },
         modifier = modifier,
