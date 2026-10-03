@@ -555,7 +555,7 @@ internal class ScanPolicyUseCaseTest {
     }
 
     @Test
-    fun `a beacon going away while the override held scanning leaves no stay`() = runTest {
+    fun `a beacon going away while the override held scanning stays, suspended like any other cause`() = runTest {
         stayActive.value = true
         activateOnBeacon.value = true
         beaconOverridesSuspend.value = true
@@ -564,11 +564,13 @@ internal class ScanPolicyUseCaseTest {
         suspensionReasons.value = setOf(Reason.WIFI)
         test().decision.test {
             assertEquals(ScanDecision.Active(setOf(BEACON), beacons = listOf("Bike")), awaitItem())
-            // Back home with the vehicle gone: nothing to stay active for
+            // Scanning was active when the beacon went away, but the override was the beacon's
             nearbyBeacons.value = emptyMap()
+            assertEquals(ScanDecision.Suspended(setOf(Reason.WIFI)), awaitItem())
+            suspensionReasons.value = emptySet()
+            assertEquals(ScanDecision.Active(setOf(STAY_ACTIVE)), awaitItem())
+            delay(10.minutes + 1.seconds)
             assertEquals(ScanDecision.Idle, awaitItem())
-            delay(30.minutes)
-            expectNoEvents()
         }
     }
 

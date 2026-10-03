@@ -110,13 +110,13 @@ internal class ScanPolicyUseCase(
     private fun automatic(): Flow<ScanDecision> = combine(
         enabledCauses(),
         appPreferences.stayActiveMinutes,
-        ::Pair,
-    ).flatMapLatest { (enabled, stayActiveMinutes) ->
+        appPreferences.beaconOverridesSuspend,
+        ::Triple,
+    ).flatMapLatest { (enabled, stayActiveMinutes, beaconOverridesSuspend) ->
         combine(
-            fulfilledCauses(enabled, stayActiveMinutes.minutes),
+            fulfilledCauses(enabled, stayActiveMinutes.minutes, beaconOverridesSuspend),
             scanSuspensionUseCase.suspensionReasons,
-            appPreferences.beaconOverridesSuspend,
-        ) { fulfilled, reasons, beaconOverridesSuspend ->
+        ) { fulfilled, reasons ->
             decide(enabled, fulfilled, reasons, beaconOverridesSuspend).let { decision ->
                 // What the decision was made from, to tell afterwards why it changed
                 decision to "enabled=$enabled, fulfilled=$fulfilled, suspend reasons=$reasons, " +
@@ -210,10 +210,12 @@ internal class ScanPolicyUseCase(
     private fun fulfilledCauses(
         enabled: Set<ActivateCause>,
         stayActiveFor: Duration,
+        beaconOverridesSuspend: Boolean,
     ): Flow<Set<ActivateCause>> = when {
         // No need to listen to anything when always scanning overrides every other condition
         ALWAYS in enabled -> flowOf(emptySet())
-        STAY_ACTIVE in enabled -> directCauses(enabled).stayingActive(enabled, stayActiveFor)
+        STAY_ACTIVE in enabled ->
+            directCauses(enabled).stayingActive(enabled, stayActiveFor, beaconOverridesSuspend)
 
         else -> directCauses(enabled)
     }
@@ -258,30 +260,36 @@ internal class ScanPolicyUseCase(
 
     /**
      * Once none of the [enabled] conditions is fulfilled any more, reports [STAY_ACTIVE] for
-     * [duration], unless scanning was suspended at that very moment: then there is nothing to stay
-     * active for. Starts over each time the conditions end, and nothing is held for conditions
-     * that were never fulfilled. A suspension that begins or ends during the stay does not move
-     * its end, it is a fixed point in time.
+     * [duration], if scanning was active at that very moment (a nearby beacon may have kept it
+     * active despite a suspend reason): otherwise there is nothing to stay active for. The stay
+     * itself is suspended like any other cause, the beacon's override doesn't extend to it. Starts
+     * over each time the conditions end, and nothing is held for conditions that were never
+     * fulfilled. A suspension that begins or ends during the stay does not move its end, it is a
+     * fixed point in time.
      */
     private fun Flow<Set<ActivateCause>>.stayingActive(
         enabled: Set<ActivateCause>,
         duration: Duration,
+        beaconOverridesSuspend: Boolean,
     ): Flow<Set<ActivateCause>> = flow {
         var wasFulfilled = false
+        // Whether scanning was active the last time a condition was fulfilled
+        var wasActive = false
         var stayEnd: TimeMark? = null
         emitAll(
             combine(this@stayingActive, scanSuspensionUseCase.suspensionReasons) { causes, reasons ->
-                causes to reasons.isNotEmpty()
-            }.transformLatest { (causes, suspended) ->
+                causes to (decide(enabled, causes, reasons, beaconOverridesSuspend) is ScanDecision.Active)
+            }.transformLatest { (causes, active) ->
                 if ((causes intersect enabled).isNotEmpty()) {
                     wasFulfilled = true
+                    wasActive = active
                     stayEnd = null
                     emit(causes)
                     return@transformLatest
                 }
                 if (wasFulfilled) {
                     wasFulfilled = false
-                    stayEnd = if (suspended) null else timeSource.markNow() + duration
+                    stayEnd = if (wasActive) timeSource.markNow() + duration else null
                 }
                 val remaining = stayEnd?.let { -it.elapsedNow() }?.takeIf { it.isPositive() }
                 if (remaining == null) {
