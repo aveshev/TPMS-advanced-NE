@@ -1,16 +1,31 @@
 package com.masselis.tpmsadvanced.data.vehicle.interfaces
 
+import android.bluetooth.le.ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
 public interface BluetoothLeScanner {
 
+    /** Why a scan ended, the scan flows complete with one of them */
     public sealed interface Failure {
-        public class ScannerIsNull(adapterState: Int?) :
-            Exception("Failure.ScannerIsNull(adapterState=$adapterState)")
+        /**
+         * Bluetooth is off: the scan couldn't start, or it was turned off while scanning. The
+         * system drops a running scan then, without telling it to the app.
+         */
+        public class BluetoothOff(adapterState: Int?) :
+            Exception("Failure.BluetoothOff(adapterState=$adapterState)"), Failure
 
-        public class Scan(reason: Int) : Exception("Failure.Scan(reason=$reason)")
+        /** The system refused the scan, [reason] is one of `ScanCallback.SCAN_FAILED_*` */
+        public class Scan(public val reason: Int) : Exception("Failure.Scan(reason=$reason)"), Failure {
+            /**
+             * Whether starting the scan again later may work. Only a phone without the feature
+             * can't: the others are the system or the Bluetooth stack being busy for a while
+             * (too many scanners registered, scanning too frequently, internal error...).
+             */
+            public val isRecoverable: Boolean
+                get() = reason != SCAN_FAILED_FEATURE_UNSUPPORTED
+        }
     }
 
     /** How much the radio listens, from a small part of the time to all the time */

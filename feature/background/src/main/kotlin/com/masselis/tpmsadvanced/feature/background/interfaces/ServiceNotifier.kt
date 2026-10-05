@@ -26,17 +26,21 @@ import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Failure
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.background.R
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.BluetoothOff
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.LowBatteryAlert
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.MonitoringFailure
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureLossAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanRetrying
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.SensorAlarm
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
@@ -52,19 +56,27 @@ import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.scan
 import kotlin.math.roundToLong
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -75,6 +87,7 @@ internal class ServiceNotifier(
     service: Service,
     vehicleListUseCase: VehicleListUseCase,
     scanPolicyUseCase: ScanPolicyUseCase,
+    isBluetoothOn: Flow<Boolean>,
 ) {
     private val logger = Logger.withTag("ServiceNotifier")
     private val notificationManager = NotificationManagerCompat.from(appContext)
@@ -107,50 +120,37 @@ internal class ServiceNotifier(
 
         scanPolicyUseCase
             .decision
-            .flatMapLatest { decision ->
-                when (decision) {
-                    // Not scanning: skip the scan entirely rather than emit nothing, since the
-                    // service must call startForeground() shortly after being started — a
-                    // silent flow here would starve that call if the app launches already
-                    // suspended (e.g. opened while already in Doze).
-                    is ScanDecision.Suspended -> flowOf(Suspended(decision))
-                    ScanDecision.Idle -> flowOf(Idle)
-                    is ScanDecision.Active -> combine(
-                        vehicleListUseCase
-                            .vehicleListFlow
-                            // Editing a vehicle (ranges, name...) re-emits the list; only a change
-                            // in the set of vehicles may rebuild the collectors, otherwise the BLE
-                            // scan restarts.
-                            .distinctUntilChanged { old, new ->
-                                old.map(Vehicle::uuid) == new.map(Vehicle::uuid)
-                            }
-                            .flatMapLatest { vehicles ->
-                                combine(
-                                    vehicles.map { vehicle ->
-                                        VehicleAlertUseCase(VehicleComponent(vehicle))
-                                            .alert
-                                            .map { vehicle to it }
-                                    }
-                                ) { it.toList() }
-                            },
-                        vehicleListUseCase.vehicleListFlow,
-                    ) { alerts, latestVehicles ->
-                        // The collectors hold the snapshot they were built with, so names are
-                        // refreshed here
-                        val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
-                        worst(
-                            alerts.map { (vehicle, alert) ->
-                                (latestByUuid[vehicle.uuid] ?: vehicle) to alert
-                            }
-                        )
-                    }
+            .serviceStates(isBluetoothOn) {
+                combine(
+                    vehicleListUseCase
+                        .vehicleListFlow
+                        // Editing a vehicle (ranges, name...) re-emits the list; only a change in
+                        // the set of vehicles may rebuild the collectors, otherwise the BLE scan
+                        // restarts.
+                        .distinctUntilChanged { old, new ->
+                            old.map(Vehicle::uuid) == new.map(Vehicle::uuid)
+                        }
+                        .flatMapLatest { vehicles ->
+                            combine(
+                                vehicles.map { vehicle ->
+                                    VehicleAlertUseCase(VehicleComponent(vehicle))
+                                        .alert
+                                        .map { vehicle to it }
+                                }
+                            ) { it.toList() }
+                        },
+                    vehicleListUseCase.vehicleListFlow,
+                ) { alerts, latestVehicles ->
+                    // The collectors hold the snapshot they were built with, so names are
+                    // refreshed here
+                    val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
+                    worst(
+                        alerts.map { (vehicle, alert) ->
+                            (latestByUuid[vehicle.uuid] ?: vehicle) to alert
+                        }
+                    )
                 }
             }
-            // The service must call startForeground() shortly after being started, before the
-            // database had time to answer
-            .onStart { emit(NoAlert) }
-            .catch { logger.e("Failed to listen for atmospheres", it); emit(ScanFailure) }
-            .distinctUntilChanged()
             .scan(Repeats()) { repeats, state -> repeats.next(state) }
             .mapNotNull { repeats -> repeats.state?.let { it to repeats.isRepeat } }
             .map { (state, isRepeat) ->
@@ -158,8 +158,9 @@ internal class ServiceNotifier(
                     .Builder(
                         appContext,
                         when (state) {
-                            NoAlert, is Suspended, Idle -> channelNameWhenOk
-                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> channelNameForAlerts
+                            NoAlert, is Suspended, Idle, BluetoothOff, is ScanRetrying -> channelNameWhenOk
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, is ScanFailure, MonitoringFailure ->
+                                channelNameForAlerts
                             is LowBatteryAlert -> channelNameForLowBattery
                             is PressureLossAlert -> channelNameForPressureLoss
                         }
@@ -167,27 +168,28 @@ internal class ServiceNotifier(
                     .setSmallIcon(
                         when (state) {
                             NoAlert, is Suspended, Idle, is LowBatteryAlert -> R.drawable.car_tire
-                            is PressureAlert, is SensorAlarm, is TemperatureAlert, is PressureLossAlert, ScanFailure ->
-                                R.drawable.car_tire_alert
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, is PressureLossAlert, BluetoothOff,
+                            is ScanRetrying, is ScanFailure, MonitoringFailure -> R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
-                            NoAlert, is Suspended, Idle -> PRIORITY_LOW
-                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
+                            NoAlert, is Suspended, Idle, BluetoothOff, is ScanRetrying -> PRIORITY_LOW
+                            is PressureAlert, is SensorAlarm, is TemperatureAlert, is ScanFailure, MonitoringFailure ->
+                                PRIORITY_MAX
                             is LowBatteryAlert, is PressureLossAlert -> PRIORITY_HIGH
                         }
                     )
                     .setOnlyAlertOnce(isRepeat)
                     .setSubText(
                         when (state) {
-                            NoAlert, is Suspended, Idle -> null
+                            NoAlert, is Suspended, Idle, BluetoothOff, is ScanRetrying -> null
                             is PressureAlert -> state.vehicleName
                             is SensorAlarm -> state.vehicleName
                             is TemperatureAlert -> state.vehicleName
                             is LowBatteryAlert -> state.vehicleName
                             is PressureLossAlert -> state.vehicleName
-                            ScanFailure -> null
+                            is ScanFailure, MonitoringFailure -> null
                         }
                     )
                     .setContentText(
@@ -218,8 +220,15 @@ internal class ServiceNotifier(
                                     .let { append("$it min") }
                             }
 
-                            ScanFailure -> "The Android system reported an issue during the" +
-                                    " bluetooth scan, TPMS Advanced must be restarted"
+                            BluetoothOff -> "Background scanning is waiting for Bluetooth to be turned on"
+                            is ScanRetrying -> "The Android system refused the Bluetooth scan (error " +
+                                "${state.reason}), background scanning tries again shortly"
+
+                            is ScanFailure -> "The Android system can't run the Bluetooth scan (error " +
+                                "${state.reason}), TPMS Advanced must be restarted"
+
+                            MonitoringFailure -> "Background monitoring stopped because of an unexpected " +
+                                "error, TPMS Advanced must be restarted"
 
                             is Suspended -> state.decision.explanation()
                             Idle -> ScanDecision.Idle.explanation()
@@ -228,7 +237,8 @@ internal class ServiceNotifier(
                     .apply {
                         when (state) {
                             // Opens the app on its current vehicle
-                            NoAlert, is Suspended, Idle -> appContext
+                            // Bluetooth off: the app tells it and has the button to turn it on
+                            NoAlert, is Suspended, Idle, BluetoothOff, is ScanRetrying -> appContext
                                 .packageManager
                                 .getLaunchIntentForPackage(appContext.packageName)
                                 ?.let { getActivity(appContext, requestCode, it, FLAG_IMMUTABLE) }
@@ -240,7 +250,7 @@ internal class ServiceNotifier(
                             is LowBatteryAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
                             is PressureLossAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
 
-                            ScanFailure -> {
+                            is ScanFailure, MonitoringFailure -> {
                                 // Nothing to do, the intent does nothing when clicked
                             }
                         }
@@ -249,7 +259,7 @@ internal class ServiceNotifier(
                     .addAction(
                         when (state) {
                             NoAlert, is PressureAlert, is SensorAlarm, is TemperatureAlert, is LowBatteryAlert,
-                            is PressureLossAlert, is Suspended, Idle ->
+                            is PressureLossAlert, is Suspended, Idle, BluetoothOff, is ScanRetrying ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -261,7 +271,7 @@ internal class ServiceNotifier(
                                     )
                                 ).build()
 
-                            ScanFailure ->
+                            is ScanFailure, MonitoringFailure ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Restart app",
@@ -352,7 +362,17 @@ internal class ServiceNotifier(
                 get() = vehicleUuid to location
         }
 
-        data object ScanFailure : State
+        /** Scanning should be active but Bluetooth is off, it starts again once turned on */
+        data object BluetoothOff : State
+
+        /** The system refused the scan for a [reason] that can go away, it's tried again shortly */
+        data class ScanRetrying(val reason: Int) : State
+
+        /** The system can't run the scan, whatever the attempts: monitoring stopped */
+        data class ScanFailure(val reason: Int) : State
+
+        /** Something besides the scan failed (database, bug...): monitoring stopped */
+        data object MonitoringFailure : State
 
         data class Suspended(val decision: ScanDecision.Suspended) : State
 
@@ -429,3 +449,66 @@ internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
             (alert as? Alert.LowBattery)?.let { LowBatteryAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
         }
         ?: NoAlert
+
+/**
+ * What the service shows for each decision: the [alerts] while active and Bluetooth is on, the
+ * scanning status otherwise. Bluetooth being turned on again, and a scan refused for a reason that
+ * can go away, start the [alerts] over by themselves. Only the failures nothing can recover from end
+ * the flow, with the state telling which. Each state differs from the previous one.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun Flow<ScanDecision>.serviceStates(
+    isBluetoothOn: Flow<Boolean>,
+    timeSource: TimeSource = TimeSource.Monotonic,
+    alerts: () -> Flow<ServiceNotifier.State>,
+): Flow<ServiceNotifier.State> = flatMapLatest { decision ->
+    when (decision) {
+        // Not scanning: skip the scan entirely rather than emit nothing, since the service must
+        // call startForeground() shortly after being started — a silent flow here would starve
+        // that call if the app launches already suspended (e.g. opened while already in Doze).
+        is ScanDecision.Suspended -> flowOf(Suspended(decision))
+        ScanDecision.Idle -> flowOf(Idle)
+        is ScanDecision.Active -> isBluetoothOn
+            .distinctUntilChanged()
+            .flatMapLatest { on -> if (on) alerts().retryingScan(timeSource) else flowOf(BluetoothOff) }
+    }
+}
+    // The service must call startForeground() shortly after being started, before the database
+    // had time to answer
+    .onStart { emit(NoAlert) }
+    .catch { cause ->
+        Logger.withTag("ServiceNotifier").e(cause) { "Monitoring stopped" }
+        emit(if (cause is Failure.Scan) ScanFailure(cause.reason) else MonitoringFailure)
+    }
+    // A failure and the broadcast both tell Bluetooth being turned off, for instance
+    .distinctUntilChanged()
+
+/**
+ * Starts the scan over after a failure that can go away, waiting longer after each one in a row,
+ * up to [MAX_RETRY_DELAY]. A scan that ran for [RETRY_DELAY_RESET] before failing waits the
+ * shortest delay again. Bluetooth being turned off is told meanwhile: the broadcast saying it may
+ * come after the scan noticed.
+ */
+private fun Flow<ServiceNotifier.State>.retryingScan(timeSource: TimeSource) = flow {
+    var startedAt = timeSource.markNow()
+    var retryDelay = FIRST_RETRY_DELAY
+    emitAll(
+        onStart { startedAt = timeSource.markNow() }
+            .retryWhen { cause, _ ->
+                when {
+                    cause is Failure.BluetoothOff -> emit(BluetoothOff)
+                    cause is Failure.Scan && cause.isRecoverable -> emit(ScanRetrying(cause.reason))
+                    else -> return@retryWhen false
+                }
+                if (startedAt.elapsedNow() >= RETRY_DELAY_RESET) retryDelay = FIRST_RETRY_DELAY
+                Logger.withTag("ServiceNotifier").w(cause) { "Scan failed, retrying in $retryDelay" }
+                delay(retryDelay)
+                retryDelay = (retryDelay * 2).coerceAtMost(MAX_RETRY_DELAY)
+                true
+            }
+    )
+}
+
+private val FIRST_RETRY_DELAY = 5.seconds
+private val MAX_RETRY_DELAY = 1.minutes
+private val RETRY_DELAY_RESET = 2.minutes

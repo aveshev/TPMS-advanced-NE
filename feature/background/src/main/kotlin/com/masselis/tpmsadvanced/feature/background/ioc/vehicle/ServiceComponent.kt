@@ -4,6 +4,7 @@ import android.app.Service
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier
+import com.masselis.tpmsadvanced.feature.background.usecase.BluetoothDevicesUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import dev.zacsweers.metro.AppScope
@@ -13,6 +14,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.map
 
 @Suppress("unused")
 @GraphExtension(
@@ -39,12 +41,15 @@ public interface ServiceComponent {
         foregroundService: Service,
         vehicleListUseCase: VehicleListUseCase,
         scanPolicyUseCase: ScanPolicyUseCase,
+        bluetoothDevicesUseCase: BluetoothDevicesUseCase,
     ): ServiceNotifier = ServiceNotifier(
         scope,
         unitPreferences,
         foregroundService,
         vehicleListUseCase,
         scanPolicyUseCase,
+        // The paired devices are only unknown while Bluetooth is off
+        bluetoothDevicesUseCase.paired.map { it != null },
     )
 
     public val internal: Internal
