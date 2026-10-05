@@ -64,12 +64,15 @@ private fun VehicleTemperatureSettings(
     onHigh: (Temperature) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
+    // The margins of the alert levels, see AlertThresholds, in degrees of the displayed unit
+    val degrees = if (unit == CELSIUS) 1f else FAHRENHEIT_PER_CELSIUS
     TyreLegend(
-        text = "As it warms up, the tyre turns from blue to green between the cold and normal temperatures, then from green towards red. From the hot temperature on, it blinks red to alert you.",
+        text = "As it warms up, the tyre turns from blue to green between the cold and normal temperatures, then from green towards red. From ${"%.0f".format(AMBER_MARGIN * degrees)} ${unit.symbol()} below the hot temperature, its reading turns orange. From the hot temperature on, it blinks red to alert you, and faster from ${"%.0f".format(CRIMSON_MARGIN * degrees)} ${unit.symbol()} above it.",
         entries = listOf(
             State.Normal.BlueToGreen(Fraction(0f)) to "Cold\n${low.withSymbol(unit)}",
             State.Normal.BlueToGreen(Fraction(1f)) to "Normal\n${normal.withSymbol(unit)}",
-            State.Alerting to "Hot\n${high.withSymbol(unit)}",
+            State.Alerting() to "Hot\n${high.withSymbol(unit)}",
+            State.Alerting(isCritical = true) to "Critical\n${(high.celsius + CRIMSON_MARGIN).celsius.withSymbol(unit)}",
         ),
     )
     SettingsSectionHeader("Temperatures")
@@ -122,6 +125,11 @@ private enum class Threshold { COLD, NORMAL, HOT }
 private val TemperatureLimits = 5f.celsius..150f.celsius
 
 private fun Temperature.withSymbol(unit: TemperatureUnit) = "${numberString(unit)} ${unit.symbol()}"
+
+// AlertThresholds' margins, in degrees Celsius
+private const val AMBER_MARGIN = 10f
+private const val CRIMSON_MARGIN = 20f
+private const val FAHRENHEIT_PER_CELSIUS = 1.8f
 
 @Preview
 @Composable

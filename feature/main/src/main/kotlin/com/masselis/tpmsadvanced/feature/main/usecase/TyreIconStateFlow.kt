@@ -4,9 +4,10 @@ import android.os.Parcelable
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.Fraction
 import com.masselis.tpmsadvanced.core.common.now
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
-import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow.State
 import kotlinx.coroutines.CoroutineScope
@@ -27,67 +28,52 @@ import kotlin.time.DurationUnit
 @Suppress("OPT_IN_TO_INHERITANCE")
 @OptIn(ExperimentalCoroutinesApi::class)
 public class TyreIconStateFlow internal constructor(
-    atmosphereUseCase: TyreAtmosphereUseCase,
+    alertsUseCase: TyreAlertsUseCase,
     rangeUseCase: VehicleRangesUseCase,
     location: Location,
     scope: CoroutineScope,
     stateFlow: StateFlow<State> = combine(
-        atmosphereUseCase.listen(),
+        alertsUseCase.listen(),
         rangeUseCase.highTemp,
         rangeUseCase.normalTemp,
         rangeUseCase.lowTemp,
-        rangeUseCase.resolvedLowPressure(location),
-        rangeUseCase.resolvedHighPressure(location),
-    ) { values ->
-        @Suppress("MagicNumber")
-        (Data(
-            values[0] as TyreAtmosphere,
-            values[1] as Temperature,
-            values[2] as Temperature,
-            values[3] as Temperature,
-            values[4] as Pressure,
-            values[5] as Pressure
-        ))
+    ) { alerts, highTemp, normalTemp, lowTemp ->
+        requireNotNull(alerts.latest).let { latest ->
+            Data(latest.timestamp, alerts.levels.values.maxOrNull(), latest.temperature, highTemp, normalTemp, lowTemp)
+        }
     }
-        .transformLatest { (atmosphere, highTemp, normalTemp, lowTemp, lowPressure, highPressure) ->
+        .transformLatest { (timestamp, level, temperature, highTemp, normalTemp, lowTemp) ->
             emit(
-                if (atmosphere.isSensorAlarm ||
-                    atmosphere.pressure.hasPressure().not() ||
-                    atmosphere.pressure !in lowPressure..highPressure
-                )
-                    State.Alerting
+                // Amber doesn't change the tyre, its readings tell it
+                if (level != null && level >= RED)
+                    State.Alerting(isCritical = level == CRIMSON)
                 else
-                    when (atmosphere.temperature) {
+                    when (temperature) {
                         in Temperature(Float.NEGATIVE_INFINITY)..lowTemp ->
                             State.Normal.BlueToGreen(Fraction(0f))
 
                         in lowTemp..normalTemp ->
                             State.Normal.BlueToGreen(
                                 Fraction(
-                                    atmosphere.temperature.celsius
+                                    temperature.celsius
                                         .minus(lowTemp.celsius)
                                         .div(normalTemp.celsius - lowTemp.celsius)
                                 )
                             )
 
-                        in normalTemp..highTemp ->
+                        // Up to red, from the hot temperature on the tyre alerts
+                        else ->
                             State.Normal.GreenToRed(
                                 Fraction(
-                                    atmosphere.temperature.celsius
+                                    temperature.celsius
                                         .minus(normalTemp.celsius)
                                         .div(highTemp.celsius - normalTemp.celsius)
+                                        .coerceIn(0f, 1f)
                                 )
                             )
-
-                        in highTemp..Temperature(Float.POSITIVE_INFINITY) ->
-                            State.Alerting
-
-                        else ->
-                            @Suppress("ThrowingExceptionsWithoutMessageOrCause")
-                            throw IllegalArgumentException()
                     }
             )
-            atmosphere.timestamp
+            timestamp
                 .plus(obsoleteTimeout.toDouble(DurationUnit.SECONDS))
                 .let { it - now() }
                 .seconds
@@ -105,12 +91,13 @@ public class TyreIconStateFlow internal constructor(
 ) : StateFlow<State> by stateFlow {
 
     private data class Data(
-        val tyreAtmosphere: TyreAtmosphere,
+        val timestamp: Double,
+        /** The worst of the tyre's alert levels, null while it doesn't alert */
+        val level: AlertLevel?,
+        val temperature: Temperature,
         val highTemp: Temperature,
         val normalTemp: Temperature,
         val lowTemp: Temperature,
-        val lowPressure: Pressure,
-        val highPressure: Pressure
     )
 
     public sealed interface State : Parcelable {
@@ -129,9 +116,12 @@ public class TyreIconStateFlow internal constructor(
             public data class GreenToRed(override val fraction: Fraction) : Normal
         }
 
-        // Shows a blinking red tyre, could be an alert for the temperature or the pressure
+        /**
+         * Shows a blinking red tyre, for a red or crimson alert of any class, blinking faster when
+         * [isCritical]
+         */
         @Parcelize
-        public data object Alerting : State
+        public data class Alerting(val isCritical: Boolean = false) : State
 
         @Parcelize
         public data object DetectionIssue : State

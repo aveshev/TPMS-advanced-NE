@@ -30,7 +30,7 @@ internal fun TyreGridItem(
     .setTitle(buildString { appendLoc(location, false, capitalized = true) })
     .setImage(
         when (iconState) {
-            Alerting -> tyreAlertingIcon()
+            is Alerting -> tyreAlertingIcon()
             is Normal -> tyreNormalIcon(iconState)
             NotDetected -> tyreNotDetectedIcon()
             DetectionIssue -> tyreDetectionIssueIcon()
@@ -38,14 +38,7 @@ internal fun TyreGridItem(
     )
     .setText(
         when (statsState) {
-            is TyreStatsStateFlow.State.Normal -> buildString {
-                append(statsState.pressure.string(statsState.pressureUnit, true))
-                if (statsState.isPressureCalibrated) append("*")
-                append("  ")
-                append(statsState.temperature.string(statsState.temperatureUnit, true))
-            }
-
-            is TyreStatsStateFlow.State.Alerting -> buildString {
+            is TyreStatsStateFlow.State.Detected -> buildString {
                 append(statsState.pressure.string(statsState.pressureUnit, true))
                 if (statsState.isPressureCalibrated) append("*")
                 append("  ")

@@ -60,7 +60,7 @@ internal fun TyreLegendPreview() {
         entries = listOf(
             State.Normal.BlueToGreen(Fraction(0f)) to "Cold\n20 °C",
             State.Normal.BlueToGreen(Fraction(1f)) to "Normal\n45 °C",
-            State.Alerting to "Hot\n90 °C",
+            State.Alerting() to "Hot\n90 °C",
         ),
     )
 }

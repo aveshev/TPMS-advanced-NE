@@ -23,19 +23,33 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.core.ui.Orange
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
-import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
+import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreStatsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreBindings.Companion.TyreStatsViewModel
@@ -43,14 +57,8 @@ import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.T
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.keyed
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW_SOON
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.NORMAL
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -70,7 +78,7 @@ internal fun TyreStat(
     TyreStat(location, state, showSensorId, showTimeSinceUpdate, showBatteryVoltage, showSensorFlags, modifier)
 }
 
-@Suppress("NAME_SHADOWING", "LongMethod", "CyclomaticComplexMethod", "ComplexCondition")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun TyreStat(
     location: Location,
@@ -81,69 +89,21 @@ private fun TyreStat(
     showSensorFlags: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val (pressure, temperature) = when (val state = state) {
-        State.NotDetected -> null to null
-        is State.Normal -> Pair(
-            Pair(state.pressure, state.pressureUnit),
-            Pair(state.temperature, state.temperatureUnit)
-        )
-
-        is State.Alerting -> Pair(
-            Pair(state.pressure, state.pressureUnit),
-            Pair(state.temperature, state.temperatureUnit)
-        )
-    }
-    val sensorId = when (state) {
-        State.NotDetected -> null
-        is State.Normal -> state.sensorId
-        is State.Alerting -> state.sensorId
-    }
-    val timestamp = when (state) {
-        State.NotDetected -> null
-        is State.Normal -> state.timestamp
-        is State.Alerting -> state.timestamp
-    }
-    val flags = when (state) {
-        State.NotDetected -> null
-        is State.Normal -> state.flags
-        is State.Alerting -> state.flags
-    }
-    val isPressureCalibrated = when (state) {
-        State.NotDetected -> false
-        is State.Normal -> state.isPressureCalibrated
-        is State.Alerting -> state.isPressureCalibrated
-    }
-    val battery = when (state) {
-        State.NotDetected -> null
-        is State.Normal -> state.battery
-        is State.Alerting -> state.battery
-    }
-    val isBatteryAlert = battery?.level == LOW
-    val isPressureAlert = state is State.Alerting && state.isPressureAlert
-    val isTemperatureAlert = state is State.Alerting && state.isTemperatureAlert
-    val isSensorAlarm = state is State.Alerting && state.isSensorAlarm
-    // A tyre losing pressure while riding, see PressureLoss.Tracker
-    val isLeaking = when (state) {
-        State.NotDetected -> false
-        is State.Normal -> state.pressureLoss != null
-        is State.Alerting -> state.pressureLoss != null
-    }
-    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val errorColor = MaterialTheme.colorScheme.error
-    val pressureColor = if (isPressureAlert) errorColor else onSurfaceColor
-    val temperatureColor = if (isTemperatureAlert) errorColor else onSurfaceColor
-    var isVisible by remember { mutableStateOf(true) }
-    if (isPressureAlert || isTemperatureAlert || isSensorAlarm || isLeaking || isBatteryAlert) {
-        LaunchedEffect(key1 = isVisible) {
-            launch {
-                repeat(Int.MAX_VALUE) {
-                    delay(300.milliseconds)
-                    isVisible = !isVisible
-                }
+    val detected = state as? State.Detected
+    val levels = detected?.levels.orEmpty()
+    val sensorId = detected?.sensorId
+    // Red readings blink, crimson ones alternate with "CRITICAL", both in BLINK phases
+    var isFirstPhase by remember { mutableStateOf(true) }
+    if (levels.values.any { it >= RED }) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(BLINK)
+                isFirstPhase = isFirstPhase.not()
             }
         }
     } else
-        isVisible = true
+        isFirstPhase = true
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val alignment = remember {
         when (location) {
             is Location.Axle -> Alignment.Start
@@ -159,34 +119,29 @@ private fun TyreStat(
         }
     }
     Column(modifier = modifier) {
-        Text(
-            pressure
-                ?.let { (value, unit) -> value.string(unit) }
+        Reading(
+            detected
+                ?.pressure
+                ?.string(detected.pressureUnit)
                 // Explained on the vehicle's calibration page
-                ?.let { if (isPressureCalibrated) "$it*" else it }
+                ?.let { if (detected.isPressureCalibrated) "$it*" else it }
                 ?: "-.--",
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            color = pressureColor,
-            modifier = Modifier
-                .align(alignment)
-                .alpha(if (isPressureAlert.not() || isVisible) 1f else 0f),
+            levels[PRESSURE],
+            isFirstPhase,
+            Modifier.align(alignment),
         )
 
-        Text(
-            temperature?.let { (value, unit) -> value.string(unit) } ?: "-.-",
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
+        Reading(
+            detected?.temperature?.string(detected.temperatureUnit) ?: "-.-",
+            levels[TEMPERATURE],
+            isFirstPhase,
+            Modifier.align(alignment),
             fontSize = 16.sp,
-            color = temperatureColor,
-            modifier = Modifier
-                .align(alignment)
-                .alpha(if (isTemperatureAlert.not() || isVisible) 1f else 0f),
         )
 
-        if (showTimeSinceUpdate && timestamp != null) {
+        if (showTimeSinceUpdate && detected != null) {
             Text(
-                elapsedSinceUpdateLabel(timestamp),
+                elapsedSinceUpdateLabel(detected.timestamp),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 fontSize = 16.sp,
@@ -198,36 +153,20 @@ private fun TyreStat(
         // The sensor's own alarm, its meaning isn't documented but a leak is the likely one. The
         // pressure and temperature above stay as the sensor read them. The same goes for the
         // pressure falling while riding.
-        if (isSensorAlarm || isLeaking) {
-            Text(
-                "Leaking?",
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                fontSize = 16.sp,
-                color = errorColor,
-                modifier = Modifier
-                    .align(alignment)
-                    .alpha(if (isVisible) 1f else 0f),
-            )
+        if (PRESSURE_LOSS in levels || SENSOR_ALARM in levels) {
+            Reading("Leaking?", AMBER, isFirstPhase, Modifier.align(alignment), fontSize = 16.sp)
         }
 
-        // A low battery shows whatever the setting, the tyre itself doesn't alert for it
-        if (battery != null && (showBatteryVoltage || battery.level != NORMAL)) {
-            Text(
-                battery.voltage.string(),
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                fontSize = 16.sp,
-                color = when (battery.level) {
-                    NORMAL -> onSurfaceColor
-                    LOW_SOON -> Orange
-                    LOW -> errorColor
-                },
-                modifier = Modifier
-                    .align(alignment)
-                    .alpha(if (isBatteryAlert.not() || isVisible) 1f else 0f),
-            )
+        // The sensor reads the open air, the pressure above isn't the tyre's
+        if (SENSOR_REMOVED in levels) {
+            Reading("Removed?", AMBER, isFirstPhase, Modifier.align(alignment), fontSize = 16.sp)
         }
+
+        // A battery getting low shows whatever the setting
+        detected
+            ?.batteryVoltage
+            ?.takeIf { showBatteryVoltage || BATTERY in levels }
+            ?.also { Reading(it.string(), levels[BATTERY], isFirstPhase, Modifier.align(alignment), fontSize = 16.sp) }
 
         if (sensorId != null && showSensorId) {
             val displaySensorId = if ((sensorId ushr 24) == 0) {
@@ -251,7 +190,7 @@ private fun TyreStat(
 
         // A line per status byte, bit 7 first like the byte written in binary (0x80 lights the
         // leftmost digit), the bits which are not set in the last packet greyed out
-        if (showSensorFlags) flags?.forEach { flag ->
+        if (showSensorFlags) detected?.flags?.forEach { flag ->
             Text(
                 text = buildAnnotatedString {
                     repeat(Byte.SIZE_BITS) { index ->
@@ -271,6 +210,30 @@ private fun TyreStat(
         }
     }
 }
+
+/**
+ * A value in the colour of its alert [level]: blinking while red, alternating with "CRITICAL"
+ * while crimson, both following [isFirstPhase]
+ */
+@Composable
+private fun Reading(
+    text: String,
+    level: AlertLevel?,
+    isFirstPhase: Boolean,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = TextUnit.Unspecified,
+) = Text(
+    if (level == CRIMSON && isFirstPhase.not()) "CRITICAL" else text,
+    fontWeight = FontWeight.SemiBold,
+    maxLines = 1,
+    fontSize = fontSize,
+    color = when (level) {
+        null -> MaterialTheme.colorScheme.onSurface
+        AMBER -> Orange
+        RED, CRIMSON -> MaterialTheme.colorScheme.error
+    },
+    modifier = modifier.alpha(if (level == RED && isFirstPhase.not()) 0f else 1f),
+)
 
 private const val UNSET_FLAG_ALPHA = 0.3f
 
@@ -344,278 +307,212 @@ internal fun TyreStatNotDetectedPreview() {
     )
 }
 
+/** 2 bar and 30 °C read by a sensor of a vehicle using bar and degrees Celsius */
+@Suppress("LongParameterList")
+private fun detected(
+    pressure: Pressure = 2f.bar,
+    temperature: Temperature = 30f.celsius,
+    timestamp: Double = 0.0,
+    sensorId: Int = 0,
+    isPressureCalibrated: Boolean = false,
+    batteryVoltage: Voltage? = null,
+    flags: List<UByte>? = null,
+    levels: Map<AlertClass, AlertLevel> = emptyMap(),
+) = State.Detected(
+    timestamp,
+    sensorId,
+    pressure,
+    PressureUnit.BAR,
+    temperature,
+    TemperatureUnit.CELSIUS,
+    isPressureCalibrated,
+    batteryVoltage,
+    flags,
+    levels,
+)
 
 @Preview
 @Composable
 internal fun TyreStatNormalPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state =
-            State.Normal(
-                0.0,
-                0,
-                2f.bar,
-                PressureUnit.BAR,
-                30f.celsius,
-                TemperatureUnit.CELSIUS
-            ),
+        state = detected(),
         showTimeSinceUpdate = false,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatCalibratedPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state =
-            State.Normal(
-                0.0,
-                0,
-                2f.bar,
-                PressureUnit.BAR,
-                30f.celsius,
-                TemperatureUnit.CELSIUS,
-                isPressureCalibrated = true,
-            ),
+        state = detected(isPressureCalibrated = true),
         showTimeSinceUpdate = false,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatAlertingPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Alerting(
-            0.0,
-            0,
-            0.5f.bar,
-            PressureUnit.BAR,
-            150f.celsius,
-            TemperatureUnit.CELSIUS,
-            isPressureAlert = true,
-            isTemperatureAlert = true,
-        ),
+        state = detected(0.5f.bar, 150f.celsius, levels = mapOf(PRESSURE to CRIMSON, TEMPERATURE to CRIMSON)),
         showTimeSinceUpdate = false,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatPressureAlertingPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Alerting(
-            0.0,
-            0,
-            0.5f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            isPressureAlert = true,
-            isTemperatureAlert = false,
-        ),
+        state = detected(1.6f.bar, levels = mapOf(PRESSURE to RED)),
         showTimeSinceUpdate = false,
     )
 }
 
+@Preview
+@Composable
+internal fun TyreStatPressureWarningPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = detected(2.05f.bar, levels = mapOf(PRESSURE to AMBER)),
+        showTimeSinceUpdate = false,
+    )
+}
+
+@Preview
+@Composable
+internal fun TyreStatPressureCriticalPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = detected(0.5f.bar, levels = mapOf(PRESSURE to CRIMSON)),
+        showTimeSinceUpdate = false,
+    )
+}
 
 @Preview
 @Composable
 internal fun TyreStatTemperatureAlertingPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Alerting(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            150f.celsius,
-            TemperatureUnit.CELSIUS,
-            isPressureAlert = false,
-            isTemperatureAlert = true,
-        ),
+        state = detected(temperature = 95f.celsius, levels = mapOf(TEMPERATURE to RED)),
         showTimeSinceUpdate = false,
     )
 }
 
+@Preview
+@Composable
+internal fun TyreStatTemperatureWarningPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = detected(temperature = 85f.celsius, levels = mapOf(TEMPERATURE to AMBER)),
+        showTimeSinceUpdate = false,
+    )
+}
 
 @Preview
 @Composable
 internal fun TyreStatTimeSinceUpdateMinutesPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            now() - 5 * SECONDS_PER_MINUTE,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS
-        ),
+        state = detected(timestamp = now() - 5 * SECONDS_PER_MINUTE),
         showTimeSinceUpdate = true,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatTimeSinceUpdateHoursPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            now() - 5 * MINUTES_PER_HOUR * SECONDS_PER_MINUTE,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS
-        ),
+        state = detected(timestamp = now() - 5 * MINUTES_PER_HOUR * SECONDS_PER_MINUTE),
         showTimeSinceUpdate = true,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatTimeSinceUpdateDaysPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            now() - 5 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS
-        ),
+        state = detected(timestamp = now() - 5 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE),
         showTimeSinceUpdate = true,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatBatteryNormalPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            battery = Battery(3f.volts, NORMAL),
-        ),
+        state = detected(batteryVoltage = 3f.volts),
         showTimeSinceUpdate = false,
         showBatteryVoltage = true,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatBatteryLowSoonPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            battery = Battery(2.7f.volts, LOW_SOON),
-        ),
+        state = detected(batteryVoltage = 2.7f.volts, levels = mapOf(BATTERY to AMBER)),
         showTimeSinceUpdate = false,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatBatteryLowPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            battery = Battery(2.6f.volts, LOW),
-        ),
+        state = detected(batteryVoltage = 2.6f.volts, levels = mapOf(BATTERY to RED)),
         showTimeSinceUpdate = false,
     )
 }
-
 
 @Preview
 @Composable
 internal fun TyreStatSensorAlarmPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Alerting(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            isPressureAlert = false,
-            isTemperatureAlert = false,
-            isSensorAlarm = true,
-        ),
+        state = detected(levels = mapOf(SENSOR_ALARM to AMBER)),
         showTimeSinceUpdate = false,
     )
 }
 
+@Preview
+@Composable
+internal fun TyreStatSensorRemovedPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = detected(0.02f.bar, 25f.celsius, levels = mapOf(SENSOR_REMOVED to AMBER)),
+        showTimeSinceUpdate = false,
+    )
+}
 
 @Preview
 @Composable
 internal fun TyreStatFlagsPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0x562D00,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            flags = listOf(0x83u.toUByte()),
-        ),
+        state = detected(sensorId = 0x562D00, flags = listOf(0x83u.toUByte())),
         showSensorId = true,
         showTimeSinceUpdate = false,
         showSensorFlags = true,
     )
 }
 
-
 @Preview
 @Composable
 internal fun TyreStatPressureLossPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            pressureLoss = PressureLoss(0.72f.bar, 0.12f.bar, 0.0, 600.0),
-        ),
+        state = detected(levels = mapOf(PRESSURE_LOSS to AMBER)),
         showTimeSinceUpdate = false,
     )
 }
-
 
 // Wicarlink's four candidate status bytes, from its only captured packet
 @Preview
@@ -623,15 +520,7 @@ internal fun TyreStatPressureLossPreview() {
 internal fun TyreStatSeveralFlagsPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = State.Normal(
-            0.0,
-            0x562D00,
-            2f.bar,
-            PressureUnit.BAR,
-            30f.celsius,
-            TemperatureUnit.CELSIUS,
-            flags = listOf(0xACu, 0x00u, 0x00u, 0x08u).map { it.toUByte() },
-        ),
+        state = detected(sensorId = 0x562D00, flags = listOf(0xACu, 0x00u, 0x00u, 0x08u).map { it.toUByte() }),
         showTimeSinceUpdate = false,
         showSensorFlags = true,
     )

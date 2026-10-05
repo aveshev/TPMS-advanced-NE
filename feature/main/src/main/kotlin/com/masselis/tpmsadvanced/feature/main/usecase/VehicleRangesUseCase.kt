@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.REAR
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
@@ -76,6 +77,14 @@ public class VehicleRangesUseCase internal constructor(
             }
         }
         ?: highPressure
+
+    public fun alertThresholds(location: Location): Flow<AlertThresholds> = combine(
+        resolvedLowPressure(location),
+        resolvedHighPressure(location),
+        highTemp,
+        lowBatteryVoltage,
+        ::AlertThresholds,
+    )
 
     init {
         lowPressure

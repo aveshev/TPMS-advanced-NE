@@ -22,6 +22,7 @@ import com.masselis.tpmsadvanced.feature.main.usecase.ListenTyreWithDatabaseUseC
 import com.masselis.tpmsadvanced.feature.main.usecase.LocatedTyreScannerUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.SearchSensorToBindUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.SensorBindingUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.TyreAlertsUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreAtmosphereUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow
 import com.masselis.tpmsadvanced.feature.main.usecase.TyrePressureLossStateFlow
@@ -140,22 +141,24 @@ public interface TyreBindings {
         scope
     )
 
+    @Provides
+    private fun tyreAlertsUseCase(
+        atmosphereUseCase: TyreAtmosphereUseCase,
+        rangeUseCase: VehicleRangesUseCase,
+        pressureLossStateFlow: TyrePressureLossStateFlow,
+        location: Location,
+    ): TyreAlertsUseCase = TyreAlertsUseCase(atmosphereUseCase, rangeUseCase, pressureLossStateFlow, location)
+
     @SingleIn(TyreComponent.Scope::class)
     @Provides
     private fun tyreStatsUseCase(
-        atmosphereUseCase: TyreAtmosphereUseCase,
-        rangeUseCase: VehicleRangesUseCase,
+        alertsUseCase: TyreAlertsUseCase,
         calibrationUseCase: VehicleCalibrationUseCase,
-        pressureLossStateFlow: TyrePressureLossStateFlow,
-        location: Location,
         unitPreferences: UnitPreferences,
         @VehicleLifecycle scope: CoroutineScope,
     ): TyreStatsStateFlow = TyreStatsStateFlow(
-        atmosphereUseCase,
-        rangeUseCase,
+        alertsUseCase,
         calibrationUseCase,
-        pressureLossStateFlow,
-        location,
         unitPreferences,
         scope
     )
@@ -163,12 +166,12 @@ public interface TyreBindings {
     @SingleIn(TyreComponent.Scope::class)
     @Provides
     private fun tyreIconUseCase(
-        atmosphereUseCase: TyreAtmosphereUseCase,
+        alertsUseCase: TyreAlertsUseCase,
         rangeUseCase: VehicleRangesUseCase,
         location: Location,
         @VehicleLifecycle scope: CoroutineScope,
     ): TyreIconStateFlow = TyreIconStateFlow(
-        atmosphereUseCase,
+        alertsUseCase,
         rangeUseCase,
         location,
         scope
