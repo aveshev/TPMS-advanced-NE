@@ -13,7 +13,6 @@ import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,10 +20,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -45,7 +42,6 @@ import kotlin.time.TimeSource
  * Everything goes through a single queue, nothing talks over anything. Crimson alerts stop with the
  * tyre scans: no reading could clear them any more.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 internal class AlertSpeaker(
     private val appPreferences: AppPreferences,
     isScanningTyres: Flow<Boolean>,
@@ -56,14 +52,17 @@ internal class AlertSpeaker(
     private val audioManager by lazy { appContext.getSystemService<AudioManager>()!! }
 
     private data class Queue(
-        val red: List<String> = emptyList(),
+        val red: List<Red> = emptyList(),
         /** The crimson phrases by the tag of their notification */
         val crimson: Map<String, Crimson> = emptyMap(),
-        /** When the crimson phrases are said next, null to say them right away */
+        /** When the crimson phrases are said next */
         val nextCrimson: TimeMark? = null,
     ) {
         val isEmpty get() = red.isEmpty() && crimson.isEmpty()
     }
+
+    /** Said from [start] on, once the notification's own sound played */
+    private data class Red(val phrase: String, val start: TimeMark)
 
     private data class Crimson(val phrase: String, val end: TimeMark)
 
@@ -71,18 +70,21 @@ internal class AlertSpeaker(
 
     /** Says [phrase] twice, once */
     fun red(phrase: String) {
-        if (appPreferences.spokenAlerts.value) queue.update { it.copy(red = it.red + phrase) }
+        if (appPreferences.spokenAlerts.value) queue.update {
+            it.copy(red = it.red + Red(phrase, timeSource.markNow() + NOTIFICATION_SOUND))
+        }
     }
 
     /**
      * Says [phrase] twice every [CRIMSON_PERIOD] for [CRIMSON_DURATION], starting over that duration
-     * if [tag] is already being said. A new one is said right away.
+     * if [tag] is already being said. A new one is said once the notification's own sound played.
      */
     fun crimson(tag: String, phrase: String) {
         if (appPreferences.spokenAlerts.value) queue.update { queue ->
             queue.copy(
                 crimson = queue.crimson + (tag to Crimson(phrase, timeSource.markNow() + CRIMSON_DURATION)),
-                nextCrimson = queue.nextCrimson.takeIf { tag in queue.crimson },
+                nextCrimson = queue.nextCrimson.takeIf { tag in queue.crimson }
+                    ?: (timeSource.markNow() + NOTIFICATION_SOUND),
             )
         }
     }
@@ -105,11 +107,11 @@ internal class AlertSpeaker(
             .launchIn(scope)
 
         scope.launch {
-            // The engine is only kept while there's something to say
+            // The engine is only kept while there's something to say, the queue being spoken for as
+            // long as it lives
             combine(appPreferences.spokenAlerts, queue) { enabled, queue -> enabled && queue.isEmpty.not() }
                 .distinctUntilChanged()
-                .flatMapLatest { if (it) textToSpeech() else emptyFlow() }
-                .collectLatest { tts -> tts.speakQueue() }
+                .collectLatest { isBusy -> if (isBusy) textToSpeech().collect { tts -> tts.speakQueue() } }
         }
     }
 
@@ -119,7 +121,7 @@ internal class AlertSpeaker(
             queue.update { queue -> queue.copy(crimson = queue.crimson.filterValues { it.end.hasNotPassedNow() }) }
             val current = queue.value
             when {
-                current.red.isNotEmpty() -> current.red.first().let { phrase ->
+                current.red.firstOrNull()?.start?.hasPassedNow() == true -> current.red.first().phrase.let { phrase ->
                     say("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                     queue.update { it.copy(red = it.red.drop(1)) }
                 }
@@ -131,8 +133,9 @@ internal class AlertSpeaker(
                     .distinct()
                     .joinToString(", ")
                     .let { phrases ->
-                        say("$phrases. $phrases.", USAGE_ALARM)
+                        // Every period from the start of the phrases, however long they take
                         queue.update { it.copy(nextCrimson = timeSource.markNow() + CRIMSON_PERIOD) }
+                        say("$phrases. $phrases.", USAGE_ALARM)
                     }
 
                 // Until anything changes, the next crimson phrase or the end of one
@@ -142,6 +145,7 @@ internal class AlertSpeaker(
                         .values
                         .map(Crimson::end)
                         .plus(listOfNotNull(current.nextCrimson.takeIf { current.crimson.isNotEmpty() }))
+                        .plus(listOfNotNull(current.red.firstOrNull()?.start))
                         .minOfOrNull { it.elapsedNow().unaryMinus() }
                         ?: Duration.INFINITE
                 ) { queue.first { it != current } }
@@ -208,5 +212,8 @@ internal class AlertSpeaker(
     private companion object {
         val CRIMSON_PERIOD = 20.seconds
         val CRIMSON_DURATION = 10.minutes
+
+        /** Long enough for a notification's sound to play out before speaking over it */
+        val NOTIFICATION_SOUND = 3.seconds
     }
 }

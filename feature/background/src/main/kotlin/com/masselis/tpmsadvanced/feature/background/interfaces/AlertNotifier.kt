@@ -167,7 +167,7 @@ internal class AlertNotifier(
         )
         .apply {
             action.level.snoozes.forEach { duration ->
-                addAction(0, "Dismiss for ${duration.label}", snooze(tag, alertClass, action.level, duration))
+                addAction(0, "Dismiss ${duration.label}", snooze(tag, alertClass, action.level, duration))
             }
         }
         // Swiping it away dismisses it for the shorter period
@@ -189,35 +189,36 @@ internal class AlertNotifier(
             FLAG_IMMUTABLE or FLAG_UPDATE_CURRENT,
         )
 
-    @Suppress("CyclomaticComplexMethod")
-    private fun Update.title(alertClass: AlertClass, level: AlertLevel) = buildString {
-        appendLoc(location, capitalized = true)
-        append(": ")
-        append(
-            when (alertClass) {
-                PRESSURE -> isLowPressure.let { isLow ->
-                    when (level) {
-                        AMBER -> if (isLow) "pressure getting low" else "pressure getting high"
-                        RED -> if (isLow) "pressure low" else "pressure high"
-                        CRIMSON -> if (isLow) "pressure critically low" else "pressure critically high"
-                    }
-                }
-
-                TEMPERATURE -> when (level) {
-                    AMBER -> "getting hot"
-                    RED -> "hot"
-                    CRIMSON -> "critically hot"
-                }
-
-                BATTERY -> if (level == AMBER) "sensor battery getting low" else "sensor battery low"
-                PRESSURE_LOSS -> "losing pressure"
-                SENSOR_ALARM -> "may be leaking"
-                SENSOR_REMOVED -> "sensor removed?"
+    /** Short enough to fit beside the vehicle's name, the tyre is told in the [text] */
+    @Suppress("CyclomaticComplexMethod", "NestedBlockDepth")
+    private fun Update.title(alertClass: AlertClass, level: AlertLevel) = when (alertClass) {
+        PRESSURE -> isLowPressure.let { isLow ->
+            when (level) {
+                AMBER -> if (isLow) "Pressure getting low" else "Pressure getting high"
+                RED -> if (isLow) "Pressure low" else "Pressure high"
+                CRIMSON -> if (isLow) "Pressure critically low" else "Pressure critically high"
             }
-        )
+        }
+
+        TEMPERATURE -> when (level) {
+            AMBER -> "Tyre getting hot"
+            RED -> "Tyre hot"
+            CRIMSON -> "Tyre critically hot"
+        }
+
+        BATTERY -> if (level == AMBER) "Sensor battery getting low" else "Sensor battery low"
+        PRESSURE_LOSS -> "Losing pressure"
+        SENSOR_ALARM -> "May be leaking"
+        SENSOR_REMOVED -> "Sensor removed?"
     }
 
-    private fun Update.text(alertClass: AlertClass): String {
+    private fun Update.text(alertClass: AlertClass): String = buildString {
+        appendLoc(location, capitalized = true)
+        append(": ")
+        append(details(alertClass))
+    }
+
+    private fun Update.details(alertClass: AlertClass): String {
         val reading = requireNotNull(alerts.latest)
         val pressureUnit = unitPreferences.pressure.value
         return when (alertClass) {
@@ -232,14 +233,14 @@ internal class AlertNotifier(
             BATTERY -> "${reading.batteryVoltage?.string()}, alarm at ${thresholds.lowBatteryVoltage.string()}"
             PRESSURE_LOSS -> loss
                 ?.let { loss ->
-                    "Down ${loss.drop.string(pressureUnit)} in ${
+                    "down ${loss.drop.string(pressureUnit)} in ${
                         ((loss.until - loss.since) / SECONDS_PER_MINUTE).roundToLong().coerceAtLeast(1)
                     } min, now ${reading.pressure.string(pressureUnit)}"
                 }
                 ?: reading.pressure.string(pressureUnit)
 
-            SENSOR_ALARM -> "The sensor raised its own alarm, at ${reading.pressure.string(pressureUnit)}"
-            SENSOR_REMOVED -> "It reads ${reading.pressure.string(pressureUnit)}, as if taken off the valve"
+            SENSOR_ALARM -> "the sensor raised its own alarm, at ${reading.pressure.string(pressureUnit)}"
+            SENSOR_REMOVED -> "reads ${reading.pressure.string(pressureUnit)}, as if taken off the valve"
         }
     }
 
