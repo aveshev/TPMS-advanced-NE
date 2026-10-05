@@ -88,7 +88,8 @@ public data class PressureLoss(
 
         public companion object {
             public val RIDE_GAP: Duration = 10.minutes
-            private val OFF_VALVE = 10f.kpa
+            /** Below it, a sensor reads the open air: taken off the valve, see [TyreAlerts.isRemoved] */
+            public val OFF_VALVE: Pressure = 10f.kpa
 
             /** A stop cools the tyre down, its pressure falling with it */
             private const val TEMPERATURE_FALL = 1f

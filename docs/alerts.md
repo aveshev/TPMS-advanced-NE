@@ -83,12 +83,13 @@ Taking a valve-cap sensor off to pump the tyre must not raise a crimson pressure
 below `OFF_VALVE` (10 kPa, already used by `PressureLoss.Tracker`) counts as the sensor being
 removed when:
 
-- the previous reading from the same sensor was **not** in pressure alert, and
+- the previous reading from the same sensor was **not** at crimson pressure, and
 - that previous reading is recent: within **10 minutes**, the tracker's ride gap.
 
-A removal is the pressure jumping straight from normal to near zero. A real deflation goes
-through readings in between, since a sensor transmits more often while its pressure keeps
-changing. The recency check keeps a tyre that went flat overnight from being misread as a removal:
+A removal is the pressure jumping straight from a tyre's pressure to near zero. A real deflation
+goes through readings in between, since a sensor transmits more often while its pressure keeps
+changing, and the last of them before the open air is crimson. The previous reading can be amber
+or red: a tyre that's already low is the most common one to be pumped up. The recency check keeps a tyre that went flat overnight from being misread as a removal:
 nothing was listening while it deflated, so its previous stored reading is yesterday's normal one.
 That case is a real crimson pressure alert.
 
