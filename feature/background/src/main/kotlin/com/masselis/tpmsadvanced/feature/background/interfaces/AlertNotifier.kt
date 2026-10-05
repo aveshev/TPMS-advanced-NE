@@ -5,6 +5,7 @@ import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.app.PendingIntent.getBroadcast
 import android.content.Intent
+import android.os.Bundle
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.PRIORITY_HIGH
@@ -95,16 +96,24 @@ internal class AlertNotifier(
 
         storedTyreAlertsUseCase
             .updates
-            .onEach { update -> AlertClass.entries.forEach { update.apply(it) } }
+            .onEach { update ->
+                notificationManager
+                    .activeNotifications
+                    .filter { it.id == NOTIFICATION_ID }
+                    .associate { it.tag to it.notification.extras }
+                    .let { shown -> AlertClass.entries.forEach { update.notify(it, shown) } }
+            }
             .catch { logger.e("Failed to follow the tyres' alerts", it) }
             .launchIn(scope)
     }
 
+    /** [shown] is the extras of the shown notifications, by tag */
     @Suppress("MaxLineLength")
-    private fun Update.apply(alertClass: AlertClass) {
+    private fun Update.notify(alertClass: AlertClass, shown: Map<String?, Bundle>) {
         val tag = tag(vehicle, location, alertClass)
         val sensorId = requireNotNull(alerts.latest).sensorId
-        when (val action = action(alerts, alertClass, shown(tag)) { snoozeUseCase.isSnoozed(sensorId, alertClass, it) }) {
+        val current = shown[tag]?.let { Shown(it.getInt(EXTRA_SENSOR_ID), AlertLevel.entries[it.getInt(EXTRA_LEVEL)]) }
+        when (val action = action(alerts, alertClass, current) { snoozeUseCase.isSnoozed(sensorId, alertClass, it) }) {
             Action.None -> Unit
             Action.Cancel -> {
                 notificationManager.cancel(tag, NOTIFICATION_ID)
@@ -125,19 +134,6 @@ internal class AlertNotifier(
         }
     }
 
-    /** What the notification of [tag] shows, null when it isn't shown */
-    private fun shown(tag: String): Shown? = notificationManager
-        .activeNotifications
-        .firstOrNull { it.tag == tag && it.id == NOTIFICATION_ID }
-        ?.notification
-        ?.extras
-        ?.let { extras ->
-            Shown(
-                extras.getInt(EXTRA_SENSOR_ID),
-                AlertLevel.entries[extras.getInt(EXTRA_LEVEL)],
-            )
-        }
-
     @Suppress("LongMethod")
     private fun Update.notification(tag: String, alertClass: AlertClass, action: Action.Post) = NotificationCompat
         .Builder(appContext, action.level.channel)
@@ -150,7 +146,10 @@ internal class AlertNotifier(
             }
         )
         .setPriority(if (action.level == CRIMSON) PRIORITY_MAX else PRIORITY_HIGH)
-        .setCategory(NotificationCompat.CATEGORY_ALARM)
+        .apply {
+            // Through Do Not Disturb when it lets alarms through, as when driving
+            if (action.level == CRIMSON) setCategory(NotificationCompat.CATEGORY_ALARM)
+        }
         .setOnlyAlertOnce(action.sound.not())
         .setSubText((latestVehicles.value.firstOrNull { it.uuid == vehicle.uuid } ?: vehicle).name)
         .setContentTitle(title(alertClass, action.level))

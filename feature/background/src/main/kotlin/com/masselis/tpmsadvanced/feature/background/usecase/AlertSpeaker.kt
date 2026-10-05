@@ -3,8 +3,11 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import android.media.AudioAttributes
 import android.media.AudioAttributes.USAGE_ALARM
 import android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import androidx.core.content.getSystemService
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
@@ -50,6 +53,7 @@ internal class AlertSpeaker(
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     private val logger = Logger.withTag("AlertSpeaker")
+    private val audioManager by lazy { appContext.getSystemService<AudioManager>()!! }
 
     private data class Queue(
         val red: List<String> = emptyList(),
@@ -145,31 +149,50 @@ internal class AlertSpeaker(
         }
     }
 
-    /** Speaks [text] with [usage], returning once it's said */
-    private suspend fun TextToSpeech.say(text: String, usage: Int) = suspendCancellableCoroutine { continuation ->
-        val id = UUID.randomUUID().toString()
-        setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(usage)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+    /**
+     * Speaks [text] with [usage], returning once it's said. The audio focus ducks what's playing
+     * meanwhile, as navigation prompts do: the engine doesn't ask for it by itself.
+     */
+    private suspend fun TextToSpeech.say(text: String, usage: Int) = AudioAttributes
+        .Builder()
+        .setUsage(usage)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+        .let { attributes ->
+            AudioFocusRequest
+                .Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(attributes)
                 .build()
-        )
-        setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) = Unit
+                .let { focus ->
+                    audioManager.requestAudioFocus(focus)
+                    try {
+                        say(text, attributes)
+                    } finally {
+                        audioManager.abandonAudioFocusRequest(focus)
+                    }
+                }
+        }
 
-            override fun onDone(utteranceId: String?) {
-                if (utteranceId == id && continuation.isActive) continuation.resume(Unit)
-            }
+    private suspend fun TextToSpeech.say(text: String, attributes: AudioAttributes) =
+        suspendCancellableCoroutine { continuation ->
+            val id = UUID.randomUUID().toString()
+            setAudioAttributes(attributes)
+            setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) = Unit
 
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                if (utteranceId == id && continuation.isActive) continuation.resume(Unit)
-            }
-        })
-        continuation.invokeOnCancellation { stop() }
-        if (speak(text, TextToSpeech.QUEUE_ADD, null, id) == TextToSpeech.ERROR && continuation.isActive)
-            continuation.resume(Unit)
-    }
+                override fun onDone(utteranceId: String?) {
+                    if (utteranceId == id && continuation.isActive) continuation.resume(Unit)
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) {
+                    if (utteranceId == id && continuation.isActive) continuation.resume(Unit)
+                }
+            })
+            continuation.invokeOnCancellation { stop() }
+            if (speak(text, TextToSpeech.QUEUE_ADD, null, id) == TextToSpeech.ERROR && continuation.isActive)
+                continuation.resume(Unit)
+        }
 
     /** The default engine once it is ready, shut down when the collection ends */
     private fun textToSpeech(): Flow<TextToSpeech> = callbackFlow {
