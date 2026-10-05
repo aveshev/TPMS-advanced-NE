@@ -2,8 +2,12 @@ package com.masselis.tpmsadvanced.feature.background.ioc
 
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.AlertsSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BeaconsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.DetectedActivitiesViewModel
@@ -13,6 +17,8 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Persist
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PhoneIdleMechanismViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanStatusAnnouncementsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.AlertSnoozeUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.AlertSpeaker
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconDiscoveryUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.BeaconPresenceUseCase
@@ -26,8 +32,10 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanStatusAnnouncer
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScreenStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.SignificantMotionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.StoredTyreAlertsUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
@@ -201,6 +209,47 @@ public interface Bindings {
     )
 
     @Provides
+    private fun storedTyreAlertsUseCase(
+        vehicleListUseCase: VehicleListUseCase,
+        tyreDatabase: TyreDatabase,
+    ): StoredTyreAlertsUseCase = StoredTyreAlertsUseCase(vehicleListUseCase, tyreDatabase)
+
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun alertSnoozeUseCase(): AlertSnoozeUseCase = AlertSnoozeUseCase()
+
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun alertSpeaker(
+        appPreferences: AppPreferences,
+        scanner: BluetoothLeScanner,
+    ): AlertSpeaker = AlertSpeaker(
+        appPreferences,
+        scanner.isScanningTyres,
+        // Text-to-speech is used from the main thread
+        GlobalScope + Dispatchers.Main,
+    )
+
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun alertNotifier(
+        storedTyreAlertsUseCase: StoredTyreAlertsUseCase,
+        vehicleListUseCase: VehicleListUseCase,
+        alertSnoozeUseCase: AlertSnoozeUseCase,
+        alertSpeaker: AlertSpeaker,
+        unitPreferences: UnitPreferences,
+    ): AlertNotifier = AlertNotifier(
+        storedTyreAlertsUseCase,
+        vehicleListUseCase,
+        alertSnoozeUseCase,
+        alertSpeaker,
+        unitPreferences,
+        GlobalScope + Dispatchers.Default,
+    )
+
+    @Provides
     private fun persistentScanningViewModel(
         appPreferences: AppPreferences,
         scanPolicyUseCase: ScanPolicyUseCase,
@@ -243,6 +292,11 @@ public interface Bindings {
     ): PhoneIdleMechanismViewModel = PhoneIdleMechanismViewModel(appPreferences, activityRecognitionUseCase)
 
     @Provides
+    private fun alertsSettingsViewModel(
+        appPreferences: AppPreferences,
+    ): AlertsSettingsViewModel = AlertsSettingsViewModel(appPreferences)
+
+    @Provides
     private fun scanStatusAnnouncementsViewModel(
         appPreferences: AppPreferences,
     ): ScanStatusAnnouncementsViewModel = ScanStatusAnnouncementsViewModel(appPreferences)
@@ -256,12 +310,16 @@ public interface Bindings {
         internal val controller: MonitoringController,
         internal val unexpectedStopUseCase: UnexpectedStopUseCase,
         internal val scanStatusAnnouncer: () -> ScanStatusAnnouncer,
+        internal val alertNotifier: () -> AlertNotifier,
+        internal val alertSnoozeUseCase: AlertSnoozeUseCase,
+        internal val alertSpeaker: AlertSpeaker,
         internal val backgroundViewModel: () -> BackgroundViewModel,
         internal val persistentScanningViewModel: () -> PersistentScanningViewModel,
         internal val persistentScanningSettingsViewModel: () -> PersistentScanningSettingsViewModel,
         internal val detectedActivitiesViewModel: () -> DetectedActivitiesViewModel,
         internal val keepAliveInstructionsViewModel: () -> KeepAliveInstructionsViewModel,
         internal val scanStatusAnnouncementsViewModel: () -> ScanStatusAnnouncementsViewModel,
+        internal val alertsSettingsViewModel: () -> AlertsSettingsViewModel,
         internal val beaconsViewModel: () -> BeaconsViewModel,
         internal val phoneIdleMechanismViewModel: () -> PhoneIdleMechanismViewModel,
     )

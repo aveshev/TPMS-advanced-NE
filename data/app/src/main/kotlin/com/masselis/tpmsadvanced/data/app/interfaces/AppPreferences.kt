@@ -89,6 +89,13 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putFloat("PRESSURE_LOSS_MIN_DROP_KPA", newValue) }
     }
 
+    /** Speaks the red and crimson tyre alerts out loud, on top of their notifications */
+    public val spokenAlerts: MutableStateFlow<Boolean> = observableStateFlow(
+        sharedPreferences.getBoolean("SPOKEN_ALERTS", true)
+    ) { _, newValue ->
+        sharedPreferences.edit { putBoolean("SPOKEN_ALERTS", newValue) }
+    }
+
     public val persistentScanning: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("PERSISTENT_SCANNING", false)
     ) { _, newValue ->

@@ -37,6 +37,7 @@ public data class TyreAlerts(
      * [reading] being [latest] again re-evaluates its [levels], for the [thresholds] or the [loss]
      * which changed since, without counting it as another reading.
      */
+    @Suppress("CyclomaticComplexMethod", "NestedBlockDepth", "MaxLineLength")
     public fun next(
         reading: TyreAtmosphere,
         thresholds: AlertThresholds,
@@ -81,6 +82,7 @@ public data class TyreAlerts(
             .let { alerts -> alerts.copy(notifiable = alerts.confirmed()) }
     }
 
+    @Suppress("MaxLineLength")
     private fun confirmed(): Map<AlertClass, AlertLevel> = levels
         .mapNotNull { (alertClass, level) ->
             when {

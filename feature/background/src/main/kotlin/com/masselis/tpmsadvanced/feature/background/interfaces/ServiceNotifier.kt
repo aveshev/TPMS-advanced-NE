@@ -5,7 +5,6 @@ import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.getActivity
 import android.app.PendingIntent.getBroadcast
 import android.app.Service
-import android.content.Intent
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
 import android.os.Build.VERSION.SDK_INT
 import android.os.Build.VERSION_CODES.Q
@@ -14,39 +13,25 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.PRIORITY_LOW
 import androidx.core.app.NotificationCompat.PRIORITY_MAX
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.app.NotificationCompat.PRIORITY_HIGH
-import androidx.core.app.NotificationManagerCompat.IMPORTANCE_HIGH
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_LOW
 import androidx.core.app.NotificationManagerCompat.IMPORTANCE_MAX
 import androidx.core.app.ServiceCompat
 import androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE
 import androidx.core.app.ServiceCompat.stopForeground
-import androidx.core.app.TaskStackBuilder
-import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
-import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
-import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
-import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.background.R
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Active
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.LowBatteryAlert
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureLossAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.SensorAlarm
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Starting
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.TemperatureAlert
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.MANUAL
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
-import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase.Reason
 import com.masselis.tpmsadvanced.feature.background.usecase.explanation
-import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase
-import com.masselis.tpmsadvanced.feature.background.usecase.VehicleAlertUseCase.Alert
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.appendLoc
+import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.TyreComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import kotlinx.coroutines.CoroutineScope
@@ -54,24 +39,23 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.scan
-import kotlin.math.roundToLong
-import java.util.UUID
 
+/**
+ * The monitor service's notification, telling the status of the scan. The tyres' alerts are
+ * notified on their own, whatever scans, see [AlertNotifier].
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @SuppressLint("MissingPermission")
 internal class ServiceNotifier(
     scope: CoroutineScope,
-    unitPreferences: UnitPreferences,
     service: Service,
     vehicleListUseCase: VehicleListUseCase,
     scanPolicyUseCase: ScanPolicyUseCase,
@@ -83,27 +67,19 @@ internal class ServiceNotifier(
         notificationManager.createNotificationChannel(
             NotificationChannelCompat
                 .Builder(channelNameWhenOk, IMPORTANCE_LOW)
-                .setName("Monitor service when tyres are OK")
+                .setName("Monitor service")
                 .build()
         )
+        // Was the alerts' channel, before they had their own notifications: a user who silenced it
+        // keeps it silent
         notificationManager.createNotificationChannel(
             NotificationChannelCompat
-                .Builder(channelNameForAlerts, IMPORTANCE_MAX)
-                .setName("Monitor service when alerting")
+                .Builder(channelNameForFailure, IMPORTANCE_MAX)
+                .setName("Monitor service failure")
                 .build()
         )
-        notificationManager.createNotificationChannel(
-            NotificationChannelCompat
-                .Builder(channelNameForLowBattery, IMPORTANCE_HIGH)
-                .setName("Sensor battery low")
-                .build()
-        )
-        notificationManager.createNotificationChannel(
-            NotificationChannelCompat
-                .Builder(channelNameForPressureLoss, IMPORTANCE_HIGH)
-                .setName("Tyre losing pressure")
-                .build()
-        )
+        notificationManager.deleteNotificationChannel(OLD_CHANNEL_FOR_LOW_BATTERY)
+        notificationManager.deleteNotificationChannel(OLD_CHANNEL_FOR_PRESSURE_LOSS)
 
         scanPolicyUseCase
             .decision
@@ -115,108 +91,65 @@ internal class ServiceNotifier(
                     // suspended (e.g. opened while already in Doze).
                     is ScanDecision.Suspended -> flowOf(Suspended(decision))
                     ScanDecision.Idle -> flowOf(Idle)
-                    is ScanDecision.Active -> combine(
-                        vehicleListUseCase
-                            .vehicleListFlow
-                            // Editing a vehicle (ranges, name...) re-emits the list; only a change
-                            // in the set of vehicles may rebuild the collectors, otherwise the BLE
-                            // scan restarts.
-                            .distinctUntilChanged { old, new ->
-                                old.map(Vehicle::uuid) == new.map(Vehicle::uuid)
-                            }
-                            .flatMapLatest { vehicles ->
-                                combine(
-                                    vehicles.map { vehicle ->
-                                        VehicleAlertUseCase(VehicleComponent(vehicle))
-                                            .alert
-                                            .map { vehicle to it }
+                    // Listening to the tyres is what scans them, and stores their readings for the
+                    // alerts
+                    is ScanDecision.Active -> vehicleListUseCase
+                        .vehicleListFlow
+                        // Editing a vehicle (ranges, name...) re-emits the list; only a change
+                        // in the set of vehicles may rebuild the collectors, otherwise the BLE
+                        // scan restarts.
+                        .distinctUntilChanged { old, new ->
+                            old.map(Vehicle::uuid) == new.map(Vehicle::uuid)
+                        }
+                        .flatMapLatest { vehicles ->
+                            vehicles
+                                .flatMap { vehicle ->
+                                    VehicleComponent(vehicle).let { component ->
+                                        vehicle.kind.locations.map {
+                                            component.TyreComponent(it).tyreAtmosphereUseCase.listen()
+                                        }
                                     }
-                                ) { it.toList() }
-                            },
-                        vehicleListUseCase.vehicleListFlow,
-                    ) { alerts, latestVehicles ->
-                        // The collectors hold the snapshot they were built with, so names are
-                        // refreshed here
-                        val latestByUuid = latestVehicles.associateBy(Vehicle::uuid)
-                        worst(
-                            alerts.map { (vehicle, alert) ->
-                                (latestByUuid[vehicle.uuid] ?: vehicle) to alert
-                            }
-                        )
-                    }
+                                }
+                                .merge()
+                                .map<Any, State> { Active(decision) }
+                                .onStart { emit(Active(decision)) }
+                        }
                 }
             }
             // The service must call startForeground() shortly after being started, before the
             // database had time to answer
-            .onStart { emit(NoAlert) }
+            .onStart { emit(Starting) }
             .catch { logger.e("Failed to listen for atmospheres", it); emit(ScanFailure) }
             .distinctUntilChanged()
-            .scan(Repeats()) { repeats, state -> repeats.next(state) }
-            .mapNotNull { repeats -> repeats.state?.let { it to repeats.isRepeat } }
-            .map { (state, isRepeat) ->
+            .map { state ->
                 NotificationCompat
                     .Builder(
                         appContext,
                         when (state) {
-                            NoAlert, is Suspended, Idle -> channelNameWhenOk
-                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> channelNameForAlerts
-                            is LowBatteryAlert -> channelNameForLowBattery
-                            is PressureLossAlert -> channelNameForPressureLoss
+                            Starting, is Active, is Suspended, Idle -> channelNameWhenOk
+                            ScanFailure -> channelNameForFailure
                         }
                     )
                     .setSmallIcon(
                         when (state) {
-                            NoAlert, is Suspended, Idle, is LowBatteryAlert -> R.drawable.car_tire
-                            is PressureAlert, is SensorAlarm, is TemperatureAlert, is PressureLossAlert, ScanFailure ->
-                                R.drawable.car_tire_alert
+                            Starting, is Active, is Suspended, Idle -> R.drawable.car_tire
+                            ScanFailure -> R.drawable.car_tire_alert
                         }
                     )
                     .setPriority(
                         when (state) {
-                            NoAlert, is Suspended, Idle -> PRIORITY_LOW
-                            is PressureAlert, is SensorAlarm, is TemperatureAlert, ScanFailure -> PRIORITY_MAX
-                            is LowBatteryAlert, is PressureLossAlert -> PRIORITY_HIGH
-                        }
-                    )
-                    .setOnlyAlertOnce(isRepeat)
-                    .setSubText(
-                        when (state) {
-                            NoAlert, is Suspended, Idle -> null
-                            is PressureAlert -> state.vehicleName
-                            is SensorAlarm -> state.vehicleName
-                            is TemperatureAlert -> state.vehicleName
-                            is LowBatteryAlert -> state.vehicleName
-                            is PressureLossAlert -> state.vehicleName
-                            ScanFailure -> null
+                            Starting, is Active, is Suspended, Idle -> PRIORITY_LOW
+                            ScanFailure -> PRIORITY_MAX
                         }
                     )
                     .setContentText(
                         when (state) {
-                            NoAlert -> "Your tyres are OK"
-                            is PressureAlert -> "⚠️ A tyre reached the pressure of ${
-                                state.atmosphere.pressure.string(unitPreferences.pressure.value)
-                            } !!!"
-
-                            is SensorAlarm -> "⚠️ A tyre may be leaking !!!"
-
-                            is TemperatureAlert -> "⚠️ A tyre reached the temperature of ${
-                                state.atmosphere.temperature.string(unitPreferences.temperature.value)
-                            } !!!"
-
-                            is LowBatteryAlert -> "🔋 A sensor's battery is low: ${
-                                state.atmosphere.batteryVoltage?.string()
-                            }"
-
-                            is PressureLossAlert -> buildString {
-                                val unit = unitPreferences.pressure.value
-                                append("📉 ")
-                                appendLoc(state.location, capitalized = true)
-                                append(" is losing pressure: down ${state.loss.drop.string(unit)} in ")
-                                ((state.loss.until - state.loss.since) / SECONDS_PER_MINUTE)
-                                    .roundToLong()
-                                    .coerceAtLeast(1)
-                                    .let { append("$it min") }
-                            }
+                            Starting -> "Background scanning is starting"
+                            // Without persistent scanning, the service runs from the manual start
+                            // to the manual stop
+                            is Active ->
+                                if (MANUAL in state.decision.causes) "Monitoring in the background"
+                                else state.decision.explanation()
 
                             ScanFailure -> "The Android system reported an issue during the" +
                                     " bluetooth scan, TPMS Advanced must be restarted"
@@ -228,28 +161,20 @@ internal class ServiceNotifier(
                     .apply {
                         when (state) {
                             // Opens the app on its current vehicle
-                            NoAlert, is Suspended, Idle -> appContext
+                            Starting, is Active, is Suspended, Idle -> appContext
                                 .packageManager
                                 .getLaunchIntentForPackage(appContext.packageName)
                                 ?.let { getActivity(appContext, requestCode, it, FLAG_IMMUTABLE) }
                                 ?.also(::setContentIntent)
 
-                            is PressureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
-                            is SensorAlarm -> setContentIntent(vehicleIntent(state.vehicleUuid))
-                            is TemperatureAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
-                            is LowBatteryAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
-                            is PressureLossAlert -> setContentIntent(vehicleIntent(state.vehicleUuid))
-
                             ScanFailure -> {
                                 // Nothing to do, the intent does nothing when clicked
                             }
                         }
-
                     }
                     .addAction(
                         when (state) {
-                            NoAlert, is PressureAlert, is SensorAlarm, is TemperatureAlert, is LowBatteryAlert,
-                            is PressureLossAlert, is Suspended, Idle ->
+                            Starting, is Active, is Suspended, Idle ->
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -273,7 +198,6 @@ internal class ServiceNotifier(
                                     )
                                 ).build()
                         }
-
                     )
                     .setAutoCancel(false)
                     .build()
@@ -305,52 +229,11 @@ internal class ServiceNotifier(
         }.launchIn(scope)
     }
 
-    private fun vehicleIntent(vehicleUuid: UUID) = Intent(
-        Intent.ACTION_VIEW,
-        "tpmsadvanced://vehicle/$vehicleUuid".toUri(),
-    ).let {
-        TaskStackBuilder
-            .create(appContext)
-            .addNextIntentWithParentStack(it)
-            .getPendingIntent(requestCode, FLAG_IMMUTABLE)
-    }
-
     sealed interface State {
-        data object NoAlert : State
+        /** Before the scan decision is known */
+        data object Starting : State
 
-        data class PressureAlert(
-            val vehicleUuid: UUID,
-            val vehicleName: String,
-            val atmosphere: TyreAtmosphere,
-        ) : State
-
-        data class SensorAlarm(
-            val vehicleUuid: UUID,
-            val vehicleName: String,
-            val atmosphere: TyreAtmosphere,
-        ) : State
-
-        data class TemperatureAlert(
-            val vehicleUuid: UUID,
-            val vehicleName: String,
-            val atmosphere: TyreAtmosphere,
-        ) : State
-
-        data class LowBatteryAlert(
-            val vehicleUuid: UUID,
-            val vehicleName: String,
-            val atmosphere: TyreAtmosphere,
-        ) : State
-
-        data class PressureLossAlert(
-            val vehicleUuid: UUID,
-            val vehicleName: String,
-            val location: Location,
-            val loss: PressureLoss,
-        ) : State {
-            val tyre: Pair<UUID, Location>
-                get() = vehicleUuid to location
-        }
+        data class Active(val decision: ScanDecision.Active) : State
 
         data object ScanFailure : State
 
@@ -359,73 +242,13 @@ internal class ServiceNotifier(
         data object Idle : State
     }
 
-    /**
-     * Whether [state] repeats an alert that already alerted, so its notification updates silently.
-     * A sensor battery doesn't recover by itself and its voltage can hover around the alarm: each
-     * sensor alerts once per service run. A loss is checked again at each reading and can come and
-     * go around the rule's limit: once notified, a tyre's loss updates silently until it's pumped
-     * up, the next loss alerting again.
-     */
-    private data class Repeats(
-        val state: State? = null,
-        val isRepeat: Boolean = false,
-        val lowBatterySensors: Set<Int> = emptySet(),
-        /** The peak each tyre losing pressure was notified from, see [PressureLoss.since] */
-        val losses: Map<Pair<UUID, Location>, Double> = emptyMap(),
-    ) {
-        fun next(state: State): Repeats = when (state) {
-            is LowBatteryAlert -> copy(
-                state = state,
-                isRepeat = state.atmosphere.sensorId in lowBatterySensors,
-                lowBatterySensors = lowBatterySensors + state.atmosphere.sensorId,
-            )
-
-            is PressureLossAlert -> copy(
-                state = state,
-                isRepeat = losses[state.tyre] == state.loss.since,
-                losses = losses + (state.tyre to state.loss.since),
-            )
-
-            else -> copy(state = state, isRepeat = false)
-        }
-    }
-
     @Suppress("ConstPropertyName")
     internal companion object {
         private const val channelNameWhenOk = "MONITOR_SERVICE_WHEN_OK"
-        private const val channelNameForAlerts = "MONITOR_SERVICE_FOR_ALERT"
-        private const val channelNameForLowBattery = "MONITOR_SERVICE_FOR_LOW_BATTERY"
-        private const val channelNameForPressureLoss = "MONITOR_SERVICE_FOR_PRESSURE_LOSS"
-        private const val SECONDS_PER_MINUTE = 60.0
+        private const val channelNameForFailure = "MONITOR_SERVICE_FOR_ALERT"
+        private const val OLD_CHANNEL_FOR_LOW_BATTERY = "MONITOR_SERVICE_FOR_LOW_BATTERY"
+        private const val OLD_CHANNEL_FOR_PRESSURE_LOSS = "MONITOR_SERVICE_FOR_PRESSURE_LOSS"
         private const val notificationId = 1
         private const val requestCode = 0
     }
 }
-
-/**
- * Picks what the notification must show for all monitored vehicles at once, the most severe first:
- * a pressure alert, a sensor's own alarm, a temperature alert, a tyre losing pressure, then a low
- * battery. Among tyres losing pressure, the one losing it the fastest wins. Other ties are
- * broken by the order of [alerts].
- */
-internal fun worst(alerts: List<Pair<Vehicle, Alert>>): ServiceNotifier.State =
-    alerts
-        .firstNotNullOfOrNull { (vehicle, alert) ->
-            (alert as? Alert.Pressure)?.let { PressureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
-        }
-        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
-            (alert as? Alert.SensorAlarm)?.let { SensorAlarm(vehicle.uuid, vehicle.name, it.atmosphere) }
-        }
-        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
-            (alert as? Alert.Temperature)?.let { TemperatureAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
-        }
-        ?: alerts
-            .mapNotNull { (vehicle, alert) ->
-                (alert as? Alert.PressureLoss)
-                    ?.let { PressureLossAlert(vehicle.uuid, vehicle.name, it.location, it.loss) }
-            }
-            .maxByOrNull { it.loss.perHour }
-        ?: alerts.firstNotNullOfOrNull { (vehicle, alert) ->
-            (alert as? Alert.LowBattery)?.let { LowBatteryAlert(vehicle.uuid, vehicle.name, it.atmosphere) }
-        }
-        ?: NoAlert

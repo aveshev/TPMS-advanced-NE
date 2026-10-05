@@ -43,6 +43,17 @@
     <application>
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.DisableMonitorBroadcastReceiver" />
         <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.RestartAppBroadcastReceiver" />
+        <receiver android:name="com.masselis.tpmsadvanced.feature.background.interfaces.AlertActionReceiver" />
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="com.masselis.tpmsadvanced.feature.background.interfaces.FeatureBackgroundInitializer"
+                android:value="androidx.startup" />
+        </provider>
         <!-- Exported so the system can reach it; both actions are protected broadcasts only the system can send -->
         <receiver
             android:name="com.masselis.tpmsadvanced.feature.background.interfaces.BootReceiver"

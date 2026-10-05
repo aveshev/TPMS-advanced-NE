@@ -2,7 +2,6 @@ package com.masselis.tpmsadvanced.feature.background.ioc.vehicle
 
 import android.app.Service
 import com.masselis.tpmsadvanced.core.common.appGraph
-import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
@@ -35,13 +34,11 @@ public interface ServiceComponent {
     @SingleIn(Scope::class)
     private fun serviceNotifier(
         scope: CoroutineScope,
-        unitPreferences: UnitPreferences,
         foregroundService: Service,
         vehicleListUseCase: VehicleListUseCase,
         scanPolicyUseCase: ScanPolicyUseCase,
     ): ServiceNotifier = ServiceNotifier(
         scope,
-        unitPreferences,
         foregroundService,
         vehicleListUseCase,
         scanPolicyUseCase,

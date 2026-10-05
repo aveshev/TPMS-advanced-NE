@@ -105,6 +105,32 @@ public class TyreDatabase internal constructor(
         }
         .asList()
 
+    /** The records of [location] stored after [timestamp], oldest first */
+    public fun afterByTyreLocationByVehicle(
+        location: Location,
+        vehicleId: UUID,
+        timestamp: Double,
+    ): QueryList<Tyre.Located> = queries
+        .afterByTyreLocationByVehicle(
+            vehicleId,
+            location,
+            timestamp,
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw ->
+            Tyre.Located(
+                timestamp,
+                rssi,
+                id,
+                pressure,
+                temperature,
+                battery,
+                isAlarm,
+                location,
+                batteryVoltage,
+                raw,
+            )
+        }
+        .asList()
+
     /**
      * Keeps the readings of [location] below [CAP], about 1 MB with its index: once over it, the
      * oldest are deleted down to [KEPT] so this doesn't have to run at every insert.
