@@ -116,8 +116,10 @@ a second check, it isn't needed for this.
   scanning status (active, suspended, idle) on its low importance channel.
 - They're posted whatever the app's state, including while the main screen is open: the user may
   not be looking at it.
-- Each notification names the vehicle and the tyre position, and gives the reading and the
-  threshold it crossed.
+- Each notification names the vehicle (as its subtext) and the tyre position, and gives the
+  reading and the threshold it crossed. The title is the condition alone ("Pressure critically
+  low"), short enough not to be cut off beside the vehicle's name, the tyre position starting the
+  text ("Rear left wheel: 5.8 psi, minimum 14.5 psi").
 - `setWhen` is the reading's own timestamp, so a notification left over from earlier looks its
   age.
 - Tapping it opens the app on its vehicle, as today.
@@ -159,8 +161,8 @@ What this costs:
 
 | Level | Actions |
 |---|---|
-| Amber | "Dismiss for 1 day", "Dismiss for 1 week" |
-| Red, crimson | "Dismiss for 10 minutes", "Dismiss for 1 day" |
+| Amber | "Dismiss 1 day", "Dismiss 1 week" |
+| Red, crimson | "Dismiss 10 min", "Dismiss 1 day" |
 
 Swiping a notification away counts as its **shorter** period. "Clear all" does the same to every
 alert notification.
@@ -196,13 +198,14 @@ alert notification.
   through the phone's speaker as well as a connected headset.
 - **One speech queue.** Several crimson alerts share one loop ("TYRE PRESSURE CRITICAL, TYRE HOT
   CRITICAL"), and red announcements wait their turn instead of talking over it.
-- The TTS setup is reused from `ScanStatusAnnouncer`.
+- Speech starts 3 s after the alert, once the notification's own sound played, and takes the
+  audio focus (ducking what plays) only while it speaks.
 - **Spoken alerts can be turned off**, in a new "Alerts" group of the app settings. They're on by
   default.
 
 ### Crimson loop
 
-- Says its phrase twice every 20 s.
+- Says its phrase twice every 20 s, counted from the start of each.
 - Runs for **10 minutes**. Each new qualifying reading of the alert restarts the 10 minutes.
 - Stops when the alert is snoozed or dismissed, when a reading clears it, or when scanning is
   suspended or stopped (no reading could clear it any more).
