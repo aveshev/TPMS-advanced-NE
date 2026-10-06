@@ -52,12 +52,13 @@ import kotlin.time.TimeSource
  * [CRIMSON_PERIOD] for [CRIMSON_DURATION] after their latest reading, then every [REMINDER_PERIOD]
  * along with the red ones. Everything goes through a single queue, nothing talks over anything. The
  * loops stop with the tyre scans: no reading could clear their alerts any more. The reminders also
- * stop once [isReminding] doesn't hold, see docs/alerts.md.
+ * stop once [isRepeating] doesn't hold, see docs/alerts.md: an alert is then only said once, when
+ * its notification sounds.
  */
 internal class AlertSpeaker(
     private val appPreferences: AppPreferences,
     isScanningTyres: Flow<Boolean>,
-    isReminding: Flow<Boolean>,
+    isRepeating: Flow<Boolean>,
     scope: CoroutineScope,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
@@ -65,8 +66,8 @@ internal class AlertSpeaker(
     private val audioManager by lazy { appContext.getSystemService<AudioManager>()!! }
 
     private data class Queue(
-        /** The red alerts to announce, by the tag of their notification */
-        val announcements: List<Pair<String, AlertClass>> = emptyList(),
+        /** The alerts to say once, as their notification sounds */
+        val announcements: List<Announcement> = emptyList(),
         /** The alerts repeated by the loops, by the tag of their notification */
         val repeated: Map<String, Repeated> = emptyMap(),
         /** When the crimson loop speaks next, null to speak right away */
@@ -77,8 +78,8 @@ internal class AlertSpeaker(
         val sounded: TimeMark? = null,
         /** A phrase is being said: whatever happens meanwhile, it's said to the end */
         val isSpeaking: Boolean = false,
-        /** Whether the reminders may go on, the alerts which only they would say are dropped otherwise */
-        val isReminding: Boolean = false,
+        /** Whether the loops may go on, their alerts are dropped otherwise */
+        val isRepeating: Boolean = false,
     ) {
         val isIdle get() = announcements.isEmpty() && repeated.isEmpty() && isSpeaking.not()
 
@@ -109,6 +110,11 @@ internal class AlertSpeaker(
         val phrase get() = if (isCrimson) "${alertClass.phrase} critical" else alertClass.phrase
     }
 
+    /** A red alert, or a crimson one which the loops can't repeat, by the tag of its notification */
+    private data class Announcement(val tag: String, val alertClass: AlertClass, val isCrimson: Boolean) {
+        val phrase get() = if (isCrimson) "${alertClass.phrase} critical" else alertClass.phrase
+    }
+
     private val queue = MutableStateFlow(Queue())
 
     /**
@@ -118,7 +124,7 @@ internal class AlertSpeaker(
     fun red(tag: String, alertClass: AlertClass, sounded: Boolean = true) {
         if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update {
             it.copy(
-                announcements = it.announcements + (tag to alertClass),
+                announcements = it.announcements + Announcement(tag, alertClass, isCrimson = false),
                 repeated = it.repeated + (tag to Repeated(alertClass, null)),
                 sounded = if (sounded) timeSource.markNow() else it.sounded,
             ).scheduled()
@@ -128,17 +134,21 @@ internal class AlertSpeaker(
     /**
      * Says [alertClass]'s critical phrase twice every [CRIMSON_PERIOD] for [CRIMSON_DURATION],
      * starting over that duration if [tag] is already in the crimson loop, then reminds of it. A
-     * new one is said right away.
+     * new one is said right away. Said once when the loops can't go on.
      */
     fun crimson(tag: String, alertClass: AlertClass) {
         if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update { queue ->
-            queue.copy(
-                // Its red announcement yet to be said would only come before it
-                announcements = queue.announcements.filter { (announcedTag) -> announcedTag != tag },
-                repeated = queue.repeated + (tag to Repeated(alertClass, timeSource.markNow() + CRIMSON_DURATION)),
-                nextCrimson = queue.nextCrimson.takeIf { queue.repeated[tag]?.isCrimsonLoop == true },
-                sounded = timeSource.markNow(),
-            ).scheduled()
+            // Its red announcement yet to be said would only come before it
+            queue
+                .copy(announcements = queue.announcements.filter { it.tag != tag }, sounded = timeSource.markNow())
+                .run {
+                    if (isRepeating) copy(
+                        repeated = repeated + (tag to Repeated(alertClass, timeSource.markNow() + CRIMSON_DURATION)),
+                        nextCrimson = nextCrimson.takeIf { repeated[tag]?.isCrimsonLoop == true },
+                    )
+                    else copy(announcements = announcements + Announcement(tag, alertClass, isCrimson = true))
+                }
+                .scheduled()
         }
     }
 
@@ -151,19 +161,19 @@ internal class AlertSpeaker(
             queue.copy(
                 repeated = queue.repeated - tag,
                 announcements =
-                    if (isDismissed) queue.announcements.filter { (announcedTag) -> announcedTag != tag }
+                    if (isDismissed) queue.announcements.filter { it.tag != tag }
                     else queue.announcements,
             ).scheduled()
         }
     }
 
     /**
-     * Drops the alerts which only the reminders would say while they can't go on. The reminders
-     * start [REMINDER_PERIOD] after something enters them, and over once they empty.
+     * Drops the repeated alerts while the loops can't go on. The reminders start [REMINDER_PERIOD]
+     * after something enters them, and over once they empty.
      */
     @Suppress("MaxLineLength")
     private fun Queue.scheduled() = this
-        .run { if (isReminding) this else copy(repeated = repeated.filterValues(Repeated::isCrimsonLoop)) }
+        .run { if (isRepeating) this else copy(repeated = emptyMap()) }
         .run {
             copy(nextReminder = if (reminders.isEmpty()) null else nextReminder ?: (timeSource.markNow() + REMINDER_PERIOD))
         }
@@ -175,14 +185,14 @@ internal class AlertSpeaker(
             .launchIn(scope)
 
         // Coming back, they only start again from a new reading
-        isReminding
-            .onEach { isReminding -> queue.update { it.copy(isReminding = isReminding).scheduled() } }
+        isRepeating
+            .onEach { isRepeating -> queue.update { it.copy(isRepeating = isRepeating).scheduled() } }
             .launchIn(scope)
 
         appPreferences
             .spokenAlerts
             .filter { it.not() }
-            .onEach { queue.update { Queue(isReminding = it.isReminding) } }
+            .onEach { queue.update { Queue(isRepeating = it.isRepeating) } }
             .launchIn(scope)
 
         scope.launch {
@@ -202,14 +212,16 @@ internal class AlertSpeaker(
             val current = queue.value
             when {
                 current.announcements.isNotEmpty() -> current.announcements.first().let { announcement ->
-                    val (_, alertClass) = announcement
-                    val phrase = alertClass.phrase
+                    val phrase = announcement.phrase
                     awaitNotificationSound(current.sounded)
                     // Unless it was dismissed meanwhile
-                    if (announcement in queue.value.announcements) sayToTheEnd("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) { queue ->
+                    if (announcement in queue.value.announcements) sayToTheEnd(
+                        "$phrase. $phrase.",
+                        if (announcement.isCrimson) USAGE_ALARM else USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                    ) { queue ->
                         queue.copy(
-                            // Along with the others of its class waiting, they'd say the same
-                            announcements = queue.announcements.filter { (_, waiting) -> waiting != alertClass },
+                            // Along with the others waiting which would say the same
+                            announcements = queue.announcements.filter { it.phrase != phrase },
                             // Said everything the reminders would, which start over
                             nextReminder = queue
                                 .reminders

@@ -236,8 +236,8 @@ public interface Bindings {
     ): AlertSpeaker = AlertSpeaker(
         appPreferences,
         scanner.isScanningTyres,
-        // While persistent scanning is active. Without it, while the app is open, or monitoring in
-        // the background from its button.
+        // The speech loops go on while persistent scanning is active. Without it, while the app is
+        // open, or monitoring in the background from its button.
         appPreferences
             .persistentScanning
             .flatMapLatest { persistent ->
