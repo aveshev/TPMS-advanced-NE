@@ -171,7 +171,7 @@ What this costs:
   level at once.
 - Readings stored while nothing was evaluating them never alert.
 - Force-stopping the app clears its notifications. An ongoing alert then stays silent until the
-  next reading.
+  next reading. The process being killed also forgets the loops, the same way.
 
 ## Snoozing
 
@@ -206,8 +206,8 @@ alert notification.
 | Level | What's said | When | Audio usage |
 |---|---|---|---|
 | Amber | Nothing | — | — |
-| Red | The class twice: "TYRE PRESSURE", "TYRE HOT", "SENSOR BATTERY" | Each time its notification sounds | `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` |
-| Crimson | "TYRE PRESSURE CRITICAL" or "TYRE HOT CRITICAL", twice | Every 20 s, see below | `USAGE_ALARM` |
+| Red | The class twice: "TYRE PRESSURE", "TYRE HOT", "SENSOR BATTERY" | Each time its notification sounds, and every 10 min, see below | `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` |
+| Crimson | "TYRE PRESSURE CRITICAL" or "TYRE HOT CRITICAL", twice | Every 20 s, then every 10 min, see below | `USAGE_ALARM` |
 
 - The phrases stay this short on purpose: they say what to look for, the screen says the rest.
   They don't name the tyre position.
@@ -216,8 +216,9 @@ alert notification.
   through the phone's speaker as well as a connected headset.
 - **A phrase that started is always said to the end**, whatever happens meanwhile: the alert
   going up, down or being dismissed, another alert coming. Only turning spoken alerts off cuts it.
-- **One speech queue.** Several crimson alerts share one loop ("TYRE PRESSURE CRITICAL, TYRE HOT
-  CRITICAL"), and red announcements wait their turn instead of talking over it.
+- **One speech queue, two loops for the whole app**: the crimson loop and the reminders. Each says
+  all its alerts in one phrase ("TYRE PRESSURE CRITICAL, TYRE HOT CRITICAL"), whatever tyres or
+  vehicles they come from, and red announcements wait their turn instead of talking over them.
 - Speech waits for a notification's sound to play out rather than speaking over it: Android plays
   it about half a second after it's posted, so the speech waits up to 1.5 s for one to start, then
   until no notification sound plays (10 s at most). A silent or vibrating channel doesn't delay
@@ -227,11 +228,33 @@ alert notification.
 
 ### Crimson loop
 
-- Says its phrase twice every 20 s, counted from the start of each.
-- Runs for **10 minutes**. Each new qualifying reading of the alert restarts the 10 minutes.
-- Stops when the alert is snoozed or dismissed, when a reading clears it, or when scanning is
-  suspended or stopped (no reading could clear it any more).
-- After scanning resumes, only a new qualifying reading starts it again.
+- Says the crimson alerts twice every 20 s, counted from the start of each phrase. A new one is
+  said right away, then joins the loop.
+- An alert stays in it for **10 minutes**. Each new qualifying reading of the alert restarts the
+  10 minutes. Then it moves to the reminders.
+
+### Reminders
+
+- Say the red alerts, and the crimson alerts done with their loop, twice every **10 minutes**
+  ("TYRE PRESSURE CRITICAL, SENSOR BATTERY"), counted from the start of each phrase. They use the
+  alarm usage when a crimson alert is among them.
+- A red alert is left out while a crimson alert of the same class is said, in either loop: the
+  phrases don't name the tyre, "TYRE PRESSURE" would only repeat "TYRE PRESSURE CRITICAL".
+- The 10 minutes start when the first alert enters the reminders, and start over when a red
+  announcement said everything they would say. With a single red alert, it's said 10 minutes
+  after its latest announcement. Red announcements come at every red reading, so the reminders
+  mostly matter when the readings are further apart: sensors reporting rarely, or a parked
+  vehicle while scanning goes on.
+- They have no end of their own: "Dismiss 1 day" is the way to silence an alert that's known
+  about.
+
+### When the loops stop
+
+- An alert leaves both loops when it's snoozed or dismissed, or when a reading lowers it to amber
+  or clears it. A reading lowering a crimson alert to red moves it to the reminders, announced as
+  red.
+- Every alert leaves them when scanning is suspended or stopped: no reading could clear them any
+  more. After scanning resumes, only a new qualifying reading starts them again.
 
 ## In the app
 
@@ -293,7 +316,7 @@ as amber. Android Auto follows the same levels with its own icons.
   retried. On its own branch.
 - **Full-screen intent for crimson alerts.** Later. Since Android 14, Play only allows
   `USE_FULL_SCREEN_INTENT` for calling and alarm apps, so it may not be possible.
-- **`FLAG_INSISTENT`**: repeating sounds are handled by the crimson loop instead.
+- **`FLAG_INSISTENT`**: repeating sounds are handled by the speech loops instead.
 - **Alerting about a sensor going silent**: tyres on the non-driven axle can stay silent for days,
   even during rides.
 - **Crimson for fast leaks**: left out to avoid false positives.

@@ -14,6 +14,13 @@ import androidx.core.content.getSystemService
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
@@ -40,10 +47,11 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
- * Speaks the alerts, see docs/alerts.md: a red one twice, each time its notification sounds, the
- * crimson ones twice every [CRIMSON_PERIOD] for [CRIMSON_DURATION] after their latest reading.
- * Everything goes through a single queue, nothing talks over anything. Crimson alerts stop with the
- * tyre scans: no reading could clear them any more.
+ * Speaks the alerts, see docs/alerts.md: a red one twice each time its notification sounds, then
+ * every alert in one of two loops shared by the whole app. The crimson alerts are said every
+ * [CRIMSON_PERIOD] for [CRIMSON_DURATION] after their latest reading, then every [REMINDER_PERIOD]
+ * along with the red ones. Everything goes through a single queue, nothing talks over anything. The
+ * loops stop with the tyre scans: no reading could clear their alerts any more.
  */
 internal class AlertSpeaker(
     private val appPreferences: AppPreferences,
@@ -55,62 +63,105 @@ internal class AlertSpeaker(
     private val audioManager by lazy { appContext.getSystemService<AudioManager>()!! }
 
     private data class Queue(
-        /** The red phrases with the tag of their notification */
-        val red: List<Pair<String, String>> = emptyList(),
-        /** The crimson phrases by the tag of their notification */
-        val crimson: Map<String, Crimson> = emptyMap(),
-        /** When the crimson phrases are said next, null to say them right away */
+        /** The red alerts to announce, by the tag of their notification */
+        val announcements: List<Pair<String, AlertClass>> = emptyList(),
+        /** The alerts repeated by the loops, by the tag of their notification */
+        val repeated: Map<String, Repeated> = emptyMap(),
+        /** When the crimson loop speaks next, null to speak right away */
         val nextCrimson: TimeMark? = null,
+        /** When the reminder loop speaks next, null while there's nothing to remind of */
+        val nextReminder: TimeMark? = null,
         /** When the latest alert sounded, its notification's sound is let out first */
         val sounded: TimeMark? = null,
         /** A phrase is being said: whatever happens meanwhile, it's said to the end */
         val isSpeaking: Boolean = false,
     ) {
-        val isIdle get() = red.isEmpty() && crimson.isEmpty() && isSpeaking.not()
+        val isIdle get() = announcements.isEmpty() && repeated.isEmpty() && isSpeaking.not()
+
+        /** What the crimson loop says */
+        val crimson get() = repeated.values.filter(Repeated::isCrimsonLoop)
+
+        /**
+         * What the reminder loop says: the crimson alerts done with their own loop, and the red
+         * ones of the classes no crimson alert is said for
+         */
+        val reminders
+            get() = repeated
+                .values
+                .filter(Repeated::isCrimson)
+                .map(Repeated::alertClass)
+                .toSet()
+                .let { crimsonClasses ->
+                    repeated.values.filter {
+                        if (it.isCrimson) it.isCrimsonLoop.not() else it.alertClass !in crimsonClasses
+                    }
+                }
     }
 
-    private data class Crimson(val phrase: String, val end: TimeMark)
+    /** [crimsonUntil] is when a crimson alert leaves its loop for the reminders, null for a red one */
+    private data class Repeated(val alertClass: AlertClass, val crimsonUntil: TimeMark?) {
+        val isCrimson get() = crimsonUntil != null
+        val isCrimsonLoop get() = crimsonUntil?.hasNotPassedNow() == true
+        val phrase get() = if (isCrimson) "${alertClass.phrase} critical" else alertClass.phrase
+    }
 
     private val queue = MutableStateFlow(Queue())
 
-    /** Says [phrase] twice, once, after the notification's sound if it [sounded] */
-    fun red(tag: String, phrase: String, sounded: Boolean = true) {
-        if (appPreferences.spokenAlerts.value) queue.update {
-            it.copy(red = it.red + (tag to phrase), sounded = if (sounded) timeSource.markNow() else it.sounded)
-        }
-    }
-
     /**
-     * Says [phrase] twice every [CRIMSON_PERIOD] for [CRIMSON_DURATION], starting over that duration
-     * if [tag] is already being said. A new one is said right away.
+     * Says [alertClass]'s phrase twice, once, after the notification's sound if it [sounded], then
+     * reminds of it
      */
-    fun crimson(tag: String, phrase: String) {
-        if (appPreferences.spokenAlerts.value) queue.update { queue ->
-            queue.copy(
-                crimson = queue.crimson + (tag to Crimson(phrase, timeSource.markNow() + CRIMSON_DURATION)),
-                nextCrimson = queue.nextCrimson.takeIf { tag in queue.crimson },
-                sounded = timeSource.markNow(),
-            )
+    fun red(tag: String, alertClass: AlertClass, sounded: Boolean = true) {
+        if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update {
+            it.copy(
+                announcements = it.announcements + (tag to alertClass),
+                repeated = it.repeated + (tag to Repeated(alertClass, null)),
+                sounded = if (sounded) timeSource.markNow() else it.sounded,
+            ).scheduled()
         }
     }
 
     /**
-     * Stops saying the crimson alert of [tag], and its red phrases yet to be said once [isDismissed].
-     * A phrase being said is always said to the end.
+     * Says [alertClass]'s critical phrase twice every [CRIMSON_PERIOD] for [CRIMSON_DURATION],
+     * starting over that duration if [tag] is already in the crimson loop, then reminds of it. A
+     * new one is said right away.
+     */
+    fun crimson(tag: String, alertClass: AlertClass) {
+        if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update { queue ->
+            queue.copy(
+                // Its red announcement yet to be said would only come before it
+                announcements = queue.announcements.filter { (announcedTag) -> announcedTag != tag },
+                repeated = queue.repeated + (tag to Repeated(alertClass, timeSource.markNow() + CRIMSON_DURATION)),
+                nextCrimson = queue.nextCrimson.takeIf { queue.repeated[tag]?.isCrimsonLoop == true },
+                sounded = timeSource.markNow(),
+            ).scheduled()
+        }
+    }
+
+    /**
+     * Stops repeating the alert of [tag], and its red announcements yet to be said once
+     * [isDismissed]. A phrase being said is always said to the end.
      */
     fun stop(tag: String, isDismissed: Boolean = false) {
         queue.update { queue ->
             queue.copy(
-                crimson = queue.crimson - tag,
-                red = if (isDismissed) queue.red.filter { (redTag) -> redTag != tag } else queue.red,
-            )
+                repeated = queue.repeated - tag,
+                announcements =
+                    if (isDismissed) queue.announcements.filter { (announcedTag) -> announcedTag != tag }
+                    else queue.announcements,
+            ).scheduled()
         }
     }
+
+    /** The reminders start [REMINDER_PERIOD] after something enters them, and over once they empty */
+    private fun Queue.scheduled() = copy(
+        nextReminder = if (reminders.isEmpty()) null else nextReminder ?: (timeSource.markNow() + REMINDER_PERIOD)
+    )
 
     init {
         isScanningTyres
             .filter { it.not() }
-            .onEach { queue.update { it.copy(crimson = emptyMap()) } }
+            .onEach { queue.update { it.copy(repeated = emptyMap()).scheduled() } }
             .launchIn(scope)
 
         appPreferences
@@ -128,19 +179,27 @@ internal class AlertSpeaker(
         }
     }
 
-    @Suppress("NestedBlockDepth")
+    @Suppress("NestedBlockDepth", "CyclomaticComplexMethod", "LongMethod", "MaxLineLength")
     private suspend fun TextToSpeech.speakQueue() {
         while (true) {
-            // The crimson alerts which ended are forgotten
-            queue.update { queue -> queue.copy(crimson = queue.crimson.filterValues { it.end.hasNotPassedNow() }) }
+            // A crimson alert leaving its loop enters the reminders
+            queue.update { it.scheduled() }
             val current = queue.value
             when {
-                current.red.isNotEmpty() -> current.red.first().let { red ->
-                    val (tag, phrase) = red
+                current.announcements.isNotEmpty() -> current.announcements.first().let { announcement ->
+                    val phrase = announcement.second.phrase
                     awaitNotificationSound(current.sounded)
                     // Unless it was dismissed meanwhile
-                    if (red in queue.value.red) sayToTheEnd("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) {
-                        it.copy(red = it.red - red)
+                    if (announcement in queue.value.announcements) sayToTheEnd("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) { queue ->
+                        queue.copy(
+                            announcements = queue.announcements - announcement,
+                            // Said everything the reminders would, which start over
+                            nextReminder = queue
+                                .reminders
+                                .takeIf { reminders -> reminders.isNotEmpty() && reminders.all { it.phrase == phrase } }
+                                ?.let { timeSource.markNow() + REMINDER_PERIOD }
+                                ?: queue.nextReminder,
+                        )
                     }
                 }
 
@@ -152,29 +211,45 @@ internal class AlertSpeaker(
                         .value
                         .crimson
                         .takeIf { it.isNotEmpty() }
-                        ?.let { crimson ->
-                            crimson
-                                .values
-                                .map(Crimson::phrase)
-                                .distinct()
-                                .joinToString(", ")
-                                .let { sayToTheEnd("$it. $it.", USAGE_ALARM) }
+                        ?.let { crimson -> sayToTheEnd(crimson.spoken(), USAGE_ALARM) }
+                }
+
+                current.nextReminder?.hasPassedNow() == true -> {
+                    awaitNotificationSound(current.sounded)
+                    queue.update { it.copy(nextReminder = timeSource.markNow() + REMINDER_PERIOD) }
+                    queue
+                        .value
+                        .reminders
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { reminders ->
+                            sayToTheEnd(
+                                reminders.spoken(),
+                                if (reminders.any(Repeated::isCrimson)) USAGE_ALARM else USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                            )
                         }
                 }
 
-                // Until anything changes, the next crimson phrase or the end of one
+                // Until anything changes, a loop's next phrase or a crimson alert leaving its loop
                 else -> withTimeoutOrNull(
                     current
                         .crimson
-                        .values
-                        .map(Crimson::end)
+                        .mapNotNull(Repeated::crimsonUntil)
                         .plus(listOfNotNull(current.nextCrimson.takeIf { current.crimson.isNotEmpty() }))
+                        .plus(listOfNotNull(current.nextReminder))
                         .minOfOrNull { it.elapsedNow().unaryMinus() }
                         ?: Duration.INFINITE
                 ) { queue.first { it != current } }
             }
         }
     }
+
+    /** Every phrase once, the crimson ones first, the whole said twice */
+    private fun List<Repeated>.spoken() = this
+        .sortedBy { it.isCrimson.not() }
+        .map(Repeated::phrase)
+        .distinct()
+        .joinToString(", ")
+        .let { "$it. $it." }
 
     /** Says [text], keeping the engine alive until it's said even if the queue empties meanwhile */
     private suspend fun TextToSpeech.sayToTheEnd(
@@ -275,6 +350,19 @@ internal class AlertSpeaker(
     private companion object {
         val CRIMSON_PERIOD = 20.seconds
         val CRIMSON_DURATION = 10.minutes
+        val REMINDER_PERIOD = 10.minutes
+
+        /** Only the classes reaching red are said */
+        val SPOKEN = setOf(PRESSURE, TEMPERATURE, BATTERY)
+
+        /** Short on purpose: they say what to look for, the screen says the rest */
+        val AlertClass.phrase
+            get() = when (this) {
+                PRESSURE -> "Tyre pressure"
+                TEMPERATURE -> "Tyre hot"
+                BATTERY -> "Sensor battery"
+                PRESSURE_LOSS, SENSOR_ALARM, SENSOR_REMOVED -> error("$this is never said")
+            }
 
         /** How long a notification's sound can take to start after it's posted */
         val SOUND_START = 1.5.seconds

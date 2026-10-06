@@ -157,17 +157,14 @@ internal class AlertNotifier(
         }
         // Unlike the notification, the speech follows the reading right away: it stops, or turns red
         if (isSpoken) when {
-            action is Action.Post && action.level == CRIMSON ->
-                if (action.sound) alertClass.spoken?.also { speaker.crimson(tag, "$it critical") }
+            action is Action.Post && action.level == CRIMSON -> if (action.sound) speaker.crimson(tag, alertClass)
 
             else -> {
                 speaker.stop(tag)
                 val level = (action as? Action.Post)?.level ?: (action as? Action.Hold)?.level
                 val isSounding = (action as? Action.Post)?.sound == true
                 // Coming down from crimson, said as red although its notification is held silently
-                if (level == RED && (isSounding || current?.level == CRIMSON)) alertClass.spoken?.also {
-                    speaker.red(tag, it, sounded = isSounding)
-                }
+                if (level == RED && (isSounding || current?.level == CRIMSON)) speaker.red(tag, alertClass, sounded = isSounding)
             }
         }
     }
@@ -363,15 +360,6 @@ internal class AlertNotifier(
                 this == 1.days -> "1 day"
                 this == 7.days -> "1 week"
                 else -> "$inWholeDays days"
-            }
-
-        /** What's said out loud, see AlertSpeaker. Only the classes reaching red are. */
-        private val AlertClass.spoken
-            get() = when (this) {
-                PRESSURE -> "Tyre pressure"
-                TEMPERATURE -> "Tyre hot"
-                BATTERY -> "Sensor battery"
-                PRESSURE_LOSS, SENSOR_ALARM, SENSOR_REMOVED -> null
             }
     }
 }
