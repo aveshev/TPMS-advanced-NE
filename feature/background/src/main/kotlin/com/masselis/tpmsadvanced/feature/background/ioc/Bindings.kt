@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.ioc
 
 import com.masselis.tpmsadvanced.core.common.appGraph
+import com.masselis.tpmsadvanced.core.ui.isAppVisibleFlow
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
@@ -27,6 +28,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ChargingStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.DeviceIdleModeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.KeepAliveInstructionsUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.PhoneIdleUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanPolicyUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanStatusAnnouncer
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
@@ -42,8 +44,13 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.plus
 
@@ -218,15 +225,29 @@ public interface Bindings {
     @SingleIn(AppScope::class)
     private fun alertSnoozeUseCase(): AlertSnoozeUseCase = AlertSnoozeUseCase()
 
-    @OptIn(DelicateCoroutinesApi::class)
+    @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
     @Provides
     @SingleIn(AppScope::class)
     private fun alertSpeaker(
         appPreferences: AppPreferences,
         scanner: BluetoothLeScanner,
+        controller: MonitoringController,
+        scanPolicyUseCase: ScanPolicyUseCase,
     ): AlertSpeaker = AlertSpeaker(
         appPreferences,
         scanner.isScanningTyres,
+        // While persistent scanning is active. Without it, while the app is open, or monitoring in
+        // the background from its button.
+        appPreferences
+            .persistentScanning
+            .flatMapLatest { persistent ->
+                if (persistent) controller.isRunning.flatMapLatest { isRunning ->
+                    if (isRunning) scanPolicyUseCase.decision.map { it is ScanDecision.Active }
+                    else flowOf(false)
+                }
+                else combine(controller.isRunning, isAppVisibleFlow) { isRunning, isVisible -> isRunning || isVisible }
+            }
+            .distinctUntilChanged(),
         // Text-to-speech is used from the main thread
         GlobalScope + Dispatchers.Main,
     )

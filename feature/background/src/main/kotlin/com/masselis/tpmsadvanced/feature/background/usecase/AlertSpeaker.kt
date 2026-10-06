@@ -51,11 +51,13 @@ import kotlin.time.TimeSource
  * every alert in one of two loops shared by the whole app. The crimson alerts are said every
  * [CRIMSON_PERIOD] for [CRIMSON_DURATION] after their latest reading, then every [REMINDER_PERIOD]
  * along with the red ones. Everything goes through a single queue, nothing talks over anything. The
- * loops stop with the tyre scans: no reading could clear their alerts any more.
+ * loops stop with the tyre scans: no reading could clear their alerts any more. The reminders also
+ * stop once [isReminding] doesn't hold, see docs/alerts.md.
  */
 internal class AlertSpeaker(
     private val appPreferences: AppPreferences,
     isScanningTyres: Flow<Boolean>,
+    isReminding: Flow<Boolean>,
     scope: CoroutineScope,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
@@ -75,6 +77,8 @@ internal class AlertSpeaker(
         val sounded: TimeMark? = null,
         /** A phrase is being said: whatever happens meanwhile, it's said to the end */
         val isSpeaking: Boolean = false,
+        /** Whether the reminders may go on, the alerts which only they would say are dropped otherwise */
+        val isReminding: Boolean = false,
     ) {
         val isIdle get() = announcements.isEmpty() && repeated.isEmpty() && isSpeaking.not()
 
@@ -153,10 +157,16 @@ internal class AlertSpeaker(
         }
     }
 
-    /** The reminders start [REMINDER_PERIOD] after something enters them, and over once they empty */
-    private fun Queue.scheduled() = copy(
-        nextReminder = if (reminders.isEmpty()) null else nextReminder ?: (timeSource.markNow() + REMINDER_PERIOD)
-    )
+    /**
+     * Drops the alerts which only the reminders would say while they can't go on. The reminders
+     * start [REMINDER_PERIOD] after something enters them, and over once they empty.
+     */
+    @Suppress("MaxLineLength")
+    private fun Queue.scheduled() = this
+        .run { if (isReminding) this else copy(repeated = repeated.filterValues(Repeated::isCrimsonLoop)) }
+        .run {
+            copy(nextReminder = if (reminders.isEmpty()) null else nextReminder ?: (timeSource.markNow() + REMINDER_PERIOD))
+        }
 
     init {
         isScanningTyres
@@ -164,10 +174,15 @@ internal class AlertSpeaker(
             .onEach { queue.update { it.copy(repeated = emptyMap()).scheduled() } }
             .launchIn(scope)
 
+        // Coming back, they only start again from a new reading
+        isReminding
+            .onEach { isReminding -> queue.update { it.copy(isReminding = isReminding).scheduled() } }
+            .launchIn(scope)
+
         appPreferences
             .spokenAlerts
             .filter { it.not() }
-            .onEach { queue.value = Queue() }
+            .onEach { queue.update { Queue(isReminding = it.isReminding) } }
             .launchIn(scope)
 
         scope.launch {

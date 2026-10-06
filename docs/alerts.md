@@ -248,6 +248,13 @@ alert notification.
   vehicle while scanning goes on.
 - They have no end of their own: "Dismiss 1 day" is the way to silence an alert that's known
   about.
+- They only go on while monitoring is meant to:
+  - with persistent scanning, while it's active (not idle or suspended), whatever the app shows;
+  - without it, while the app is open, or monitoring in the background from its button. Leaving
+    the app any other way (home, switching apps) ends them, even though it may still be scanning
+    until closed.
+  Once that ends, the alerts which only the reminders would say are dropped: they start again
+  from a new qualifying reading, as after scanning stops.
 
 ### When the loops stop
 
