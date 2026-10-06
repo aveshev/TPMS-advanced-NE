@@ -172,9 +172,11 @@ internal class ServiceNotifier(
                             }
                         }
                     }
-                    .addAction(
+                    .apply {
                         when (state) {
-                            Starting, is Active, is Suspended, Idle ->
+                            // Persistent scanning is turned off from the app's settings, only the
+                            // manual monitoring stops from here
+                            is Active -> if (MANUAL in state.decision.causes) addAction(
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Stop",
@@ -185,8 +187,11 @@ internal class ServiceNotifier(
                                         FLAG_IMMUTABLE
                                     )
                                 ).build()
+                            )
 
-                            ScanFailure ->
+                            Starting, is Suspended, Idle -> Unit
+
+                            ScanFailure -> addAction(
                                 NotificationCompat.Action.Builder(
                                     null,
                                     "Restart app",
@@ -197,8 +202,9 @@ internal class ServiceNotifier(
                                         FLAG_IMMUTABLE
                                     )
                                 ).build()
+                            )
                         }
-                    )
+                    }
                     .setAutoCancel(false)
                     .build()
             }
