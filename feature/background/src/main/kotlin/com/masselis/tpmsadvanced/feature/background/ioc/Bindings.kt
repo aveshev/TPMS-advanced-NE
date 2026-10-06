@@ -330,9 +330,9 @@ public interface Bindings {
     @Provides
     private fun silenceAlertsUseCase(
         appPreferences: AppPreferences,
-        alertNotifier: AlertNotifier,
+        alertSpeaker: AlertSpeaker,
         alertSilenceUseCase: AlertSilenceUseCase,
-    ): SilenceAlertsUseCase = SilenceAlertsUseCase(appPreferences, alertNotifier, alertSilenceUseCase)
+    ): SilenceAlertsUseCase = SilenceAlertsUseCase(appPreferences, alertSpeaker, alertSilenceUseCase)
 
     @Provides
     private fun alertSilenceViewModel(

@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -126,6 +127,18 @@ internal class AlertSpeaker(
     }
 
     private val queue = MutableStateFlow(Queue())
+
+    /**
+     * The highest level the speech has yet to say: of the alerts waiting for their announcement or
+     * repeated by the loops, null once there's nothing left. What the silence button silences.
+     */
+    val level: Flow<AlertLevel?> = queue
+        .map { queue ->
+            queue.announcements.map(Announcement::isCrimson)
+                .plus(queue.repeated.values.map(Repeated::isCrimson))
+                .maxOfOrNull { isCrimson -> if (isCrimson) CRIMSON else RED }
+        }
+        .distinctUntilChanged()
 
     /**
      * Says [alertClass]'s phrase twice, once, after the notification's sound if it [sounded], then

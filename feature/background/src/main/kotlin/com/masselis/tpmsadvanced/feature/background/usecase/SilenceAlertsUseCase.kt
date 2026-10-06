@@ -4,7 +4,6 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.AlertSound.NONE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
-import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -15,7 +14,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  */
 public class SilenceAlertsUseCase internal constructor(
     appPreferences: AppPreferences,
-    alertNotifier: AlertNotifier,
+    alertSpeaker: AlertSpeaker,
     private val alertSilenceUseCase: AlertSilenceUseCase,
 ) {
 
@@ -23,7 +22,7 @@ public class SilenceAlertsUseCase internal constructor(
         /** The alerts make no sound of their own */
         public data object Disabled : State
 
-        /** No red or critical alert to silence */
+        /** No red or critical alert left to say */
         public data object Idle : State
 
         /** Silences the alerts, all of them once [isCritical] */
@@ -35,7 +34,7 @@ public class SilenceAlertsUseCase internal constructor(
 
     public val state: Flow<State> = combine(
         appPreferences.alertSound,
-        alertNotifier.highestLevel,
+        alertSpeaker.level,
         alertSilenceUseCase.silence,
     ) { sound, highest, silence ->
         when {

@@ -31,7 +31,6 @@ internal class AlertActionReceiver : BroadcastReceiver() {
         Bindings.featureBackgroundInternal.alertSpeaker.stop(tag, isDismissed = true)
         // Already gone when swiped away
         NotificationManagerCompat.from(context).cancel(tag, AlertNotifier.NOTIFICATION_ID)
-        Bindings.featureBackgroundInternal.alertNotifier().dismissed(tag)
     }
 
     internal companion object {

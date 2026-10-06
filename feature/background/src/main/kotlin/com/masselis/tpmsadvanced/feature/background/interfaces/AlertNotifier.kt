@@ -41,16 +41,11 @@ import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.Eagerly
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.roundToLong
 import kotlin.time.Duration
@@ -85,14 +80,6 @@ internal class AlertNotifier(
     /** [pending] is the latest reading which would lower the notification, applied when it ends */
     private data class Hold(val until: TimeMark, val job: Job, val pending: Update? = null)
 
-    /** The level of each notification shown, by tag */
-    private val levels = MutableStateFlow(emptyMap<String, AlertLevel>())
-
-    /** The highest level among the notifications shown, null without any */
-    val highestLevel: Flow<AlertLevel?> = levels
-        .map { it.values.maxOrNull() }
-        .distinctUntilChanged()
-
     /** The updates hold the vehicles as they were when the tyres started being followed */
     private val latestVehicles = vehicleListUseCase
         .vehicleListFlow
@@ -121,19 +108,11 @@ internal class AlertNotifier(
             }
         )
 
-        // Left over from before the process died
-        levels.value = shown().mapNotNull { (tag, shown) -> tag?.let { it to shown.level } }.toMap()
-
         storedTyreAlertsUseCase
             .updates
             .onEach { update -> shown().let { shown -> AlertClass.entries.forEach { update.notify(it, shown) } } }
             .catch { logger.e("Failed to follow the tyres' alerts", it) }
             .launchIn(scope)
-    }
-
-    /** [tag]'s notification was dismissed, from its buttons or swiped away */
-    fun dismissed(tag: String) {
-        levels.update { it - tag }
     }
 
     /** What the shown notifications show, by tag */
@@ -158,13 +137,11 @@ internal class AlertNotifier(
             Action.None -> Unit
             Action.Cancel -> {
                 notificationManager.cancel(tag, NOTIFICATION_ID)
-                levels.update { it - tag }
                 holds.remove(tag)?.job?.cancel()
             }
 
             is Action.Post -> {
                 notificationManager.notify(tag, NOTIFICATION_ID, notification(tag, alertClass, action))
-                levels.update { it + (tag to action.level) }
                 holds.remove(tag)?.job?.cancel()
                 holds[tag] = Hold(
                     TimeSource.Monotonic.markNow() + HOLD,
