@@ -3,10 +3,13 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import co.touchlab.kermit.Logger
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.time.TimeSource
 
 /**
  * The tone patterns played instead of the speech, see docs/alerts.md. Shaped after the medical
@@ -17,6 +20,8 @@ import kotlin.math.sin
  */
 @Suppress("MagicNumber")
 internal object AlertTones {
+
+    private val logger = Logger.withTag("AlertTones")
 
     /** Plays the crimson or the red pattern with [attributes], returning once it's played */
     suspend fun play(isCrimson: Boolean, attributes: AudioAttributes) {
@@ -37,8 +42,18 @@ internal object AlertTones {
             .build()
         try {
             track.write(samples, 0, samples.size)
+            val start = TimeSource.Monotonic.markNow()
             track.play()
-            delay(samples.size * MILLIS_PER_SECOND / SAMPLE_RATE + TAIL_MILLIS)
+            // Until the track says it played everything, rather than for the pattern's duration:
+            // after a few seconds of silence, the output is on standby and takes a while to start
+            // again, more so over Bluetooth, which used to cut the pattern's end off
+            withTimeoutOrNull(samples.size * MILLIS_PER_SECOND / SAMPLE_RATE + MAX_START_MILLIS) {
+                while (track.playbackHeadPosition < samples.size) delay(POLL_MILLIS)
+            }
+            logger.d { "Played ${samples.size * MILLIS_PER_SECOND / SAMPLE_RATE} ms of tones in ${start.elapsedNow()}" }
+            // The last frames played still have to leave the speaker, a few hundred milliseconds
+            // later over Bluetooth
+            delay(TAIL_MILLIS)
         } finally {
             // Stopping an ended static track throws on some versions, it's released anyway
             runCatching { track.stop() }
@@ -88,7 +103,11 @@ internal object AlertTones {
 
     private const val SAMPLE_RATE = 44_100
     private const val MILLIS_PER_SECOND = 1000L
-    private const val TAIL_MILLIS = 100L
+    private const val TAIL_MILLIS = 500L
+    private const val POLL_MILLIS = 20L
+
+    /** Gives up waiting after that, a track which never plays doesn't hold the speech queue */
+    private const val MAX_START_MILLIS = 3000L
     private const val RAMP_MILLIS = 10
     private const val PEAK = 0.8
 
