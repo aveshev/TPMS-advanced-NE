@@ -5,6 +5,10 @@ import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.BLUETOOTH_CONNECT
 import android.Manifest.permission.BLUETOOTH_SCAN
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED
+import android.bluetooth.BluetoothAdapter.EXTRA_STATE
+import android.bluetooth.BluetoothAdapter.STATE_OFF
+import android.bluetooth.BluetoothAdapter.STATE_ON
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
@@ -13,13 +17,16 @@ import android.bluetooth.le.ScanSettings
 import android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE
 import android.bluetooth.le.ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT
 import android.content.Context
+import android.content.IntentFilter
 import android.os.Build
 import android.os.SystemClock.elapsedRealtime
 import androidx.annotation.RequiresPermission
+import androidx.core.content.ContextCompat.RECEIVER_EXPORTED
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.core.content.getSystemService
 import co.touchlab.kermit.Logger
+import com.masselis.tpmsadvanced.core.common.asFlow
 import com.masselis.tpmsadvanced.core.common.dematerializeCompletion
 import com.masselis.tpmsadvanced.core.common.materializeCompletion
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
@@ -42,6 +49,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -111,9 +119,20 @@ internal class BluetoothLeScannerImpl(
             lastStarts = (lastStarts + elapsedRealtime().milliseconds).takeLast(MAX_STARTS)
         }
 
+        // Listened to before starting, so that a turning off right after the start isn't missed
+        launch {
+            IntentFilter(ACTION_STATE_CHANGED)
+                // Protected system broadcast, see asFlow()
+                .asFlow(RECEIVER_EXPORTED)
+                .first { it.getIntExtra(EXTRA_STATE, STATE_OFF) != STATE_ON }
+                // The system drops the scan without calling onScanFailed(): ending it here is what
+                // tells the collectors, and what keeps the next ones from attaching to it
+                .also { close(Failure.BluetoothOff(it.getIntExtra(EXTRA_STATE, STATE_OFF))) }
+        }
+
         val leScanner = bluetoothAdapter?.bluetoothLeScanner
         if (leScanner == null) {
-            close(Failure.ScannerIsNull(bluetoothAdapter?.state))
+            close(Failure.BluetoothOff(bluetoothAdapter?.state))
             awaitCancellation()
         }
         leScanner.startScan(filters, settings, callback)
