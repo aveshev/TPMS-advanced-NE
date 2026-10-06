@@ -34,8 +34,8 @@ internal class AlertThresholdsTest {
         assertEquals(AMBER, thresholds.pressureLevel(206f.kpa))
         assertEquals(AMBER, thresholds.pressureLevel(200.1f.kpa))
         assertEquals(RED, thresholds.pressureLevel(200f.kpa))
-        assertEquals(RED, thresholds.pressureLevel(100.1f.kpa))
-        assertEquals(CRIMSON, thresholds.pressureLevel(100f.kpa))
+        assertEquals(RED, thresholds.pressureLevel(150.1f.kpa))
+        assertEquals(CRIMSON, thresholds.pressureLevel(150f.kpa))
         assertEquals(CRIMSON, thresholds.pressureLevel(0f.kpa))
     }
 

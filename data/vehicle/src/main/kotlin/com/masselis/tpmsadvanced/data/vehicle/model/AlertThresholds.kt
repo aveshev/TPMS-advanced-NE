@@ -73,7 +73,8 @@ public data class AlertThresholds(
         public val BATTERY_AMBER_MARGIN: Voltage = 0.1f.volts
 
         private const val AMBER_LOW_PRESSURE = 1.03f
-        private const val CRIMSON_LOW_PRESSURE = 0.5f
+        /** 25% below, where FMVSS 138 has cars' tyre pressure warning light turn on */
+        private const val CRIMSON_LOW_PRESSURE = 0.75f
         private const val AMBER_HIGH_PRESSURE = 0.97f
         private const val CRIMSON_HIGH_PRESSURE = 1.2f
 

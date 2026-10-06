@@ -36,7 +36,7 @@ exactly at its minimum pressure is red, a battery exactly at its low voltage ala
 
 | Class | Amber | Red | Crimson |
 |---|---|---|---|
-| Pressure, low side | At or below 3% above the minimum | At or below the minimum | At or below 50% of the minimum |
+| Pressure, low side | At or below 3% above the minimum | At or below the minimum | At or below 75% of the minimum |
 | Pressure, high side | At or above 3% below the maximum | At or above the maximum | At or above the maximum + 20% |
 | Temperature | At or above the hot threshold − 10 °C | At or above the hot threshold | At or above the hot threshold + 20 °C |
 | Battery | At or below the low voltage alarm + 0.1 V (today's `LOW_SOON`) | At or below the low voltage alarm, **staying so 10 minutes** | — |
@@ -62,6 +62,12 @@ Each column applies when the more severe one doesn't.
     tyre icon at it. All of them alert at it, as the temperature settings text already says ("From
     the hot temperature on").
   - Battery is unchanged: the default stays 2.6 V, and red comes at 2.6 V.
+- **Critical low pressure is 25% below the minimum**, the point where FMVSS 138 has a car's own
+  tyre pressure warning light turn on (25% below the recommended cold pressure): a tyre run that
+  low heats up and flexes enough to be damaged. The app has no recommended pressure, only the
+  user's minimum, so the pressure settings suggest setting the minimum to the recommended pressure,
+  which makes the two match. A minimum set lower makes critical a little more lenient than the
+  standard. The standard only covers cars and light trucks, a motorcycle handles worse with less.
 - **The maximum pressure is the tyre's maximum inflation pressure**, the one marked on its
   sidewall. The pressure settings suggest setting it so. Red above it, crimson above it + 20%: past
   what the tyre is rated for, not something a tyre warming up reaches. An overfill mistake (a pump
