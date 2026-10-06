@@ -265,7 +265,9 @@ internal class AlertNotifier(
                 "${reading.temperature.string(unit)}, hot from ${thresholds.highTemp.string(unit)}"
             }
 
-            BATTERY -> "${reading.batteryVoltage?.string()}, alarm at ${thresholds.lowBatteryVoltage.string()}"
+            BATTERY -> "${reading.batteryVoltage?.string()}, alarm at ${
+                thresholds.lowBatteryVoltage.alarmAt(reading.temperature).string()
+            }"
             PRESSURE_LOSS -> loss
                 ?.let { loss ->
                     "down ${loss.drop.string(pressureUnit)} in ${

@@ -102,6 +102,7 @@ private fun VehicleBatterySettings(
         Text(
             text = "Most sensors report the voltage of their battery. A fresh coin cell reads around 3 V and stays close to it for most of its life, then drops quickly near the end.\n\n" +
                 "Once a sensor's voltage is within 0.1 V of the low voltage alarm, it is shown in orange below that tyre's readings, so you can plan a battery change. At or below the alarm, it blinks red, and you get a notification once it stays there for 10 minutes: the voltage dips in the cold and while the sensor sends.\n\n" +
+                "The alarm is meant for 20°C. A battery's voltage drops in the cold without it being any emptier, so below 20°C the alarm comes down by 0.05 V every 10°C. It never comes down more than 0.1 V: that close to the end, the cold can make the sensor stop sending.\n\n" +
                 "Sysgration sensors battery monitoring currently not supported.",
             style = MaterialTheme.typography.bodyLarge,
         )

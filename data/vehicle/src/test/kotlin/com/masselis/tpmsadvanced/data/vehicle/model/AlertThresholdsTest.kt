@@ -63,10 +63,20 @@ internal class AlertThresholdsTest {
 
     @Test
     fun `battery levels, the alarm voltage being red`() {
-        assertNull(thresholds.batteryLevel(2.8f.volts))
-        assertEquals(AMBER, thresholds.batteryLevel(2.7f.volts))
-        assertEquals(RED, thresholds.batteryLevel(2.6f.volts))
-        assertEquals(RED, thresholds.batteryLevel(2.4f.volts))
+        assertNull(thresholds.batteryLevel(2.8f.volts, 20f.celsius))
+        assertEquals(AMBER, thresholds.batteryLevel(2.7f.volts, 20f.celsius))
+        assertEquals(RED, thresholds.batteryLevel(2.6f.volts, 20f.celsius))
+        assertEquals(RED, thresholds.batteryLevel(2.4f.volts, 20f.celsius))
+    }
+
+    @Test
+    fun `battery levels follow the alarm down in the cold, no further than the brownout margin`() {
+        // 2.6 V at 0°C holds as much charge as about 2.7 V at 20°C
+        assertEquals(AMBER, thresholds.batteryLevel(2.6f.volts, 0f.celsius))
+        assertEquals(RED, thresholds.batteryLevel(2.5f.volts, 0f.celsius))
+        assertEquals(RED, thresholds.batteryLevel(2.5f.volts, (-25f).celsius))
+        // Warm tyres don't move the alarm
+        assertEquals(RED, thresholds.batteryLevel(2.6f.volts, 60f.celsius))
     }
 
     @Test

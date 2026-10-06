@@ -34,7 +34,7 @@ public data class AlertThresholds(
         if (isRemoved) put(SENSOR_REMOVED, AMBER)
         else pressureLevel(atmosphere.pressure)?.also { put(PRESSURE, it) }
         temperatureLevel(atmosphere.temperature)?.also { put(TEMPERATURE, it) }
-        atmosphere.batteryVoltage?.let(::batteryLevel)?.also { put(BATTERY, it) }
+        atmosphere.batteryVoltage?.let { batteryLevel(it, atmosphere.temperature) }?.also { put(BATTERY, it) }
         if (isLeaking) put(PRESSURE_LOSS, AMBER)
         if (atmosphere.isSensorAlarm) put(SENSOR_ALARM, AMBER)
     }
@@ -62,11 +62,16 @@ public data class AlertThresholds(
         else -> null
     }
 
-    public fun batteryLevel(voltage: Voltage): AlertLevel? = when {
-        voltage.isAtOrBelow(lowBatteryVoltage) -> RED
-        voltage.isAtOrBelow(lowBatteryVoltage + BATTERY_AMBER_MARGIN) -> AMBER
-        else -> null
-    }
+    /** Against the low voltage alarm adjusted to the sensor's [temperature], see [Voltage.alarmAt] */
+    public fun batteryLevel(voltage: Voltage, temperature: Temperature): AlertLevel? = lowBatteryVoltage
+        .alarmAt(temperature)
+        .let { alarm ->
+            when {
+                voltage.isAtOrBelow(alarm) -> RED
+                voltage.isAtOrBelow(alarm + BATTERY_AMBER_MARGIN) -> AMBER
+                else -> null
+            }
+        }
 
     public companion object {
         /** Amber from the low voltage alarm up to this much above it */
