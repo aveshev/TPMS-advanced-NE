@@ -219,6 +219,7 @@ alert notification.
 - **One speech queue, two loops for the whole app**: the crimson loop and the reminders. Each says
   all its alerts in one phrase ("TYRE PRESSURE CRITICAL, TYRE HOT CRITICAL"), whatever tyres or
   vehicles they come from, and red announcements wait their turn instead of talking over them.
+  Red announcements of the same class waiting together are said once.
 - Speech waits for a notification's sound to play out rather than speaking over it: Android plays
   it about half a second after it's posted, so the speech waits up to 1.5 s for one to start, then
   until no notification sound plays (10 s at most). A silent or vibrating channel doesn't delay

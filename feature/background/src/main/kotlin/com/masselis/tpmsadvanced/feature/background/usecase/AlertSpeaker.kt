@@ -109,7 +109,7 @@ internal class AlertSpeaker(
 
     /**
      * Says [alertClass]'s phrase twice, once, after the notification's sound if it [sounded], then
-     * reminds of it
+     * reminds of it. The alerts of a class announced together are said once.
      */
     fun red(tag: String, alertClass: AlertClass, sounded: Boolean = true) {
         if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update {
@@ -187,12 +187,14 @@ internal class AlertSpeaker(
             val current = queue.value
             when {
                 current.announcements.isNotEmpty() -> current.announcements.first().let { announcement ->
-                    val phrase = announcement.second.phrase
+                    val (_, alertClass) = announcement
+                    val phrase = alertClass.phrase
                     awaitNotificationSound(current.sounded)
                     // Unless it was dismissed meanwhile
                     if (announcement in queue.value.announcements) sayToTheEnd("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) { queue ->
                         queue.copy(
-                            announcements = queue.announcements - announcement,
+                            // Along with the others of its class waiting, they'd say the same
+                            announcements = queue.announcements.filter { (_, waiting) -> waiting != alertClass },
                             // Said everything the reminders would, which start over
                             nextReminder = queue
                                 .reminders
