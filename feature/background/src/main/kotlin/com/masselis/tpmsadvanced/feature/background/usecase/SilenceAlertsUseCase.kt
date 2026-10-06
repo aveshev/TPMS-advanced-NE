@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.AlertSound.NONE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
 import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier
@@ -19,7 +20,7 @@ public class SilenceAlertsUseCase internal constructor(
 ) {
 
     public sealed interface State {
-        /** The alerts aren't spoken at all */
+        /** The alerts make no sound of their own */
         public data object Disabled : State
 
         /** No red or critical alert to silence */
@@ -33,12 +34,12 @@ public class SilenceAlertsUseCase internal constructor(
     }
 
     public val state: Flow<State> = combine(
-        appPreferences.spokenAlerts,
+        appPreferences.alertSound,
         alertNotifier.highestLevel,
         alertSilenceUseCase.silence,
-    ) { spokenAlerts, highest, silence ->
+    ) { sound, highest, silence ->
         when {
-            spokenAlerts.not() -> State.Disabled
+            sound == NONE -> State.Disabled
             // A critical alert gets through a silence of the red ones, which can be silenced too
             highest == CRIMSON && silence?.level != CRIMSON -> State.Offer(isCritical = true)
             silence != null -> State.Silenced(silence.level == CRIMSON, silence.until)

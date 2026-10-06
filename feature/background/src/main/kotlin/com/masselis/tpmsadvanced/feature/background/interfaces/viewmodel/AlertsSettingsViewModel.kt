@@ -4,5 +4,5 @@ import androidx.lifecycle.ViewModel
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 
 internal class AlertsSettingsViewModel(appPreferences: AppPreferences) : ViewModel() {
-    val spokenAlerts = appPreferences.spokenAlerts
+    val alertSound = appPreferences.alertSound
 }

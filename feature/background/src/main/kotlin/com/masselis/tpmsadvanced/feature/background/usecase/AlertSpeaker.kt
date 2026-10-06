@@ -14,6 +14,9 @@ import androidx.core.content.getSystemService
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.AlertSound.NONE
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.AlertSound.SPEECH
+import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences.AlertSound.TONES
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
@@ -129,7 +132,7 @@ internal class AlertSpeaker(
      * reminds of it. The alerts of a class announced together are said once.
      */
     fun red(tag: String, alertClass: AlertClass, sounded: Boolean = true) {
-        if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update {
+        if (appPreferences.alertSound.value != NONE && alertClass in SPOKEN) queue.update {
             it.copy(
                 announcements = it.announcements + Announcement(tag, alertClass, isCrimson = false),
                 repeated = it.repeated + (tag to Repeated(alertClass, null)),
@@ -144,7 +147,7 @@ internal class AlertSpeaker(
      * new one is said right away. Said once when the loops can't go on.
      */
     fun crimson(tag: String, alertClass: AlertClass) {
-        if (appPreferences.spokenAlerts.value && alertClass in SPOKEN) queue.update { queue ->
+        if (appPreferences.alertSound.value != NONE && alertClass in SPOKEN) queue.update { queue ->
             // Its red announcement yet to be said would only come before it
             queue
                 .copy(announcements = queue.announcements.filter { it.tag != tag }, sounded = timeSource.markNow())
@@ -209,22 +212,35 @@ internal class AlertSpeaker(
             .launchIn(scope)
 
         appPreferences
-            .spokenAlerts
-            .filter { it.not() }
+            .alertSound
+            .filter { it == NONE }
             .onEach { queue.update { Queue(isRepeating = it.isRepeating, silenced = it.silenced) } }
             .launchIn(scope)
 
+        @Suppress("MaxLineLength")
         scope.launch {
             // The engine is only kept while there's something to say, the queue being spoken for as
             // long as it lives
-            combine(appPreferences.spokenAlerts, queue) { enabled, queue -> enabled && queue.isIdle.not() }
+            combine(appPreferences.alertSound, queue) { sound, queue -> sound.takeIf { queue.isIdle.not() } }
                 .distinctUntilChanged()
-                .collectLatest { isBusy -> if (isBusy) textToSpeech().collect { tts -> tts.speakQueue() } }
+                .collectLatest { sound ->
+                    when (sound) {
+                        null, NONE -> Unit
+                        SPEECH -> textToSpeech().collect { tts -> Voice { text, usage -> tts.say(text, usage) }.speakQueue() }
+                        // The usage tells the crimson phrases apart
+                        TONES -> Voice { _, usage -> playTones(usage) }.speakQueue()
+                    }
+                }
         }
     }
 
+    /** Says a phrase with an audio usage, returning once it's said */
+    private fun interface Voice {
+        suspend fun say(text: String, usage: Int)
+    }
+
     @Suppress("NestedBlockDepth", "CyclomaticComplexMethod", "LongMethod", "MaxLineLength")
-    private suspend fun TextToSpeech.speakQueue() {
+    private suspend fun Voice.speakQueue() {
         while (true) {
             // A crimson alert leaving its loop enters the reminders
             queue.update { it.scheduled() }
@@ -300,7 +316,7 @@ internal class AlertSpeaker(
         .let { "$it. $it." }
 
     /** Says [text], keeping the engine alive until it's said even if the queue empties meanwhile */
-    private suspend fun TextToSpeech.sayToTheEnd(
+    private suspend fun Voice.sayToTheEnd(
         text: String,
         usage: Int,
         // Along with marking it said, the queue never looking idle meanwhile
@@ -339,28 +355,37 @@ internal class AlertSpeaker(
         awaitClose { audioManager.unregisterAudioPlaybackCallback(callback) }
     }.distinctUntilChanged()
 
-    /**
-     * Speaks [text] with [usage], returning once it's said. The audio focus ducks what's playing
-     * meanwhile, as navigation prompts do: the engine doesn't ask for it by itself.
-     */
+    /** Speaks [text] with [usage], returning once it's said */
     private suspend fun TextToSpeech.say(text: String, usage: Int) = AudioAttributes
         .Builder()
         .setUsage(usage)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
-        .let { attributes ->
-            AudioFocusRequest
-                .Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                .setAudioAttributes(attributes)
-                .build()
-                .let { focus ->
-                    audioManager.requestAudioFocus(focus)
-                    try {
-                        say(text, attributes)
-                    } finally {
-                        audioManager.abandonAudioFocusRequest(focus)
-                    }
-                }
+        .let { attributes -> withAudioFocus(attributes) { say(text, attributes) } }
+
+    /** Plays the tone pattern of a crimson phrase for the alarm [usage], of a red one otherwise */
+    private suspend fun playTones(usage: Int) = AudioAttributes
+        .Builder()
+        .setUsage(usage)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+        .let { attributes -> withAudioFocus(attributes) { AlertTones.play(usage == USAGE_ALARM, attributes) } }
+
+    /**
+     * The audio focus ducks what's playing while [block] runs, as navigation prompts do: neither
+     * the speech engine nor a track ask for it by themselves
+     */
+    private suspend fun <T> withAudioFocus(attributes: AudioAttributes, block: suspend () -> T): T = AudioFocusRequest
+        .Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        .setAudioAttributes(attributes)
+        .build()
+        .let { focus ->
+            audioManager.requestAudioFocus(focus)
+            try {
+                block()
+            } finally {
+                audioManager.abandonAudioFocusRequest(focus)
+            }
         }
 
     private suspend fun TextToSpeech.say(text: String, attributes: AudioAttributes) =

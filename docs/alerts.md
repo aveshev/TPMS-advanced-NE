@@ -224,8 +224,17 @@ alert notification.
   it about half a second after it's posted, so the speech waits up to 1.5 s for one to start, then
   until no notification sound plays (10 s at most). A silent or vibrating channel doesn't delay
   it. It takes the audio focus (ducking what plays) only while it speaks.
-- **Spoken alerts can be turned off**, in a new "Alerts" group of the app settings. They're on by
-  default.
+- **"Alert sound"**, in a new "Alerts" group of the app settings, chooses between:
+  - **Speech**, the default: the phrases above.
+  - **Tones**: a tone pattern in place of each phrase, with the same queue, loops, silence and
+    stop rules. Shaped after the medical alarms (IEC 60601-1-8), which people already read as
+    "attention" against "urgent": 3 pulses at 523 Hz twice for red (navigation guidance audio), a
+    burst of 3 and 2 pulses at 880 Hz twice for crimson (alarm audio). Generated in the app, a tone
+    with a few harmonics carrying through road noise and a helmet better than a pure one. They
+    also work whatever the phone's language, the phrases being English only.
+  - **None**: only the notifications sound. The silence button is then hidden.
+
+  Upgrading keeps the previous choice: the former "Spoken alerts" switch off becomes None.
 
 ### Silencing the speech
 
