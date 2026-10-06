@@ -31,15 +31,14 @@ import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds.Companion.BATTERY_AMBER_MARGIN
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Companion.LOW_SOON_MARGIN
 import kotlinx.coroutines.delay
-import kotlin.time.Duration.Companion.milliseconds
 
 /** The page editing the voltage at which a sensor's battery alarms */
 @Composable
@@ -69,7 +68,7 @@ private fun VehicleBatterySettings(
         var isVisible by remember { mutableStateOf(true) }
         LaunchedEffect(Unit) {
             while (true) {
-                delay(300.milliseconds)
+                delay(BLINK)
                 isVisible = isVisible.not()
             }
         }
@@ -78,8 +77,8 @@ private fun VehicleBatterySettings(
             modifier = Modifier.fillMaxWidth(),
         ) {
             listOf(
-                Triple(lowVoltage + LOW_SOON_MARGIN + LOW_SOON_MARGIN, MaterialTheme.colorScheme.onSurface, "Normal"),
-                Triple(lowVoltage + LOW_SOON_MARGIN, Orange, "Getting low"),
+                Triple(lowVoltage + BATTERY_AMBER_MARGIN + BATTERY_AMBER_MARGIN, MaterialTheme.colorScheme.onSurface, "Normal"),
+                Triple(lowVoltage + BATTERY_AMBER_MARGIN, Orange, "Getting low"),
                 Triple(lowVoltage, MaterialTheme.colorScheme.error, "Low alarm"),
             ).forEach { (voltage, color, caption) ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -102,7 +101,7 @@ private fun VehicleBatterySettings(
         Spacer(Modifier.height(16.dp))
         Text(
             text = "Most sensors report the voltage of their battery. A fresh coin cell reads around 3 V and stays close to it for most of its life, then drops quickly near the end.\n\n" +
-                "Once a sensor's voltage is within 0.1 V of the low voltage alarm, it is shown in orange below that tyre's readings, so you can plan a battery change. At or below the alarm, it blinks red and you get a notification.\n\n" +
+                "Once a sensor's voltage is within 0.1 V of the low voltage alarm, it is shown in orange below that tyre's readings, so you can plan a battery change. At or below the alarm, it blinks red, and you get a notification once it stays there for 10 minutes: the voltage dips in the cold and while the sensor sends.\n\n" +
                 "Sysgration sensors battery monitoring currently not supported.",
             style = MaterialTheme.typography.bodyLarge,
         )

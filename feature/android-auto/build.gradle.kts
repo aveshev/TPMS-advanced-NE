@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":data:unit"))
     implementation(project(":data:app"))
     implementation(project(":feature:main"))
+    implementation(project(":feature:background"))
     implementation(libs.androidx.car.app)
 
     androidTestImplementation(libs.androidx.car.app.testing)

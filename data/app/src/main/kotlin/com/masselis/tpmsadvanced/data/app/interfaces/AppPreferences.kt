@@ -89,6 +89,30 @@ public class AppPreferences internal constructor(
         sharedPreferences.edit { putFloat("PRESSURE_LOSS_MIN_DROP_KPA", newValue) }
     }
 
+    /**
+     * How the red and crimson tyre alerts sound, on top of their notifications. Was a switch for
+     * the speech, whose off is [AlertSound.NONE].
+     */
+    public val alertSound: MutableStateFlow<AlertSound> = observableStateFlow(
+        sharedPreferences
+            .getString("ALERT_SOUND", null)
+            ?.let { name -> AlertSound.entries.firstOrNull { it.name == name } }
+            ?: if (sharedPreferences.getBoolean("SPOKEN_ALERTS", true)) AlertSound.SPEECH else AlertSound.NONE
+    ) { _, newValue ->
+        sharedPreferences.edit { putString("ALERT_SOUND", newValue.name).remove("SPOKEN_ALERTS") }
+    }
+
+    public enum class AlertSound {
+        /** Says what the alert is about */
+        SPEECH,
+
+        /** Plays a tone pattern, more urgent for a crimson alert */
+        TONES,
+
+        /** Only the notifications' sound */
+        NONE,
+    }
+
     public val persistentScanning: MutableStateFlow<Boolean> = observableStateFlow(
         sharedPreferences.getBoolean("PERSISTENT_SCANNING", false)
     ) { _, newValue ->

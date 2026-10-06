@@ -11,6 +11,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 
 @Suppress("MagicNumber")
 public class DemoLeScanner : BluetoothLeScanner {
@@ -121,6 +122,9 @@ public class DemoLeScanner : BluetoothLeScanner {
     override fun highDutyScan(): Flow<Tyre.SensorInput> = source
 
     override fun normalScan(): Flow<Tyre.SensorInput> = source
+
+    // The demo's readings aren't stored, nothing alerts about them
+    override val isScanningTyres: Flow<Boolean> = flowOf(false)
 
     // No device around in the demo
     override fun advertisements(

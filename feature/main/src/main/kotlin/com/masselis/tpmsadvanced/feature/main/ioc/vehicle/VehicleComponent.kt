@@ -3,6 +3,8 @@ package com.masselis.tpmsadvanced.feature.main.ioc.vehicle
 import com.masselis.tpmsadvanced.core.ui.Keyed
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings
+import com.masselis.tpmsadvanced.feature.main.usecase.VehicleCalibrationUseCase
+import com.masselis.tpmsadvanced.feature.main.usecase.VehiclePressureLossUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
@@ -35,6 +37,8 @@ public interface VehicleComponent {
     public val scope: CoroutineScope
     public val vehicleStateFlow: StateFlow<Vehicle>
     public val vehicleRangesUseCase: VehicleRangesUseCase
+    public val vehicleCalibrationUseCase: VehicleCalibrationUseCase
+    public val vehiclePressureLossUseCase: VehiclePressureLossUseCase
 
     public companion object {
         public operator fun invoke(vehicle: Vehicle): VehicleComponent =

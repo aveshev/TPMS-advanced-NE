@@ -8,6 +8,7 @@ import com.masselis.tpmsadvanced.core.database.QueryOneOrNull
 import com.masselis.tpmsadvanced.core.database.QueryOneOrNull.Companion.asOneOrNull
 import com.masselis.tpmsadvanced.data.vehicle.Database
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.psi
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
@@ -35,6 +36,8 @@ public class VehicleDatabase internal constructor(database: Database) {
         // to right after creation) never sees the row with the rear override half-applied.
         queries.transaction {
             queries.insert(id, kind, name, isCurrent)
+            // The schema's default predates it, see DEFAULT_HIGH_PRESSURE
+            queries.updateHighPressure(DEFAULT_HIGH_PRESSURE, id)
             if (defaultsToSeparateFrontRearPressure) {
                 val lowPressure = queries.selectLowPressureByVehicleId(id).executeAsOne()
                 val highPressure = queries.selectHighPressureByVehicleId(id).executeAsOne()
@@ -171,8 +174,15 @@ public class VehicleDatabase internal constructor(database: Database) {
         .selectBySensorId(sensorId, mapper)
         .asOneOrNull()
 
-    private companion object {
-        val mapper: (
+    public companion object {
+        /**
+         * The maximum pressure of a new vehicle, at the high end of the maximum inflation pressures
+         * marked on tyre sidewalls, which the maximum is meant to be set to. The schema's default,
+         * 300 kPa, predates it: SQLite can't change it without rebuilding the table.
+         */
+        public val DEFAULT_HIGH_PRESSURE: Pressure = 50f.psi
+
+        private val mapper: (
             UUID,
             String,
             Boolean,

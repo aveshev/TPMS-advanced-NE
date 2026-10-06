@@ -16,6 +16,7 @@ import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.ActivateBluetoothDevices
+import com.masselis.tpmsadvanced.feature.background.interfaces.composable.AlertsSettings
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconMinRssiSettingsItem
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconScan
 import com.masselis.tpmsadvanced.feature.background.interfaces.composable.BeaconScanModeSettingsItem
@@ -36,6 +37,7 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.composable.PressureLoss
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TimeSinceUpdateDetails
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreDisplaySettings
 import com.masselis.tpmsadvanced.feature.unit.interfaces.UnitsSettingsItems
+import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.alerts
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.developerOptions
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
@@ -56,6 +58,8 @@ internal fun AppSettings(
         modifier = Modifier.testTag(tyreDisplay),
         additionalItems = { UnitsSettingsItems() },
     )
+    SettingsSectionHeader("Alerts")
+    AlertsSettings(Modifier.testTag(alerts))
     SettingsSectionHeader("Background scanning")
     PersistentScanningSettings(
         openPersistentScanning = openPersistentScanning,
@@ -186,6 +190,7 @@ internal fun SettingsPage(
 
 internal object AppSettingsTag {
     const val tyreDisplay = "AppSettingsTag_tyreDisplay"
+    const val alerts = "AppSettingsTag_alerts"
     const val persistentScanning = "AppSettingsTag_persistentScanning"
     const val developerOptions = "AppSettingsTag_developerOptions"
 }

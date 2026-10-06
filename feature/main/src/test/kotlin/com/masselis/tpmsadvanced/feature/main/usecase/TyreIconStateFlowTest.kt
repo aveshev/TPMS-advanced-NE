@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.core.test.MainDispatcherRule
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
@@ -12,6 +13,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
+import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow.State
 import io.mockk.every
 import io.mockk.mockk
@@ -25,7 +27,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -50,15 +54,15 @@ internal class TyreIconStateFlowTest {
             every { lowTemp } returns MutableStateFlow(20f.celsius)
             every { normalTemp } returns MutableStateFlow(45f.celsius)
             every { highTemp } returns MutableStateFlow(90f.celsius)
-            every { resolvedLowPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(1f.bar)
-            every { resolvedHighPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(3f.bar)
+            every { alertThresholds(Wheel(FRONT_LEFT)) } returns
+                flowOf(AlertThresholds(1f.bar, 3f.bar, 90f.celsius, 2.6f.volts))
         }
         savedStateHandle = SavedStateHandle()
     }
 
     context(scope: TestScope)
     private fun test() = TyreIconStateFlow(
-        tyreAtmosphereUseCase,
+        TyreAlertsUseCase(tyreAtmosphereUseCase, vehicleRangesUseCase, flowOf(null), Wheel(FRONT_LEFT)),
         vehicleRangesUseCase,
         Wheel(FRONT_LEFT),
         scope.backgroundScope,
@@ -102,11 +106,40 @@ internal class TyreIconStateFlowTest {
     }
 
     @Test
+    fun hotTemperature(): Unit = runTest {
+        setAtmosphere(2f.bar, 95f.celsius)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertFalse(assertIs<State.Alerting>(awaitItem()).isCritical)
+        }
+    }
+
+    @Test
     fun ultraHighTemperature(): Unit = runTest {
         setAtmosphere(2f.bar, 115f.celsius)
         test().test {
             assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Alerting>(awaitItem())
+            assertTrue(assertIs<State.Alerting>(awaitItem()).isCritical)
+        }
+    }
+
+    @Test
+    fun `amber doesn't change the tyre`(): Unit = runTest {
+        setAtmosphere(1.02f.bar, 30f.celsius)
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertIs<State.Normal.BlueToGreen>(awaitItem())
+        }
+    }
+
+    @Test
+    fun `a low battery doesn't make the tyre alert`(): Unit = runTest {
+        every { tyreAtmosphereUseCase.listen() }.returns(
+            flowOf(TyreAtmosphere(now(), 0x562D00, 2f.bar, 30f.celsius, 2.6f.volts))
+        )
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            assertIs<State.Normal>(awaitItem())
         }
     }
 
@@ -115,7 +148,7 @@ internal class TyreIconStateFlowTest {
         setAtmosphere(0f.bar, 45f.celsius)
         test().test {
             assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Alerting>(awaitItem())
+            assertTrue(assertIs<State.Alerting>(awaitItem()).isCritical)
         }
     }
 

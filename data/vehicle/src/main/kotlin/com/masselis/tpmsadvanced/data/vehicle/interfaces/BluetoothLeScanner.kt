@@ -60,6 +60,9 @@ public interface BluetoothLeScanner {
     public fun highDutyScan(): Flow<Tyre.SensorInput>
     public fun normalScan(): Flow<Tyre.SensorInput>
 
+    /** Whether a [highDutyScan] or a [normalScan] is running, whoever collects it */
+    public val isScanningTyres: Flow<Boolean>
+
     /**
      * Every advertisement of the devices matching [devices], or of every device around when null.
      * Completes right away for an empty [devices]: no filter at all would mean every device instead.

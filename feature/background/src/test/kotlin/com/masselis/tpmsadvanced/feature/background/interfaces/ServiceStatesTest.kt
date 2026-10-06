@@ -4,17 +4,14 @@ import app.cash.turbine.test
 import co.touchlab.kermit.CommonWriter
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Failure
-import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
-import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
-import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Active
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.BluetoothOff
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Idle
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.MonitoringFailure
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.NoAlert
-import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.PressureAlert
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanFailure
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.ScanRetrying
+import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Starting
 import com.masselis.tpmsadvanced.feature.background.interfaces.ServiceNotifier.State.Suspended
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanDecision.ActivateCause.CABLE
@@ -30,7 +27,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
-import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -40,19 +36,20 @@ internal class ServiceStatesTest {
 
     private lateinit var decision: MutableStateFlow<ScanDecision>
     private lateinit var bluetoothOn: MutableStateFlow<Boolean>
-    private lateinit var alerts: MutableStateFlow<State>
+    /** What the scan shows while it runs */
+    private lateinit var active: MutableStateFlow<State>
 
     /** Ends the scan running at the time, like the scanner does */
     private lateinit var scanFailures: MutableSharedFlow<Throwable>
 
-    /** How many times the alerts, and so the scan, were started */
+    /** How many times the scan was started */
     private var scans = 0
 
     context(scope: TestScope)
     private fun test() = decision.serviceStates(bluetoothOn, scope.testScheduler.timeSource) {
         flow {
             scans++
-            emitAll(merge(alerts, scanFailures.map { throw it }))
+            emitAll(merge(active, scanFailures.map { throw it }))
         }
     }
 
@@ -65,16 +62,16 @@ internal class ServiceStatesTest {
         Logger.setLogWriters(CommonWriter())
         decision = MutableStateFlow(ScanDecision.Active(setOf(CABLE)))
         bluetoothOn = MutableStateFlow(true)
-        alerts = MutableStateFlow(ALERT)
+        active = MutableStateFlow(ACTIVE)
         scanFailures = MutableSharedFlow()
         scans = 0
     }
 
     @Test
-    fun `the alerts are shown while active and Bluetooth is on`() = runTest {
+    fun `the scan's states are shown while active and Bluetooth is on`() = runTest {
         test().test {
-            assertEquals(NoAlert, awaitItem())
-            assertEquals(ALERT, awaitItem())
+            assertEquals(Starting, awaitItem())
+            assertEquals(ACTIVE, awaitItem())
             assertEquals(1, scans)
         }
     }
@@ -83,7 +80,7 @@ internal class ServiceStatesTest {
     fun `suspended and idle don't scan`() = runTest {
         decision.value = ScanDecision.Suspended(setOf(WIFI))
         test().test {
-            assertEquals(NoAlert, awaitItem())
+            assertEquals(Starting, awaitItem())
             assertEquals(Suspended(ScanDecision.Suspended(setOf(WIFI))), awaitItem())
             decision.value = ScanDecision.Idle
             assertEquals(Idle, awaitItem())
@@ -95,7 +92,7 @@ internal class ServiceStatesTest {
     fun `active while Bluetooth is off tells it without scanning`() = runTest {
         bluetoothOn.value = false
         test().test {
-            assertEquals(NoAlert, awaitItem())
+            assertEquals(Starting, awaitItem())
             assertEquals(BluetoothOff, awaitItem())
             assertEquals(0, scans)
         }
@@ -107,7 +104,7 @@ internal class ServiceStatesTest {
         test().test {
             skipItems(2)
             bluetoothOn.value = true
-            assertEquals(ALERT, awaitItem())
+            assertEquals(ACTIVE, awaitItem())
             assertEquals(1, scans)
         }
     }
@@ -119,7 +116,7 @@ internal class ServiceStatesTest {
             bluetoothOn.value = false
             assertEquals(BluetoothOff, awaitItem())
             bluetoothOn.value = true
-            assertEquals(ALERT, awaitItem())
+            assertEquals(ACTIVE, awaitItem())
             assertEquals(2, scans)
         }
     }
@@ -136,7 +133,7 @@ internal class ServiceStatesTest {
             expectNoEvents()
             assertEquals(1, scans)
             bluetoothOn.value = true
-            assertEquals(ALERT, awaitItem())
+            assertEquals(ACTIVE, awaitItem())
         }
     }
 
@@ -148,7 +145,7 @@ internal class ServiceStatesTest {
                 scanFailures.emit(Failure.Scan(SCAN_FAILED_APPLICATION_REGISTRATION_FAILED))
                 assertEquals(ScanRetrying(SCAN_FAILED_APPLICATION_REGISTRATION_FAILED), awaitItem())
                 val failedAt = elapsed()
-                assertEquals(ALERT, awaitItem())
+                assertEquals(ACTIVE, awaitItem())
                 assertEquals(seconds.seconds, elapsed() - failedAt)
             }
             assertEquals(7, scans)
@@ -167,7 +164,7 @@ internal class ServiceStatesTest {
             scanFailures.emit(Failure.Scan(SCAN_FAILED_INTERNAL_ERROR))
             skipItems(1)
             val failedAt = elapsed()
-            assertEquals(ALERT, awaitItem())
+            assertEquals(ACTIVE, awaitItem())
             assertEquals(5.seconds, elapsed() - failedAt)
         }
     }
@@ -193,7 +190,7 @@ internal class ServiceStatesTest {
     }
 
     private companion object {
-        val ALERT = PressureAlert(UUID.randomUUID(), "Car", TyreAtmosphere(0.0, 1, 1f.bar, 20f.celsius))
+        val ACTIVE = Active(ScanDecision.Active(setOf(CABLE)))
 
         // BluetoothAdapter and ScanCallback constants
         const val STATE_OFF = 10

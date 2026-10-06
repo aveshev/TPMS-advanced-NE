@@ -5,13 +5,17 @@ import androidx.car.app.Screen
 import androidx.car.app.annotations.ExperimentalCarApi
 import androidx.car.app.model.GridTemplate
 import androidx.car.app.model.ItemList
+import com.masselis.tpmsadvanced.feature.androidauto.endpoint.ui.viewmodel.TabScreenViewModel.Speech
 import com.masselis.tpmsadvanced.feature.androidauto.endpoint.ui.viewmodel.TabScreenViewModel.State
 
 @OptIn(ExperimentalCarApi::class)
 context(screen: Screen)
 @Suppress("FunctionName", "FunctionNaming")
 internal fun VehicleTemplate(
-    tab: State.Tabs.Tab.Displayed
+    tab: State.Tabs.Tab.Displayed,
+    speech: Speech? = null,
+    onSilence: (isCritical: Boolean) -> Unit = {},
+    onUnmute: () -> Unit = {},
 ) = GridTemplate
     .Builder()
     .setItemSize(GridTemplate.ITEM_SIZE_SMALL)
@@ -37,6 +41,7 @@ internal fun VehicleTemplate(
                         )
                     }
                     .forEach(::addItem)
+                speech?.let { SpeechGridItem(it, onSilence, onUnmute) }?.also(::addItem)
             }
             .build()
     )

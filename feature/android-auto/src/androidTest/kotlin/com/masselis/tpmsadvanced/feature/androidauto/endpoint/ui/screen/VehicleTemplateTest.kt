@@ -10,6 +10,8 @@ import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.masselis.tpmsadvanced.core.common.Fraction
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit.CELSIUS
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
@@ -83,16 +85,15 @@ internal class VehicleTemplateTest {
     @Test
     fun alertingTyreShowsItsLocationAndFormattedPressureWithTemperature() {
         singleTyreGridItem(
-            TyreIconStateFlow.State.Alerting,
-            TyreStatsStateFlow.State.Alerting(
+            TyreIconStateFlow.State.Alerting(),
+            TyreStatsStateFlow.State.Detected(
                 0.0,
                 0,
                 3.2f.bar,
                 BAR,
                 60f.celsius,
                 CELSIUS,
-                isPressureAlert = true,
-                isTemperatureAlert = false,
+                levels = mapOf(AlertClass.PRESSURE to AlertLevel.RED),
             ),
         ).also { item ->
             assertEquals("Front left", item.title.toString())
@@ -105,7 +106,7 @@ internal class VehicleTemplateTest {
     fun normalTyreShowsItsLocationAndFormattedPressureWithTemperature() {
         singleTyreGridItem(
             TyreIconStateFlow.State.Normal.BlueToGreen(Fraction(0.5f)),
-            TyreStatsStateFlow.State.Normal(0.0, 0, 2.4f.bar, BAR, 22f.celsius, CELSIUS),
+            TyreStatsStateFlow.State.Detected(0.0, 0, 2.4f.bar, BAR, 22f.celsius, CELSIUS),
         ).also { item ->
             assertEquals("Front left", item.title.toString())
             assertEquals("2.4b  22°C", item.text.toString())
@@ -140,7 +141,7 @@ internal class VehicleTemplateTest {
     @Test
     fun oneGridItemIsRenderedPerTyreLocation() {
         Vehicle.Kind.CAR.locations
-            .associateWith { TyreIconStateFlow.State.Alerting to TyreStatsStateFlow.State.NotDetected }
+            .associateWith { TyreIconStateFlow.State.Alerting() to TyreStatsStateFlow.State.NotDetected }
             .let { tyres -> State.Tabs.Tab.Displayed(mockVehicle(), tyres) }
             .let { tab -> runOnMain { context(screen) { VehicleTemplate(tab) } } }
             .singleList!!

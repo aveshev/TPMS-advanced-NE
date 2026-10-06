@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.androidauto.endpoint.ui.screen
 
 import androidx.car.app.Screen
+import androidx.car.app.model.GridItem
 import androidx.car.app.model.GridTemplate
 import androidx.car.app.model.TabTemplate
 import androidx.car.app.testing.TestCarContext
@@ -79,7 +80,10 @@ internal class TabsScreenTest {
     fun singleVehicleHidesTheTabsAndRendersItsGridDirectly() {
         val gridTemplate = awaitGridTemplate(buildScreen())
 
-        assertEquals(4, gridTemplate.singleList!!.items.size)
+        // The 4 tyres, then the alert speech's silence item, there while the alerts make sound
+        val items = gridTemplate.singleList!!.items
+        assertEquals(5, items.size)
+        assertEquals("Alert speech", (items.last() as GridItem).title.toString())
     }
 
     @Test

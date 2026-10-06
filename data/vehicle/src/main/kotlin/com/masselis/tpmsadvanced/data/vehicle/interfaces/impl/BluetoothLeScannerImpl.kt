@@ -34,6 +34,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Adve
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Failure
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.SimulatedReadings.withSimulatedReadings
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +43,10 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -52,7 +55,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Mutex
@@ -76,6 +81,13 @@ internal class BluetoothLeScannerImpl(
     private val startLock = Mutex()
 
     private val bluetoothAdapter get() = context.getSystemService<BluetoothManager>()?.adapter
+
+    /** How many tyre scans are running, see [isScanningTyres] */
+    private val tyreScans = MutableStateFlow(0)
+
+    override val isScanningTyres: Flow<Boolean> = tyreScans
+        .map { it > 0 }
+        .distinctUntilChanged()
 
     /** Every result of a scan with [filters] and [settings], debug builds adding the mock ones */
     @SuppressLint("InlinedApi")
@@ -167,7 +179,11 @@ internal class BluetoothLeScannerImpl(
                 is Tyre.SensorLocated -> tyre.copy(raw = advertisement)
             }
         }
+        .withSimulatedReadings()
         .onEach { logger.d("Sensor content: $it") }
+        // Shared, see shared(): counts the scans of the radio, not their collectors
+        .onStart { tyreScans.update { it + 1 } }
+        .onCompletion { tyreScans.update { it - 1 } }
 
     override fun highDutyScan(): Flow<Tyre.SensorInput> =
         shared(ScanSettings.SCAN_MODE_LOW_LATENCY) { scan(ScanSettings.SCAN_MODE_LOW_LATENCY) }

@@ -66,8 +66,11 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.ui.DetectedActivi
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.QuietScanStatusAnnouncementsEffect
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.SilenceAlertsButton
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.SimulateReadingDialog
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.isReadingSimulationAvailable
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeScan
@@ -145,7 +148,8 @@ internal fun VehicleHome(
                         QuietScanStatusAnnouncementsEffect()
                         CurrentVehicle(
                             snackbarHostState = snackbarHostState,
-                            modifier = modifier
+                            modifier = modifier,
+                            center = { SilenceAlertsButton(it) },
                         )
                         // Inside the graph so the settings route of this vehicle surely exists
                         LaunchedEffect(openSettingsOf) {
@@ -475,6 +479,9 @@ private fun TopAppBar(
         },
         actions = {
             var showMenu by remember { mutableStateOf(false) }
+            // Out of the menu, which leaves the composition once closed
+            var simulateReading by remember { mutableStateOf(false) }
+            if (simulateReading) SimulateReadingDialog(onDismissRequest = { simulateReading = false })
             when (currentPath) {
                 is Path.Home -> {
                     MonitoringButton(
@@ -510,6 +517,13 @@ private fun TopAppBar(
                                 navController.navigate("${Path.AppSettings}")
                             },
                             modifier = Modifier.testTag(HomeTags.Overflow.appSettings)
+                        )
+                        if (isReadingSimulationAvailable()) DropdownMenuItem(
+                            text = { Text("Simulate a reading") },
+                            onClick = {
+                                showMenu = false
+                                simulateReading = true
+                            },
                         )
                     }
                 }

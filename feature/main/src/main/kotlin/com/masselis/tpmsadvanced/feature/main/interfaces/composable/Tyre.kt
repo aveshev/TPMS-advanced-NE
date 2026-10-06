@@ -85,11 +85,12 @@ internal fun Tyre(
 ) {
     var isVisible by remember { mutableStateOf(true) }
     if (state is State.Alerting) {
-        LaunchedEffect(key1 = isVisible) {
+        // Under 3 flashes a second either way, see docs/alerts.md
+        LaunchedEffect(key1 = isVisible, key2 = state.isCritical) {
             launch {
                 repeat(Int.MAX_VALUE) {
-                    delay(300.milliseconds)
-                    isVisible = !isVisible
+                    delay(if (state.isCritical) CRITICAL_BLINK else BLINK)
+                    isVisible = isVisible.not()
                 }
             }
         }
@@ -208,6 +209,12 @@ private fun AlertButton(
         )
 }
 
+/** A phase of a red alert's blinking, shown or hidden */
+internal val BLINK = 400.milliseconds
+
+/** A phase of a crimson alert's blinking */
+internal val CRITICAL_BLINK = 200.milliseconds
+
 @Preview
 @Composable
 internal fun NotDetectedPreview() {
@@ -253,7 +260,13 @@ internal fun GreenToRed3Preview() {
 @Preview
 @Composable
 internal fun AlertingPreview() {
-    Tyre(State.Alerting, SnackbarHostState())
+    Tyre(State.Alerting(), SnackbarHostState())
+}
+
+@Preview
+@Composable
+internal fun CriticalPreview() {
+    Tyre(State.Alerting(isCritical = true), SnackbarHostState())
 }
 
 @Preview

@@ -5,12 +5,14 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.DatabaseExport
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DebugSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.DemoModeSwitchViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PreconditionsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.PressureLossSettingsViewModel
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.SimulateReadingViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreDisplaySettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.CurrentVehicleDropdownViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -78,6 +80,13 @@ public interface Bindings {
     )
 
     @Provides
+    private fun simulateReadingViewModel(
+        appPreferences: AppPreferences,
+        unitPreferences: UnitPreferences,
+        sensorDatabase: SensorDatabase,
+    ): SimulateReadingViewModel = SimulateReadingViewModel(appPreferences, unitPreferences, sensorDatabase)
+
+    @Provides
     private fun demoModeSwitchViewModel(demoOrBleScannerUseCase: DemoOrBleScannerUseCase): DemoModeSwitchViewModel =
         DemoModeSwitchViewModel(demoOrBleScannerUseCase)
 
@@ -93,7 +102,8 @@ public interface Bindings {
         internal val debugSettingsViewModel: () -> DebugSettingsViewModel,
         internal val pressureLossSettingsViewModel: () -> PressureLossSettingsViewModel,
         internal val currentVehicleDropdownViewModel: CurrentVehicleDropdownViewModelImpl.Factory,
-        internal val demoModeSwitchViewModel: () -> DemoModeSwitchViewModel
+        internal val demoModeSwitchViewModel: () -> DemoModeSwitchViewModel,
+        internal val simulateReadingViewModel: () -> SimulateReadingViewModel,
     )
 
     public companion object : Bindings by appGraph as Bindings {
@@ -106,5 +116,6 @@ public interface Bindings {
             get() = featureMainInternal.currentVehicleDropdownViewModel
 
         internal fun DemoModeSwitchViewModel() = featureMainInternal.demoModeSwitchViewModel()
+        internal fun SimulateReadingViewModel() = featureMainInternal.simulateReadingViewModel()
     }
 }

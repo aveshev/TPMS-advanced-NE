@@ -6,6 +6,15 @@ import com.masselis.tpmsadvanced.core.test.MainDispatcherRule
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit.BAR
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit.CELSIUS
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
@@ -17,9 +26,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.LOW_SOON
-import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State.Battery.Level.NORMAL
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,7 +38,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -55,10 +60,8 @@ internal class TyreStatsStateFlowTest {
             every { listen() } returns emptyFlow()
         }
         vehicleRangesUseCase = mockk {
-            every { highTemp } returns MutableStateFlow(90f.celsius)
-            every { resolvedLowPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(1f.bar)
-            every { resolvedHighPressure(Wheel(FRONT_LEFT)) } returns MutableStateFlow(3f.bar)
-            every { lowBatteryVoltage } returns MutableStateFlow(2.6f.volts)
+            every { alertThresholds(Wheel(FRONT_LEFT)) } returns
+                flowOf(AlertThresholds(1f.bar, 3f.bar, 90f.celsius, 2.6f.volts))
         }
         vehicleCalibrationUseCase = mockk {
             every { isEnabled } returns MutableStateFlow(false)
@@ -72,21 +75,8 @@ internal class TyreStatsStateFlowTest {
 
     context(scope: TestScope)
     private fun test() = TyreStatsStateFlow(
-        tyreAtmosphereUseCase,
-        vehicleRangesUseCase,
+        TyreAlertsUseCase(tyreAtmosphereUseCase, vehicleRangesUseCase, pressureLoss, Wheel(FRONT_LEFT)),
         vehicleCalibrationUseCase,
-        // Only its state flow is used, TyrePressureLossStateFlowTest covers how it's computed
-        TyrePressureLossStateFlow(
-            mockk(),
-            Wheel(FRONT_LEFT),
-            mockk(),
-            mockk(),
-            mockk(),
-            mockk(),
-            scope.backgroundScope,
-            pressureLoss,
-        ),
-        Wheel(FRONT_LEFT),
         unitPreferences,
         scope.backgroundScope,
     )
@@ -103,6 +93,17 @@ internal class TyreStatsStateFlowTest {
         flowOf(TyreAtmosphere(timestamp, sensorId, pressure, temperature, batteryVoltage, isSensorAlarm, flags))
     )
 
+    context(scope: TestScope)
+    private suspend fun firstDetected(): State.Detected {
+        lateinit var detected: State.Detected
+        test().test {
+            assertIs<State.NotDetected>(awaitItem())
+            detected = assertIs<State.Detected>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        return detected
+    }
+
     @Test
     fun notDetected(): Unit = runTest {
         assertIs<State.NotDetected>(test().value)
@@ -111,152 +112,105 @@ internal class TyreStatsStateFlowTest {
     @Test
     fun normalPressure(): Unit = runTest {
         setAtmosphere(2f.bar, 45f.celsius)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Normal>(awaitItem())
-        }
+        assertEquals(emptyMap(), firstDetected().levels)
     }
 
     @Test
     fun lowPressure(): Unit = runTest {
         setAtmosphere(0.8f.bar, 45f.celsius)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Alerting>(awaitItem())
-        }
+        assertEquals(mapOf(PRESSURE to RED), firstDetected().levels)
+    }
+
+    @Test
+    fun `pressure at the minimum is red`(): Unit = runTest {
+        setAtmosphere(1f.bar, 45f.celsius)
+        assertEquals(mapOf(PRESSURE to RED), firstDetected().levels)
+    }
+
+    @Test
+    fun `pressure close to the minimum is amber`(): Unit = runTest {
+        setAtmosphere(1.02f.bar, 45f.celsius)
+        assertEquals(mapOf(PRESSURE to AMBER), firstDetected().levels)
+    }
+
+    @Test
+    fun `half the minimum is crimson`(): Unit = runTest {
+        setAtmosphere(0.5f.bar, 45f.celsius)
+        assertEquals(mapOf(PRESSURE to CRIMSON), firstDetected().levels)
     }
 
     @Test
     fun highTemperature(): Unit = runTest {
-        setAtmosphere(2f.bar, 115f.celsius)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Alerting>(awaitItem())
-        }
+        setAtmosphere(2f.bar, 95f.celsius)
+        assertEquals(mapOf(TEMPERATURE to RED), firstDetected().levels)
     }
 
     @Test
     fun `marks the pressure as calibrated`() = runTest {
         every { vehicleCalibrationUseCase.isEnabled } returns MutableStateFlow(true)
         setAtmosphere(2f.bar, 45f.celsius)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            awaitItem().also {
-                assertIs<State.Normal>(it)
-                assertTrue(it.isPressureCalibrated)
-            }
-        }
+        assertTrue(firstDetected().isPressureCalibrated)
     }
 
     @Test
-    fun `shows a pressure loss without alerting`() = runTest {
-        val loss = PressureLoss(0.6f.bar, 0.1f.bar, 0.0, 600.0)
-        pressureLoss.value = loss
+    fun `shows a pressure loss as amber`() = runTest {
+        pressureLoss.value = PressureLoss(0.6f.bar, 0.1f.bar, 0.0, 600.0)
         setAtmosphere(2f.bar, 45f.celsius)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            awaitItem().also {
-                assertIs<State.Normal>(it)
-                assertEquals(loss, it.pressureLoss)
-            }
-        }
+        assertEquals(mapOf(PRESSURE_LOSS to AMBER), firstDetected().levels)
     }
 
     @Test
     fun `preserves sensor id and timestamp`() = runTest {
         val timestamp = 1_726_483_200.0
         val sensorId = 0x562D00
-
         setAtmosphere(2f.bar, 25f.celsius, timestamp, sensorId)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-
-            val state = awaitItem()
-            assertIs<State.Normal>(state)
-
-            assertEquals(timestamp, state.timestamp)
-            assertEquals(sensorId, state.sensorId)
-
-            cancelAndIgnoreRemainingEvents()
+        firstDetected().also {
+            assertEquals(timestamp, it.timestamp)
+            assertEquals(sensorId, it.sensorId)
         }
     }
 
     @Test
     fun `a sensor without a voltage has no battery`() = runTest {
         setAtmosphere(2f.bar, 45f.celsius)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertNull(assertIs<State.Normal>(awaitItem()).battery)
-        }
+        assertNull(firstDetected().batteryVoltage)
     }
 
     @Test
     fun `a voltage above the warning margin is normal`() = runTest {
         setAtmosphere(2f.bar, 45f.celsius, batteryVoltage = 2.8f.volts)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertEquals(NORMAL, assertIs<State.Normal>(awaitItem()).battery?.level)
+        firstDetected().also {
+            assertEquals(2.8f.volts, it.batteryVoltage)
+            assertEquals(emptyMap(), it.levels)
         }
     }
 
     @Test
-    fun `a voltage within 0,1 V of the alarm is getting low`() = runTest {
+    fun `a voltage within 0,1 V of the alarm is amber`() = runTest {
         setAtmosphere(2f.bar, 45f.celsius, batteryVoltage = 27.toFloat().div(10f).volts)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertEquals(LOW_SOON, assertIs<State.Normal>(awaitItem()).battery?.level)
-        }
+        assertEquals(mapOf(BATTERY to AMBER), firstDetected().levels)
     }
 
     @Test
-    fun `a low battery alarms without making the tyre alert`() = runTest {
+    fun `a voltage at the alarm is red`() = runTest {
         setAtmosphere(2f.bar, 45f.celsius, batteryVoltage = 2.6f.volts)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertEquals(LOW, assertIs<State.Normal>(awaitItem()).battery?.level)
-        }
+        assertEquals(mapOf(BATTERY to RED), firstDetected().levels)
     }
 
     @Test
-    fun `keeps the battery of an alerting tyre`() = runTest {
-        setAtmosphere(0.8f.bar, 45f.celsius, batteryVoltage = 2.5f.volts)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertEquals(LOW, assertIs<State.Alerting>(awaitItem()).battery?.level)
-        }
-    }
-
-    @Test
-    fun `a sensor alarm alerts without blaming the read pressure`() = runTest {
+    fun `a sensor alarm is amber, the read pressure kept`() = runTest {
         setAtmosphere(2f.bar, 45f.celsius, isSensorAlarm = true)
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Alerting>(awaitItem()).also {
-                assertTrue(it.isSensorAlarm)
-                assertFalse(it.isPressureAlert)
-                assertFalse(it.isTemperatureAlert)
-                assertEquals(2f.bar, it.pressure)
-            }
+        firstDetected().also {
+            assertEquals(mapOf(SENSOR_ALARM to AMBER), it.levels)
+            assertEquals(2f.bar, it.pressure)
         }
     }
 
     @Test
     fun `preserves the flags, alerting or not`() = runTest {
         setAtmosphere(2f.bar, 25f.celsius, flags = listOf(0x83u))
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            awaitItem().also {
-                assertIs<State.Normal>(it)
-                assertEquals(listOf<UByte>(0x83u), it.flags)
-            }
-        }
+        assertEquals(listOf<UByte>(0x83u), firstDetected().flags)
         setAtmosphere(0.5f.bar, 25f.celsius, flags = listOf(0xACu, 0x00u, 0x00u, 0x08u))
-        test().test {
-            assertIs<State.NotDetected>(awaitItem())
-            awaitItem().also {
-                assertIs<State.Alerting>(it)
-                assertEquals(listOf<UByte>(0xACu, 0x00u, 0x00u, 0x08u), it.flags)
-            }
-        }
+        assertEquals(listOf<UByte>(0xACu, 0x00u, 0x00u, 0x08u), firstDetected().flags)
     }
 }
