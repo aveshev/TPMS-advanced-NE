@@ -46,9 +46,34 @@ internal class BeaconPresenceUseCaseTest {
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
             advertisements.emit(advertisement(BIKE.address, rssi = -70))
-            assertEquals(mapOf(BIKE.address to -70), awaitItem())
+            expectNoEvents()
             advertisements.emit(advertisement(BIKE.address, rssi = -60))
             assertEquals(mapOf(BIKE.address to -60), awaitItem())
+            advertisements.emit(advertisement(BIKE.address, rssi = -50))
+            assertEquals(mapOf(BIKE.address to -50), awaitItem())
+        }
+    }
+
+    @Test
+    fun `a single stray packet is not nearby`() = runTest {
+        test().nearby(listOf(BIKE), LOW_POWER).test {
+            assertEquals(emptyMap(), awaitItem())
+            advertisements.emit(advertisement(BIKE.address, rssi = -70))
+            delay(31.seconds)
+            // Too late to count with the first one
+            advertisements.emit(advertisement(BIKE.address, rssi = -70))
+            delay(31.seconds)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a packet without a measured signal is ignored`() = runTest {
+        test().nearby(listOf(BIKE), LOW_POWER).test {
+            assertEquals(emptyMap(), awaitItem())
+            advertisements.emit(advertisement(BIKE.address, rssi = Advertisement.RSSI_UNAVAILABLE))
+            advertisements.emit(advertisement(BIKE.address, rssi = Advertisement.RSSI_UNAVAILABLE))
+            expectNoEvents()
         }
     }
 
@@ -56,7 +81,9 @@ internal class BeaconPresenceUseCaseTest {
     fun `a beacon is recognized by its advertised name when the address differs`() = runTest {
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
-            advertisements.emit(advertisement("11:22:33:44:55:66", name = BIKE.advertisedName, rssi = -70))
+            repeat(2) {
+                advertisements.emit(advertisement("11:22:33:44:55:66", name = BIKE.advertisedName, rssi = -70))
+            }
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
         }
     }
@@ -65,7 +92,7 @@ internal class BeaconPresenceUseCaseTest {
     fun `the address is matched whatever its case`() = runTest {
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
-            advertisements.emit(advertisement(BIKE.address.lowercase(), rssi = -70))
+            repeat(2) { advertisements.emit(advertisement(BIKE.address.lowercase(), rssi = -70)) }
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
         }
     }
@@ -85,6 +112,7 @@ internal class BeaconPresenceUseCaseTest {
             assertEquals(emptyMap(), awaitItem())
             minRssi.value = -70
             advertisements.emit(advertisement(BIKE.address, rssi = -75))
+            advertisements.emit(advertisement(BIKE.address, rssi = -70))
             expectNoEvents()
             advertisements.emit(advertisement(BIKE.address, rssi = -70))
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
@@ -104,7 +132,7 @@ internal class BeaconPresenceUseCaseTest {
     fun `a beacon gone quiet is no longer nearby`() = runTest {
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())
-            advertisements.emit(advertisement(BIKE.address, rssi = -70))
+            repeat(2) { advertisements.emit(advertisement(BIKE.address, rssi = -70)) }
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
             delay(25.seconds)
             expectNoEvents()
@@ -133,7 +161,7 @@ internal class BeaconPresenceUseCaseTest {
             assertEquals(emptyMap(), awaitItem())
             verify(exactly = 0) { scanner.advertisements(any(), any()) }
             bluetoothOn.value = true
-            advertisements.emit(advertisement(BIKE.address, rssi = -70))
+            repeat(2) { advertisements.emit(advertisement(BIKE.address, rssi = -70)) }
             assertEquals(mapOf(BIKE.address to -70), awaitItem())
             bluetoothOn.value = false
             assertEquals(emptyMap(), awaitItem())
@@ -160,7 +188,7 @@ internal class BeaconPresenceUseCaseTest {
         every { scanner.advertisements(any(), any()) } returns flow {
             attempts++
             if (attempts == 1) error("Scanning too frequently")
-            emit(advertisement(BIKE.address, rssi = -70))
+            repeat(2) { emit(advertisement(BIKE.address, rssi = -70)) }
         }
         test().nearby(listOf(BIKE), LOW_POWER).test {
             assertEquals(emptyMap(), awaitItem())

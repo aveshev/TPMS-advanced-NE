@@ -29,7 +29,15 @@ public interface BluetoothLeScanner {
         val timestamp: Duration,
         /** Sent by a tyre sensor of one of the brands this app reads */
         val isTyreSensor: Boolean,
-    )
+    ) {
+        /** Whether [rssi] was measured: the Bluetooth stack reports [RSSI_UNAVAILABLE] otherwise */
+        public val hasRssi: Boolean get() = rssi != RSSI_UNAVAILABLE
+
+        public companion object {
+            /** "RSSI not available" in the Bluetooth spec, louder than any real signal */
+            public const val RSSI_UNAVAILABLE: Int = 127
+        }
+    }
 
     /** A device to look for, its advertisements match by [address] or by [name] */
     public data class DeviceMatch(val address: String, val name: String?)
