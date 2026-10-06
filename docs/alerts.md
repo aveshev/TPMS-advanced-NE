@@ -291,10 +291,10 @@ the navigation.
 - Every alert leaves them when scanning is suspended or stopped: no reading could clear them any
   more. After scanning resumes, only a new qualifying reading starts them again.
 - **Both loops only go on while monitoring is meant to**:
-  - with persistent scanning, while it's active (not idle or suspended), whatever the app shows;
-  - without it, while the app is open, or monitoring in the background from its button. Leaving
-    the app any other way (home, switching apps) ends them, even though it may still be scanning
-    until closed.
+  - while the app is open: its screen scans, and whoever looks at it is watching the tyres;
+  - in the background, with persistent scanning, while it's active (not idle or suspended);
+  - in the background, without it, while monitoring from the app's button. Leaving the app any
+    other way (home, switching apps) ends them, even though it may still be scanning until closed.
 
   Once that ends, every alert leaves them, as when scanning stops. Meanwhile, a new crimson reading
   is still said, twice, once, as a red one is.

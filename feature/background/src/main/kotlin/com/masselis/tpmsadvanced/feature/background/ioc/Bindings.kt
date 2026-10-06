@@ -245,8 +245,8 @@ public interface Bindings {
     ): AlertSpeaker = AlertSpeaker(
         appPreferences,
         scanner.isScanningTyres,
-        // The speech loops go on while persistent scanning is active. Without it, while the app is
-        // open, or monitoring in the background from its button.
+        // The speech loops go on while the app is open, whose screen scans, and in the background
+        // while persistent scanning is active or, without it, monitoring from its button
         appPreferences
             .persistentScanning
             .flatMapLatest { persistent ->
@@ -254,8 +254,9 @@ public interface Bindings {
                     if (isRunning) scanPolicyUseCase.decision.map { it is ScanDecision.Active }
                     else flowOf(false)
                 }
-                else combine(controller.isRunning, isAppVisibleFlow) { isRunning, isVisible -> isRunning || isVisible }
+                else controller.isRunning
             }
+            .combine(isAppVisibleFlow) { isMonitoring, isVisible -> isMonitoring || isVisible }
             .distinctUntilChanged(),
         alertSilenceUseCase.silence.map { it?.level }.distinctUntilChanged(),
         // Text-to-speech is used from the main thread
