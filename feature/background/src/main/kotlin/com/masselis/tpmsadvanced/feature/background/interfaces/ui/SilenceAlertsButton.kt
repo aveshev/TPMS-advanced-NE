@@ -27,9 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.masselis.tpmsadvanced.feature.background.R
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.AlertSilenceViewModel
-import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.AlertSilenceViewModel.State
+import com.masselis.tpmsadvanced.feature.background.usecase.SilenceAlertsUseCase.State
 import com.masselis.tpmsadvanced.feature.background.ioc.Bindings
-import com.masselis.tpmsadvanced.feature.background.usecase.AlertSilenceUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.SilenceAlertsUseCase
 import kotlinx.coroutines.delay
 import kotlin.math.ceil
 import kotlin.time.Duration.Companion.seconds
@@ -63,7 +63,7 @@ private fun SilenceAlertsButton(
     val buttonModifier = modifier.heightIn(min = 72.dp)
     val padding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
     when (state) {
-        State.Hidden -> Unit
+        State.Disabled, State.Idle -> Unit
         is State.Offer -> Button(
             onClick = { onSilence(state.isCritical) },
             colors = ButtonDefaults.buttonColors(
@@ -77,7 +77,7 @@ private fun SilenceAlertsButton(
             Spacer(Modifier.width(12.dp))
             Text(
                 text = "Silence ${if (state.isCritical) "critical alerts" else "alerts"}\n" +
-                    "for ${AlertSilenceUseCase.DURATION.inWholeMinutes} min",
+                    "for ${SilenceAlertsUseCase.DURATION.inWholeMinutes} min",
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )

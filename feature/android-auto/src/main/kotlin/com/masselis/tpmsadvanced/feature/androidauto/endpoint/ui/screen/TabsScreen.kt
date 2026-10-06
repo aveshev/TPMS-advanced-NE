@@ -39,7 +39,7 @@ internal class TabsScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     @OptIn(ExperimentalCarApi::class)
-    @Suppress("MagicNumber", "NestedBlockDepth")
+    @Suppress("MagicNumber", "NestedBlockDepth", "MaxLineLength")
     override fun onGetTemplate(): Template = when (val state = viewModel.stateFlow.value) {
         State.Loading -> MessageTemplate
             .Builder("Loading...")
@@ -47,7 +47,7 @@ internal class TabsScreen(carContext: CarContext) : Screen(carContext) {
 
         is State.Tabs -> when (state.list.size) {
 
-            1 -> VehicleTemplate(state.displayed)
+            1 -> VehicleTemplate(state.displayed, state.speech, viewModel::silence, viewModel::unmute)
 
             in 2..Int.MAX_VALUE -> TabTemplate
                 .Builder(
@@ -92,7 +92,7 @@ internal class TabsScreen(carContext: CarContext) : Screen(carContext) {
                     }
                 }
                 .setActiveTabContentId(state.displayed.vehicle.uuid.toString())
-                .setTabContents(TabContents.Builder(VehicleTemplate(state.displayed)).build())
+                .setTabContents(TabContents.Builder(VehicleTemplate(state.displayed, state.speech, viewModel::silence, viewModel::unmute)).build())
                 .build()
 
             else -> error("Unreachable condition")

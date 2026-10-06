@@ -36,6 +36,7 @@ import com.masselis.tpmsadvanced.feature.background.usecase.ScanStatusAnnouncer
 import com.masselis.tpmsadvanced.feature.background.usecase.ScanSuspensionUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.ScreenStateUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.SignificantMotionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.SilenceAlertsUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.StoredTyreAlertsUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.UnexpectedStopUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.WifiConnectionUseCase
@@ -327,11 +328,16 @@ public interface Bindings {
     ): AlertsSettingsViewModel = AlertsSettingsViewModel(appPreferences)
 
     @Provides
-    private fun alertSilenceViewModel(
+    private fun silenceAlertsUseCase(
         appPreferences: AppPreferences,
         alertNotifier: AlertNotifier,
         alertSilenceUseCase: AlertSilenceUseCase,
-    ): AlertSilenceViewModel = AlertSilenceViewModel(appPreferences, alertNotifier, alertSilenceUseCase)
+    ): SilenceAlertsUseCase = SilenceAlertsUseCase(appPreferences, alertNotifier, alertSilenceUseCase)
+
+    @Provides
+    private fun alertSilenceViewModel(
+        silenceAlertsUseCase: SilenceAlertsUseCase,
+    ): AlertSilenceViewModel = AlertSilenceViewModel(silenceAlertsUseCase)
 
     @Provides
     private fun scanStatusAnnouncementsViewModel(

@@ -227,6 +227,28 @@ alert notification.
 - **Spoken alerts can be turned off**, in a new "Alerts" group of the app settings. They're on by
   default.
 
+### Silencing the speech
+
+The main screen shows a big button over the vehicle while a red or critical alert is notified:
+between its axles, or in the middle of the screen for a single axle trailer. It's there to be hit
+while riding: finding a notification's buttons in the drawer is too much then. Reaching the screen
+is left to the usual ways (the notification, the launcher): opening it by itself would take over
+the navigation.
+
+| Alerts notified | Button | Silences for 10 minutes |
+|---|---|---|
+| Red only | "Silence alerts for 10 min" | Every red alert's speech, including new ones. A new critical alert is still said, and the button turns into the critical one |
+| A critical one | "Silence critical alerts for 10 min" | All the speech, new critical alerts included |
+
+- Only the speech: notifications still post and sound as usual, the dismiss buttons are unchanged.
+- The silenced alerts leave the loops, a phrase being said is said to the end. Once the silence
+  ends, only a new qualifying reading speaks again.
+- While silenced, the button tells the time left and unmutes on a tap.
+- Stored on disk, as the snoozes are.
+- Android Auto shows it as an "Alert speech" grid item next to the tyres, always there while the
+  alerts are spoken: the host takes a change in the items for a new screen, which it only allows
+  a few times in a row, while a change in their text is a refresh.
+
 ### Crimson loop
 
 - Says the crimson alerts twice every 20 s, counted from the start of each phrase. A new one is
