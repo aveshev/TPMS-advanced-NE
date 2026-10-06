@@ -39,16 +39,18 @@ exactly at its minimum pressure is red, a battery exactly at its low voltage ala
 | Pressure, low side | At or below 3% above the minimum | At or below the minimum | At or below 50% of the minimum |
 | Pressure, high side | At or above 3% below the maximum | At or above the maximum | At or above the maximum + 20% |
 | Temperature | At or above the hot threshold − 10 °C | At or above the hot threshold | At or above the hot threshold + 20 °C |
-| Battery | At or below the low voltage alarm + 0.1 V (today's `LOW_SOON`) | At or below the low voltage alarm, on **5 readings in a row** | — |
+| Battery | At or below the low voltage alarm + 0.1 V (today's `LOW_SOON`) | At or below the low voltage alarm, **staying so 10 minutes** | — |
 
 Each column applies when the more severe one doesn't.
 | Pressure loss | A leak detected by the pressure loss tracker | — | — |
 | Sensor alarm (Sysgration's own alarm) | Raised | — | — |
 | Sensor removed | See [Sensor removed](#sensor-removed) | — | — |
 
-- **Amber needs 3 qualifying readings in a row** before it notifies. Sensor removed is the
-  exception, see below.
-- **Red and crimson notify on the first qualifying reading**, except battery red (5 in a row).
+- **Every level notifies from the first qualifying reading**, except battery red. A value
+  hovering on a boundary is handled by the [hold](#holding-a-notification-at-its-level) instead.
+- **Battery red takes two readings at red at least 10 minutes apart**, amber meanwhile: the
+  voltage dips in the cold and while the sensor transmits, and recovers afterwards. A time rather
+  than a count of readings, since a sensor can report once an hour.
 - **Battery reaches red** because a sensor below its low voltage may stop transmitting entirely,
   leaving that tyre unmonitored with no way to alert about it later.
 - **The thresholds change from today's behaviour** where they didn't already trigger at the
@@ -95,8 +97,8 @@ That case is a real crimson pressure alert.
 
 A removal raises a **sensor removed** alert at amber level:
 
-- It notifies on the **first** reading, not 3 in a row: a sensor reading open air has no pressure
-  change left to report, and may never transmit again.
+- It notifies on the **first** reading: a sensor reading open air has no pressure change left to
+  report, and may never transmit again.
 - It clears on the first reading **above `OFF_VALVE`**, not on any non-zero reading: open air can
   read a few kPa of noise. That reading is evaluated normally, so a tyre pumped up too little goes
   straight to red.
@@ -131,12 +133,28 @@ a second check, it isn't needed for this.
 | A class goes to a higher level | Notification updated on the new level's channel, **sounds** |
 | A new red or crimson qualifying reading at the same level | **Sounds again**, at every reading, with no minimum gap |
 | A new amber qualifying reading at the same level | Silent update |
-| A class goes down to a lower level, still alerting | Silent update on the lower level's channel |
-| A reading below every level | Notification **cancelled** at once, after a single reading |
+| A class goes down to a lower level, still alerting | Silent update on the lower level's channel, once the [hold](#holding-a-notification-at-its-level) ends |
+| A reading below every level | Notification **cancelled**, once the hold ends |
 
 Re-sounding on every red or crimson reading is intended: a tyre losing pressure fast enough to
 transmit every few seconds is worth hearing about that often. Bursts are already collapsed into
 one reading, so a single reading sounds once.
+
+### Holding a notification at its level
+
+Every reading which posts a notification holds it at its level for **3 minutes**. A reading which
+would lower or clear it meanwhile is queued, the latest one replacing the previous: it only goes
+through once the hold ends, unless a reading at that level or above comes first, which discards it
+and starts the hold over.
+
+While riding, the sensors report about once a minute, in steps of 0.4 to 0.5 psi: a value
+hovering on a boundary would otherwise clear and post its notification again, with a sound, every
+minute or two. A sensor reporting once an hour isn't affected, its lowering going through right
+away. The hold is kept in memory: after the process died, a notification keeps its level until its
+next reading.
+
+The hold only concerns the notification. The speech follows each reading right away: a reading
+lowering a crimson alert stops its loop at once, and a red one is said as red.
 
 ### Only new readings alert
 
@@ -198,8 +216,10 @@ alert notification.
   through the phone's speaker as well as a connected headset.
 - **One speech queue.** Several crimson alerts share one loop ("TYRE PRESSURE CRITICAL, TYRE HOT
   CRITICAL"), and red announcements wait their turn instead of talking over it.
-- Speech starts 3 s after the alert, once the notification's own sound played, and takes the
-  audio focus (ducking what plays) only while it speaks.
+- Speech waits for a notification's sound to play out rather than speaking over it: Android plays
+  it about half a second after it's posted, so the speech waits up to 1.5 s for one to start, then
+  until no notification sound plays (10 s at most). A silent or vibrating channel doesn't delay
+  it. It takes the audio focus (ducking what plays) only while it speaks.
 - **Spoken alerts can be turned off**, in a new "Alerts" group of the app settings. They're on by
   default.
 
@@ -222,7 +242,8 @@ alert notification.
 ### Visuals
 
 Red and crimson are told apart by blink speed and a label rather than by colour alone, since the
-two look alike in sunlight and to colour-blind users.
+two look alike in sunlight and to colour-blind users. The tyre icon follows the tyre's own
+condition, its pressure and temperature: a low battery blinks its voltage, not the tyre.
 
 | Level | Tyre icon | Tyre stats |
 |---|---|---|

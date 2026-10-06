@@ -4,6 +4,7 @@ import android.os.Parcelable
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.Fraction
 import com.masselis.tpmsadvanced.core.common.now
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
@@ -39,7 +40,15 @@ public class TyreIconStateFlow internal constructor(
         rangeUseCase.lowTemp,
     ) { alerts, highTemp, normalTemp, lowTemp ->
         requireNotNull(alerts.latest).let { latest ->
-            Data(latest.timestamp, alerts.levels.values.maxOrNull(), latest.temperature, highTemp, normalTemp, lowTemp)
+            Data(
+                latest.timestamp,
+                // A battery says nothing about the tyre itself, its reading blinks instead
+                alerts.levels.minus(BATTERY).values.maxOrNull(),
+                latest.temperature,
+                highTemp,
+                normalTemp,
+                lowTemp,
+            )
         }
     }
         .transformLatest { (timestamp, level, temperature, highTemp, normalTemp, lowTemp) ->
@@ -92,7 +101,7 @@ public class TyreIconStateFlow internal constructor(
 
     private data class Data(
         val timestamp: Double,
-        /** The worst of the tyre's alert levels, null while it doesn't alert */
+        /** The worst of the tyre's alert levels but the battery's, null while it doesn't alert */
         val level: AlertLevel?,
         val temperature: Temperature,
         val highTemp: Temperature,
@@ -117,8 +126,8 @@ public class TyreIconStateFlow internal constructor(
         }
 
         /**
-         * Shows a blinking red tyre, for a red or crimson alert of any class, blinking faster when
-         * [isCritical]
+         * Shows a blinking red tyre, for a red or crimson alert of the tyre (pressure, temperature),
+         * blinking faster when [isCritical]
          */
         @Parcelize
         public data class Alerting(val isCritical: Boolean = false) : State

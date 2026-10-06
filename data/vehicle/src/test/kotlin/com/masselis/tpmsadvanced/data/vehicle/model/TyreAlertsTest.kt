@@ -38,40 +38,38 @@ internal class TyreAlertsTest {
     }
 
     @Test
-    fun `amber shows at once but notifies from the third reading in a row`() {
-        track(reading(0.0, 205f), reading(1.0, 204f)).also {
+    fun `amber notifies from the first reading`() {
+        track(reading(0.0, 205f)).also {
             assertEquals(mapOf(PRESSURE to AMBER), it.levels)
-            assertEquals(emptyMap(), it.notifiable)
+            assertEquals(mapOf(PRESSURE to AMBER), it.notifiable)
         }
-        assertEquals(mapOf(PRESSURE to AMBER), track(reading(0.0, 205f), reading(1.0, 204f), reading(2.0, 205f)).notifiable)
     }
 
     @Test
-    fun `a reading back in range starts the amber count over`() {
-        assertEquals(
-            emptyMap(),
-            track(reading(0.0, 205f), reading(1.0, 204f), reading(2.0, 210f), reading(3.0, 205f), reading(4.0, 204f)).notifiable,
-        )
+    fun `a lower level notifies at once`() {
+        assertEquals(mapOf(PRESSURE to AMBER), track(reading(0.0, 190f), reading(60.0, 205f)).notifiable)
     }
 
     @Test
-    fun `red readings count towards amber`() {
-        assertEquals(
-            mapOf(PRESSURE to AMBER),
-            track(reading(0.0, 190f), reading(1.0, 195f), reading(2.0, 205f)).notifiable,
-        )
-    }
-
-    @Test
-    fun `a red battery notifies from the fifth reading in a row, amber meanwhile`() {
-        assertEquals(emptyMap(), track(reading(0.0, 250f, 2.6f), reading(1.0, 250f, 2.6f)).notifiable)
+    fun `a red battery is amber until it stays red 10 minutes`() {
+        assertEquals(mapOf(BATTERY to AMBER), track(reading(0.0, 250f, 2.6f)).notifiable)
         assertEquals(
             mapOf(BATTERY to AMBER),
-            track(*(0..3).map { reading(it.toDouble(), 250f, 2.6f) }.toTypedArray()).notifiable,
+            track(*(0..9).map { reading(it.toDouble(), 250f + it, 2.6f) }.toTypedArray()).notifiable,
         )
+        assertEquals(mapOf(BATTERY to RED), track(reading(0.0, 250f, 2.6f), reading(10.0, 251f, 2.6f)).notifiable)
+    }
+
+    @Test
+    fun `an hourly sensor's battery is red from its second reading`() {
+        assertEquals(mapOf(BATTERY to RED), track(reading(0.0, 250f, 2.6f), reading(60.0, 251f, 2.6f)).notifiable)
+    }
+
+    @Test
+    fun `a battery recovering starts the 10 minutes over`() {
         assertEquals(
-            mapOf(BATTERY to RED),
-            track(*(0..4).map { reading(it.toDouble(), 250f, 2.6f) }.toTypedArray()).notifiable,
+            mapOf(BATTERY to AMBER),
+            track(reading(0.0, 250f, 2.6f), reading(5.0, 251f, 2.7f), reading(12.0, 252f, 2.6f)).notifiable,
         )
     }
 
@@ -120,15 +118,11 @@ internal class TyreAlertsTest {
 
     @Test
     fun `the same reading again is re-evaluated without counting`() {
-        val first = track(reading(0.0, 205f), reading(1.0, 204f))
-        first.next(reading(1.0, 204f), thresholds, loss).also {
-            assertEquals(mapOf(PRESSURE to AMBER, PRESSURE_LOSS to AMBER), it.levels)
-            assertEquals(emptyMap(), it.notifiable)
+        val first = track(reading(0.0, 250f, 2.6f))
+        first.next(reading(0.0, 250f, 2.6f), thresholds, loss).also {
+            assertEquals(mapOf(BATTERY to RED, PRESSURE_LOSS to AMBER), it.levels)
+            assertEquals(mapOf(BATTERY to AMBER), it.notifiable)
         }
-        assertEquals(
-            emptyMap(),
-            first.next(reading(1.0, 204f), thresholds, null).next(reading(1.0, 204f), thresholds, null).notifiable,
-        )
     }
 
     @Test
@@ -139,8 +133,8 @@ internal class TyreAlertsTest {
     @Test
     fun `another sensor starts over`() {
         assertEquals(
-            emptyMap(),
-            track(reading(0.0, 205f), reading(1.0, 204f), reading(2.0, 205f, sensorId = 2)).notifiable,
+            mapOf(BATTERY to AMBER),
+            track(reading(0.0, 250f, 2.6f), reading(10.0, 251f, 2.6f), reading(11.0, 252f, 2.6f, sensorId = 2)).notifiable,
         )
     }
 
@@ -148,7 +142,7 @@ internal class TyreAlertsTest {
     fun `a leak is amber`() {
         assertEquals(
             mapOf(PRESSURE_LOSS to AMBER),
-            track(reading(0.0, 250f), reading(1.0, 249f), reading(2.0, 248f), loss = loss).notifiable,
+            track(reading(0.0, 250f), loss = loss).notifiable,
         )
     }
 

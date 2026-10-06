@@ -3,8 +3,11 @@ package com.masselis.tpmsadvanced.feature.background.usecase
 import android.media.AudioAttributes
 import android.media.AudioAttributes.USAGE_ALARM
 import android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE
+import android.media.AudioAttributes.USAGE_NOTIFICATION
+import android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.AudioPlaybackConfiguration
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.core.content.getSystemService
@@ -52,17 +55,16 @@ internal class AlertSpeaker(
     private val audioManager by lazy { appContext.getSystemService<AudioManager>()!! }
 
     private data class Queue(
-        val red: List<Red> = emptyList(),
+        val red: List<String> = emptyList(),
         /** The crimson phrases by the tag of their notification */
         val crimson: Map<String, Crimson> = emptyMap(),
-        /** When the crimson phrases are said next */
+        /** When the crimson phrases are said next, null to say them right away */
         val nextCrimson: TimeMark? = null,
+        /** When the latest alert sounded, its notification's sound is let out first */
+        val sounded: TimeMark? = null,
     ) {
         val isEmpty get() = red.isEmpty() && crimson.isEmpty()
     }
-
-    /** Said from [start] on, once the notification's own sound played */
-    private data class Red(val phrase: String, val start: TimeMark)
 
     private data class Crimson(val phrase: String, val end: TimeMark)
 
@@ -71,20 +73,20 @@ internal class AlertSpeaker(
     /** Says [phrase] twice, once */
     fun red(phrase: String) {
         if (appPreferences.spokenAlerts.value) queue.update {
-            it.copy(red = it.red + Red(phrase, timeSource.markNow() + NOTIFICATION_SOUND))
+            it.copy(red = it.red + phrase, sounded = timeSource.markNow())
         }
     }
 
     /**
      * Says [phrase] twice every [CRIMSON_PERIOD] for [CRIMSON_DURATION], starting over that duration
-     * if [tag] is already being said. A new one is said once the notification's own sound played.
+     * if [tag] is already being said. A new one is said right away.
      */
     fun crimson(tag: String, phrase: String) {
         if (appPreferences.spokenAlerts.value) queue.update { queue ->
             queue.copy(
                 crimson = queue.crimson + (tag to Crimson(phrase, timeSource.markNow() + CRIMSON_DURATION)),
-                nextCrimson = queue.nextCrimson.takeIf { tag in queue.crimson }
-                    ?: (timeSource.markNow() + NOTIFICATION_SOUND),
+                nextCrimson = queue.nextCrimson.takeIf { tag in queue.crimson },
+                sounded = timeSource.markNow(),
             )
         }
     }
@@ -121,7 +123,8 @@ internal class AlertSpeaker(
             queue.update { queue -> queue.copy(crimson = queue.crimson.filterValues { it.end.hasNotPassedNow() }) }
             val current = queue.value
             when {
-                current.red.firstOrNull()?.start?.hasPassedNow() == true -> current.red.first().phrase.let { phrase ->
+                current.red.isNotEmpty() -> current.red.first().let { phrase ->
+                    awaitNotificationSound(current.sounded)
                     say("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                     queue.update { it.copy(red = it.red.drop(1)) }
                 }
@@ -133,6 +136,7 @@ internal class AlertSpeaker(
                     .distinct()
                     .joinToString(", ")
                     .let { phrases ->
+                        awaitNotificationSound(current.sounded)
                         // Every period from the start of the phrases, however long they take
                         queue.update { it.copy(nextCrimson = timeSource.markNow() + CRIMSON_PERIOD) }
                         say("$phrases. $phrases.", USAGE_ALARM)
@@ -145,13 +149,37 @@ internal class AlertSpeaker(
                         .values
                         .map(Crimson::end)
                         .plus(listOfNotNull(current.nextCrimson.takeIf { current.crimson.isNotEmpty() }))
-                        .plus(listOfNotNull(current.red.firstOrNull()?.start))
                         .minOfOrNull { it.elapsedNow().unaryMinus() }
                         ?: Duration.INFINITE
                 ) { queue.first { it != current } }
             }
         }
     }
+
+    /**
+     * Lets a notification's sound play out rather than speaking over it: the one of the alert which
+     * [sounded], Android playing it about half a second after it's posted, and any other playing.
+     * Doesn't wait for a silent or vibrating notification.
+     */
+    private suspend fun awaitNotificationSound(sounded: TimeMark?) {
+        sounded
+            ?.let { -(it + SOUND_START).elapsedNow() }
+            ?.takeIf { it.isPositive() }
+            ?.let { withTimeoutOrNull(it) { isNotificationSounding().first { sounding -> sounding } } }
+        withTimeoutOrNull(MAX_SOUND) { isNotificationSounding().first { it.not() } }
+    }
+
+    /** Whether a notification's sound is playing, from any app */
+    private fun isNotificationSounding(): Flow<Boolean> = callbackFlow {
+        val callback = object : AudioManager.AudioPlaybackCallback() {
+            override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>) {
+                trySend(configs.any { it.audioAttributes.usage in NOTIFICATION_USAGES })
+            }
+        }
+        audioManager.registerAudioPlaybackCallback(callback, null)
+        send(audioManager.activePlaybackConfigurations.any { it.audioAttributes.usage in NOTIFICATION_USAGES })
+        awaitClose { audioManager.unregisterAudioPlaybackCallback(callback) }
+    }.distinctUntilChanged()
 
     /**
      * Speaks [text] with [usage], returning once it's said. The audio focus ducks what's playing
@@ -213,7 +241,12 @@ internal class AlertSpeaker(
         val CRIMSON_PERIOD = 20.seconds
         val CRIMSON_DURATION = 10.minutes
 
-        /** Long enough for a notification's sound to play out before speaking over it */
-        val NOTIFICATION_SOUND = 3.seconds
+        /** How long a notification's sound can take to start after it's posted */
+        val SOUND_START = 1.5.seconds
+
+        /** Speaks anyway after that, a notification's sound being stuck or very long */
+        val MAX_SOUND = 10.seconds
+
+        val NOTIFICATION_USAGES = setOf(USAGE_NOTIFICATION, USAGE_NOTIFICATION_EVENT)
     }
 }

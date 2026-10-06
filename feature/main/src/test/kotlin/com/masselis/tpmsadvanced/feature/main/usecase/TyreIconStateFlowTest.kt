@@ -133,13 +133,13 @@ internal class TyreIconStateFlowTest {
     }
 
     @Test
-    fun `a low battery makes the tyre alert`(): Unit = runTest {
+    fun `a low battery doesn't make the tyre alert`(): Unit = runTest {
         every { tyreAtmosphereUseCase.listen() }.returns(
             flowOf(TyreAtmosphere(now(), 0x562D00, 2f.bar, 30f.celsius, 2.6f.volts))
         )
         test().test {
             assertIs<State.NotDetected>(awaitItem())
-            assertIs<State.Alerting>(awaitItem())
+            assertIs<State.Normal>(awaitItem())
         }
     }
 

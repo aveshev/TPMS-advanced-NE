@@ -5,7 +5,6 @@ import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.app.PendingIntent.getBroadcast
 import android.content.Intent
-import android.os.Bundle
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.PRIORITY_HIGH
@@ -40,15 +39,20 @@ import com.masselis.tpmsadvanced.feature.background.usecase.StoredTyreAlertsUseC
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.appendLoc
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleListUseCase
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted.Companion.Eagerly
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlin.math.roundToLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /**
  * Posts a notification per vehicle, tyre and class of alert, separate from the monitor service's,
@@ -61,10 +65,20 @@ internal class AlertNotifier(
     private val snoozeUseCase: AlertSnoozeUseCase,
     private val speaker: AlertSpeaker,
     private val unitPreferences: UnitPreferences,
-    scope: CoroutineScope,
+    /** Single threaded: the readings and the end of the holds take turns */
+    private val scope: CoroutineScope,
 ) {
     private val logger = Logger.withTag("AlertNotifier")
     private val notificationManager = NotificationManagerCompat.from(appContext)
+
+    /**
+     * The notifications held at their level, by tag, see [HOLD]. Kept in memory: after the process
+     * died, a notification keeps its level until its next reading.
+     */
+    private val holds = mutableMapOf<String, Hold>()
+
+    /** [pending] is the latest reading which would lower the notification, applied when it ends */
+    private data class Hold(val until: TimeMark, val job: Job, val pending: Update? = null)
 
     /** The updates hold the vehicles as they were when the tyres started being followed */
     private val latestVehicles = vehicleListUseCase
@@ -96,40 +110,61 @@ internal class AlertNotifier(
 
         storedTyreAlertsUseCase
             .updates
-            .onEach { update ->
-                notificationManager
-                    .activeNotifications
-                    .filter { it.id == NOTIFICATION_ID }
-                    .associate { it.tag to it.notification.extras }
-                    .let { shown -> AlertClass.entries.forEach { update.notify(it, shown) } }
-            }
+            .onEach { update -> shown().let { shown -> AlertClass.entries.forEach { update.notify(it, shown) } } }
             .catch { logger.e("Failed to follow the tyres' alerts", it) }
             .launchIn(scope)
     }
 
-    /** [shown] is the extras of the shown notifications, by tag */
-    @Suppress("MaxLineLength")
-    private fun Update.notify(alertClass: AlertClass, shown: Map<String?, Bundle>) {
+    /** What the shown notifications show, by tag */
+    private fun shown(): Map<String?, Shown> = notificationManager
+        .activeNotifications
+        .filter { it.id == NOTIFICATION_ID }
+        .associate { notification ->
+            notification.tag to notification.notification.extras.let {
+                Shown(it.getInt(EXTRA_SENSOR_ID), AlertLevel.entries[it.getInt(EXTRA_LEVEL)])
+            }
+        }
+
+    /** [isSpoken] is false for a reading which was already spoken, held until now */
+    @Suppress("MaxLineLength", "CyclomaticComplexMethod", "LongMethod")
+    private fun Update.notify(alertClass: AlertClass, shown: Map<String?, Shown>, isSpoken: Boolean = true) {
         val tag = tag(vehicle, location, alertClass)
         val sensorId = requireNotNull(alerts.latest).sensorId
-        val current = shown[tag]?.let { Shown(it.getInt(EXTRA_SENSOR_ID), AlertLevel.entries[it.getInt(EXTRA_LEVEL)]) }
-        when (val action = action(alerts, alertClass, current) { snoozeUseCase.isSnoozed(sensorId, alertClass, it) }) {
+        val current = shown[tag]
+        val isHeld = holds[tag]?.until?.hasNotPassedNow() == true
+        val action = action(alerts, alertClass, current, isHeld) { snoozeUseCase.isSnoozed(sensorId, alertClass, it) }
+        when (action) {
             Action.None -> Unit
             Action.Cancel -> {
                 notificationManager.cancel(tag, NOTIFICATION_ID)
-                speaker.stop(tag)
+                holds.remove(tag)?.job?.cancel()
             }
 
             is Action.Post -> {
                 notificationManager.notify(tag, NOTIFICATION_ID, notification(tag, alertClass, action))
-                if (action.level != CRIMSON) speaker.stop(tag)
-                if (action.sound) alertClass.spoken?.also { phrase ->
-                    when (action.level) {
-                        AMBER -> Unit
-                        RED -> speaker.red(phrase)
-                        CRIMSON -> speaker.crimson(tag, "$phrase critical")
-                    }
-                }
+                holds.remove(tag)?.job?.cancel()
+                holds[tag] = Hold(
+                    TimeSource.Monotonic.markNow() + HOLD,
+                    scope.launch {
+                        delay(HOLD)
+                        // The latest reading which would have lowered it goes through now
+                        holds.remove(tag)?.pending?.notify(alertClass, shown(), isSpoken = false)
+                    },
+                )
+            }
+
+            is Action.Hold -> holds[tag] = requireNotNull(holds[tag]).copy(pending = this)
+        }
+        // Unlike the notification, the speech follows the reading right away: it stops, or turns red
+        if (isSpoken) when {
+            action is Action.Post && action.level == CRIMSON ->
+                if (action.sound) alertClass.spoken?.also { speaker.crimson(tag, "$it critical") }
+
+            else -> {
+                speaker.stop(tag)
+                val level = (action as? Action.Post)?.level ?: (action as? Action.Hold)?.level
+                val isSounding = (action as? Action.Post)?.sound == true || current?.level == CRIMSON
+                if (level == RED && isSounding) alertClass.spoken?.also(speaker::red)
             }
         }
     }
@@ -257,6 +292,9 @@ internal class AlertNotifier(
         data object None : Action
         data object Cancel : Action
         data class Post(val level: AlertLevel, val sound: Boolean) : Action
+
+        /** Keeps the notification as it is until its hold ends, the reading would lower it to [level] */
+        data class Hold(val level: AlertLevel?) : Action
     }
 
     internal companion object {
@@ -270,30 +308,39 @@ internal class AlertNotifier(
         private const val CRIMSON_COLOR = 0xFF7A0010.toInt()
 
         /**
-         * See docs/alerts.md: a class which doesn't alert any more is cleared, a confirmed level
-         * (see [TyreAlerts.notifiable]) is posted unless dismissed for a while. It sounds when it's
-         * new, higher than shown, or red or crimson again: a lower level updates silently.
+         * See docs/alerts.md: a level (see [TyreAlerts.notifiable]) is posted unless dismissed for a
+         * while, and holds the notification at it [isHeld] for [HOLD]: a reading lowering it or
+         * clearing it meanwhile waits until the hold ends, a reading at that level or above starts it
+         * over. It sounds when it's new, higher than shown, or red or crimson again: a lower level
+         * updates silently.
          */
+        @Suppress("CyclomaticComplexMethod", "MaxLineLength")
         fun action(
             alerts: TyreAlerts,
             alertClass: AlertClass,
             shown: Shown?,
+            isHeld: Boolean,
             isSnoozed: (AlertLevel) -> Boolean,
         ): Action {
             val level = alerts.notifiable[alertClass]
             return when {
-                alertClass !in alerts.levels -> if (shown != null) Action.Cancel else Action.None
-                level == null -> Action.None
-                isSnoozed(level) -> Action.None
-                else -> Action.Post(
-                    level,
-                    sound = shown == null ||
-                        shown.sensorId != alerts.latest?.sensorId ||
-                        level > shown.level ||
-                        (level == shown.level && level >= RED),
-                )
+                shown == null -> if (level == null || isSnoozed(level)) Action.None else Action.Post(level, sound = true)
+                // Another sensor was bound, whatever the previous one alerted for was likely seen to
+                shown.sensorId != alerts.latest?.sensorId ->
+                    if (level == null || isSnoozed(level)) Action.Cancel else Action.Post(level, sound = true)
+
+                level != null && level >= shown.level ->
+                    if (isSnoozed(level)) Action.None
+                    else Action.Post(level, sound = level > shown.level || level >= RED)
+
+                isHeld -> Action.Hold(level)
+                level == null || isSnoozed(level) -> Action.Cancel
+                else -> Action.Post(level, sound = false)
             }
         }
+
+        /** A value hovering on a boundary while riding, read about once a minute, doesn't flicker */
+        val HOLD = 3.minutes
 
         fun tag(vehicle: Vehicle, location: Vehicle.Kind.Location, alertClass: AlertClass) =
             "alert/${vehicle.uuid}/$location/${alertClass.name}"

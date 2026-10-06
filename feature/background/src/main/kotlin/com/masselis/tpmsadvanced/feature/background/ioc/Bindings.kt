@@ -246,7 +246,7 @@ public interface Bindings {
         alertSnoozeUseCase,
         alertSpeaker,
         unitPreferences,
-        GlobalScope + Dispatchers.Default,
+        GlobalScope + Dispatchers.Default.limitedParallelism(1),
     )
 
     @Provides
