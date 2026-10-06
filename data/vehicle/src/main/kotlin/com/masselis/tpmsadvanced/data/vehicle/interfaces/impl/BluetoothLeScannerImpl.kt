@@ -27,6 +27,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Adve
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Failure
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.ScanMode
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.SimulatedReadings.withSimulatedReadings
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -159,6 +160,7 @@ internal class BluetoothLeScannerImpl(
                 is Tyre.SensorLocated -> tyre.copy(raw = advertisement)
             }
         }
+        .withSimulatedReadings()
         .onEach { logger.d("Sensor content: $it") }
         // Shared, see shared(): counts the scans of the radio, not their collectors
         .onStart { tyreScans.update { it + 1 } }

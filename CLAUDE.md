@@ -86,6 +86,8 @@ adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.ma
 - Values are checked against what each format can carry, and numbers can be sent with `--ei` or `--ef`. A value sent with the wrong flag is rejected, not defaulted.
 - Mock sensors bind through the normal screens: unlocated ones (all but Sysgration) on "Bind sensor one by one", Sysgration on the main screen at the wheel it advertises. Only Sysgration advertises an alarm, shown as "Leaking?" with the read pressure. The other brands report their battery as a voltage (`--ei battery`, decivolts), compared to the vehicle's low voltage alarm (2.6 V by default).
 
+Without adb, debug builds with the debug options on have "Simulate a reading" in the main screen's menu (`SimulatedReadings`, `SimulateReading.kt`): it sends a reading for a tyre of the current vehicle as its bound sensor (or a located one), merged into the scan after the decoders, so it's shown, stored and alerted on like a real one.
+
 The app must be scanning (main screen open, or the background service running) with Bluetooth on. `adb logcat -s MockAdvertisements BluetoothLeScannerImpl` shows why a packet was dropped, or the decoded `Sensor content`. Real sensors' bytes are logged the same way (`Sensor found during scan`), so a real packet can be captured and replayed.
 
 ### Convention Plugins
