@@ -28,7 +28,7 @@ internal fun SpeechGridItem(
     .setTitle("Alert speech")
     .setImage(
         CarIcon
-            .Builder(createWithResource(screen.carContext, if (speech is Speech.On) R.drawable.volume_up else R.drawable.volume_off))
+            .Builder(createWithResource(screen.carContext, if (speech is Speech.Silenced) R.drawable.volume_off else R.drawable.volume_up))
             .setTint(
                 if (speech is Speech.Offer) createCustom(LightColors.error.toArgb(), DarkColors.error.toArgb())
                 else createCustom(LightColors.onSurfaceVariant.toArgb(), DarkColors.onSurfaceVariant.toArgb())

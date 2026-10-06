@@ -36,7 +36,8 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Silences the alerts' speech for a while, shown over the vehicle while a red or critical alert is
- * notified, see docs/alerts.md. Big enough to hit while riding.
+ * notified, see docs/alerts.md. Big enough to hit while riding. Its icon tells whether the alerts
+ * are audible now, its text what a tap does.
  */
 @Composable
 public fun SilenceAlertsButton(modifier: Modifier = Modifier): Unit = SilenceAlertsButton(
@@ -73,7 +74,7 @@ private fun SilenceAlertsButton(
             contentPadding = padding,
             modifier = buttonModifier.testTag(SilenceAlertsButtonTags.silence),
         ) {
-            Icon(painterResource(R.drawable.volume_off), contentDescription = null, Modifier.size(32.dp))
+            Icon(painterResource(R.drawable.volume_up), contentDescription = null, Modifier.size(32.dp))
             Spacer(Modifier.width(12.dp))
             Text(
                 text = "Silence ${if (state.isCritical) "critical alerts" else "alerts"}\n" +
