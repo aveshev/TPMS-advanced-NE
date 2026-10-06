@@ -166,7 +166,7 @@ internal class AlertNotifier(
                 val isSounding = (action as? Action.Post)?.sound == true
                 // Coming down from crimson, said as red although its notification is held silently
                 if (level == RED && (isSounding || current?.level == CRIMSON)) alertClass.spoken?.also {
-                    speaker.red(it, sounded = isSounding)
+                    speaker.red(tag, it, sounded = isSounding)
                 }
             }
         }

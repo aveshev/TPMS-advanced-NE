@@ -28,7 +28,7 @@ internal class AlertActionReceiver : BroadcastReceiver() {
                 AlertLevel.valueOf(requireNotNull(intent.getStringExtra(EXTRA_LEVEL))),
                 intent.getLongExtra(EXTRA_DURATION, 0L).milliseconds,
             )
-        Bindings.featureBackgroundInternal.alertSpeaker.stop(tag)
+        Bindings.featureBackgroundInternal.alertSpeaker.stop(tag, isDismissed = true)
         // Already gone when swiped away
         NotificationManagerCompat.from(context).cancel(tag, AlertNotifier.NOTIFICATION_ID)
     }

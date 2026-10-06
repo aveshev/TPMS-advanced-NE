@@ -55,15 +55,18 @@ internal class AlertSpeaker(
     private val audioManager by lazy { appContext.getSystemService<AudioManager>()!! }
 
     private data class Queue(
-        val red: List<String> = emptyList(),
+        /** The red phrases with the tag of their notification */
+        val red: List<Pair<String, String>> = emptyList(),
         /** The crimson phrases by the tag of their notification */
         val crimson: Map<String, Crimson> = emptyMap(),
         /** When the crimson phrases are said next, null to say them right away */
         val nextCrimson: TimeMark? = null,
         /** When the latest alert sounded, its notification's sound is let out first */
         val sounded: TimeMark? = null,
+        /** A phrase is being said: whatever happens meanwhile, it's said to the end */
+        val isSpeaking: Boolean = false,
     ) {
-        val isEmpty get() = red.isEmpty() && crimson.isEmpty()
+        val isIdle get() = red.isEmpty() && crimson.isEmpty() && isSpeaking.not()
     }
 
     private data class Crimson(val phrase: String, val end: TimeMark)
@@ -71,9 +74,9 @@ internal class AlertSpeaker(
     private val queue = MutableStateFlow(Queue())
 
     /** Says [phrase] twice, once, after the notification's sound if it [sounded] */
-    fun red(phrase: String, sounded: Boolean = true) {
+    fun red(tag: String, phrase: String, sounded: Boolean = true) {
         if (appPreferences.spokenAlerts.value) queue.update {
-            it.copy(red = it.red + phrase, sounded = if (sounded) timeSource.markNow() else it.sounded)
+            it.copy(red = it.red + (tag to phrase), sounded = if (sounded) timeSource.markNow() else it.sounded)
         }
     }
 
@@ -91,9 +94,17 @@ internal class AlertSpeaker(
         }
     }
 
-    /** Stops saying the crimson alert of [tag] */
-    fun stop(tag: String) {
-        queue.update { it.copy(crimson = it.crimson - tag) }
+    /**
+     * Stops saying the crimson alert of [tag], and its red phrases yet to be said once [isDismissed].
+     * A phrase being said is always said to the end.
+     */
+    fun stop(tag: String, isDismissed: Boolean = false) {
+        queue.update { queue ->
+            queue.copy(
+                crimson = queue.crimson - tag,
+                red = if (isDismissed) queue.red.filter { (redTag) -> redTag != tag } else queue.red,
+            )
+        }
     }
 
     init {
@@ -111,36 +122,45 @@ internal class AlertSpeaker(
         scope.launch {
             // The engine is only kept while there's something to say, the queue being spoken for as
             // long as it lives
-            combine(appPreferences.spokenAlerts, queue) { enabled, queue -> enabled && queue.isEmpty.not() }
+            combine(appPreferences.spokenAlerts, queue) { enabled, queue -> enabled && queue.isIdle.not() }
                 .distinctUntilChanged()
                 .collectLatest { isBusy -> if (isBusy) textToSpeech().collect { tts -> tts.speakQueue() } }
         }
     }
 
+    @Suppress("NestedBlockDepth")
     private suspend fun TextToSpeech.speakQueue() {
         while (true) {
             // The crimson alerts which ended are forgotten
             queue.update { queue -> queue.copy(crimson = queue.crimson.filterValues { it.end.hasNotPassedNow() }) }
             val current = queue.value
             when {
-                current.red.isNotEmpty() -> current.red.first().let { phrase ->
+                current.red.isNotEmpty() -> current.red.first().let { red ->
+                    val (tag, phrase) = red
                     awaitNotificationSound(current.sounded)
-                    say("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-                    queue.update { it.copy(red = it.red.drop(1)) }
+                    // Unless it was dismissed meanwhile
+                    if (red in queue.value.red) sayToTheEnd("$phrase. $phrase.", USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) {
+                        it.copy(red = it.red - red)
+                    }
                 }
 
-                current.crimson.isNotEmpty() && current.nextCrimson?.hasPassedNow() != false -> current
-                    .crimson
-                    .values
-                    .map(Crimson::phrase)
-                    .distinct()
-                    .joinToString(", ")
-                    .let { phrases ->
-                        awaitNotificationSound(current.sounded)
-                        // Every period from the start of the phrases, however long they take
-                        queue.update { it.copy(nextCrimson = timeSource.markNow() + CRIMSON_PERIOD) }
-                        say("$phrases. $phrases.", USAGE_ALARM)
-                    }
+                current.crimson.isNotEmpty() && current.nextCrimson?.hasPassedNow() != false -> {
+                    awaitNotificationSound(current.sounded)
+                    // Every period from the start of the phrases, however long they take
+                    queue.update { it.copy(nextCrimson = timeSource.markNow() + CRIMSON_PERIOD) }
+                    queue
+                        .value
+                        .crimson
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { crimson ->
+                            crimson
+                                .values
+                                .map(Crimson::phrase)
+                                .distinct()
+                                .joinToString(", ")
+                                .let { sayToTheEnd("$it. $it.", USAGE_ALARM) }
+                        }
+                }
 
                 // Until anything changes, the next crimson phrase or the end of one
                 else -> withTimeoutOrNull(
@@ -153,6 +173,21 @@ internal class AlertSpeaker(
                         ?: Duration.INFINITE
                 ) { queue.first { it != current } }
             }
+        }
+    }
+
+    /** Says [text], keeping the engine alive until it's said even if the queue empties meanwhile */
+    private suspend fun TextToSpeech.sayToTheEnd(
+        text: String,
+        usage: Int,
+        // Along with marking it said, the queue never looking idle meanwhile
+        dequeue: (Queue) -> Queue = { it },
+    ) {
+        queue.update { dequeue(it).copy(isSpeaking = true) }
+        try {
+            say(text, usage)
+        } finally {
+            queue.update { it.copy(isSpeaking = false) }
         }
     }
 

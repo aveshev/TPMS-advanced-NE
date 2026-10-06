@@ -214,6 +214,8 @@ alert notification.
 - Navigation guidance reaches helmet intercoms and Android Auto like navigation prompts do, and
   ducks the music. The alarm usage plays even with the media volume muted, and Android plays it
   through the phone's speaker as well as a connected headset.
+- **A phrase that started is always said to the end**, whatever happens meanwhile: the alert
+  going up, down or being dismissed, another alert coming. Only turning spoken alerts off cuts it.
 - **One speech queue.** Several crimson alerts share one loop ("TYRE PRESSURE CRITICAL, TYRE HOT
   CRITICAL"), and red announcements wait their turn instead of talking over it.
 - Speech waits for a notification's sound to play out rather than speaking over it: Android plays
