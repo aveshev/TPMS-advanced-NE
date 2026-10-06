@@ -8,6 +8,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
 import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
+import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.AlertSilenceViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.AlertsSettingsViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BackgroundViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.BeaconsViewModel
@@ -18,6 +19,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.Persist
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.PhoneIdleMechanismViewModel
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.ScanStatusAnnouncementsViewModel
 import com.masselis.tpmsadvanced.feature.background.usecase.ActivityRecognitionUseCase
+import com.masselis.tpmsadvanced.feature.background.usecase.AlertSilenceUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.AlertSnoozeUseCase
 import com.masselis.tpmsadvanced.feature.background.usecase.AlertSpeaker
 import com.masselis.tpmsadvanced.feature.background.usecase.AndroidAutoUseCase
@@ -225,6 +227,11 @@ public interface Bindings {
     @SingleIn(AppScope::class)
     private fun alertSnoozeUseCase(): AlertSnoozeUseCase = AlertSnoozeUseCase()
 
+    @OptIn(DelicateCoroutinesApi::class)
+    @Provides
+    @SingleIn(AppScope::class)
+    private fun alertSilenceUseCase(): AlertSilenceUseCase = AlertSilenceUseCase(GlobalScope + Dispatchers.Default)
+
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
     @Provides
     @SingleIn(AppScope::class)
@@ -233,6 +240,7 @@ public interface Bindings {
         scanner: BluetoothLeScanner,
         controller: MonitoringController,
         scanPolicyUseCase: ScanPolicyUseCase,
+        alertSilenceUseCase: AlertSilenceUseCase,
     ): AlertSpeaker = AlertSpeaker(
         appPreferences,
         scanner.isScanningTyres,
@@ -248,6 +256,7 @@ public interface Bindings {
                 else combine(controller.isRunning, isAppVisibleFlow) { isRunning, isVisible -> isRunning || isVisible }
             }
             .distinctUntilChanged(),
+        alertSilenceUseCase.silence.map { it?.level }.distinctUntilChanged(),
         // Text-to-speech is used from the main thread
         GlobalScope + Dispatchers.Main,
     )
@@ -318,6 +327,13 @@ public interface Bindings {
     ): AlertsSettingsViewModel = AlertsSettingsViewModel(appPreferences)
 
     @Provides
+    private fun alertSilenceViewModel(
+        appPreferences: AppPreferences,
+        alertNotifier: AlertNotifier,
+        alertSilenceUseCase: AlertSilenceUseCase,
+    ): AlertSilenceViewModel = AlertSilenceViewModel(appPreferences, alertNotifier, alertSilenceUseCase)
+
+    @Provides
     private fun scanStatusAnnouncementsViewModel(
         appPreferences: AppPreferences,
     ): ScanStatusAnnouncementsViewModel = ScanStatusAnnouncementsViewModel(appPreferences)
@@ -341,6 +357,7 @@ public interface Bindings {
         internal val keepAliveInstructionsViewModel: () -> KeepAliveInstructionsViewModel,
         internal val scanStatusAnnouncementsViewModel: () -> ScanStatusAnnouncementsViewModel,
         internal val alertsSettingsViewModel: () -> AlertsSettingsViewModel,
+        internal val alertSilenceViewModel: () -> AlertSilenceViewModel,
         internal val beaconsViewModel: () -> BeaconsViewModel,
         internal val phoneIdleMechanismViewModel: () -> PhoneIdleMechanismViewModel,
     )

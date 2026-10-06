@@ -66,6 +66,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.ui.DetectedActivi
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.QuietScanStatusAnnouncementsEffect
+import com.masselis.tpmsadvanced.feature.background.interfaces.ui.SilenceAlertsButton
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
@@ -145,7 +146,8 @@ internal fun VehicleHome(
                         QuietScanStatusAnnouncementsEffect()
                         CurrentVehicle(
                             snackbarHostState = snackbarHostState,
-                            modifier = modifier
+                            modifier = modifier,
+                            center = { SilenceAlertsButton(it) },
                         )
                         // Inside the graph so the settings route of this vehicle surely exists
                         LaunchedEffect(openSettingsOf) {

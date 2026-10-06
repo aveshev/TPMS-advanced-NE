@@ -21,6 +21,10 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
@@ -53,12 +57,13 @@ import kotlin.time.TimeSource
  * along with the red ones. Everything goes through a single queue, nothing talks over anything. The
  * loops stop with the tyre scans: no reading could clear their alerts any more. The reminders also
  * stop once [isRepeating] doesn't hold, see docs/alerts.md: an alert is then only said once, when
- * its notification sounds.
+ * its notification sounds. [silenced] mutes the alerts up to its level, see [AlertSilenceUseCase].
  */
 internal class AlertSpeaker(
     private val appPreferences: AppPreferences,
     isScanningTyres: Flow<Boolean>,
     isRepeating: Flow<Boolean>,
+    silenced: Flow<AlertLevel?>,
     scope: CoroutineScope,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
@@ -80,6 +85,8 @@ internal class AlertSpeaker(
         val isSpeaking: Boolean = false,
         /** Whether the loops may go on, their alerts are dropped otherwise */
         val isRepeating: Boolean = false,
+        /** The alerts up to this level aren't said, nor kept to be said later */
+        val silenced: AlertLevel? = null,
     ) {
         val isIdle get() = announcements.isEmpty() && repeated.isEmpty() && isSpeaking.not()
 
@@ -168,12 +175,19 @@ internal class AlertSpeaker(
     }
 
     /**
-     * Drops the repeated alerts while the loops can't go on. The reminders start [REMINDER_PERIOD]
-     * after something enters them, and over once they empty.
+     * Drops the repeated alerts while the loops can't go on, and the silenced ones. The reminders
+     * start [REMINDER_PERIOD] after something enters them, and over once they empty.
      */
     @Suppress("MaxLineLength")
     private fun Queue.scheduled() = this
         .run { if (isRepeating) this else copy(repeated = emptyMap()) }
+        .run {
+            when (silenced) {
+                null -> this
+                RED -> copy(repeated = repeated.filterValues(Repeated::isCrimson), announcements = announcements.filter(Announcement::isCrimson))
+                CRIMSON, AMBER -> copy(repeated = emptyMap(), announcements = emptyList())
+            }
+        }
         .run {
             copy(nextReminder = if (reminders.isEmpty()) null else nextReminder ?: (timeSource.markNow() + REMINDER_PERIOD))
         }
@@ -189,10 +203,15 @@ internal class AlertSpeaker(
             .onEach { isRepeating -> queue.update { it.copy(isRepeating = isRepeating).scheduled() } }
             .launchIn(scope)
 
+        // Once it ends, only a new reading is said again
+        silenced
+            .onEach { silenced -> queue.update { it.copy(silenced = silenced).scheduled() } }
+            .launchIn(scope)
+
         appPreferences
             .spokenAlerts
             .filter { it.not() }
-            .onEach { queue.update { Queue(isRepeating = it.isRepeating) } }
+            .onEach { queue.update { Queue(isRepeating = it.isRepeating, silenced = it.silenced) } }
             .launchIn(scope)
 
         scope.launch {

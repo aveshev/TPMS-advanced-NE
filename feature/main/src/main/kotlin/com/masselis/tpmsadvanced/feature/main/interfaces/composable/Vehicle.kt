@@ -15,16 +15,22 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstrainScope
@@ -33,10 +39,6 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintLayoutBaseScope.HorizontalAnchor
 import androidx.constraintlayout.compose.ConstraintLayoutScope
 import androidx.constraintlayout.compose.Dimension
-import com.masselis.tpmsadvanced.feature.main.R
-import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
-import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
-import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 import com.masselis.tpmsadvanced.core.ui.KeepScreenOn
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
@@ -54,6 +56,10 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.feature.main.R
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -104,11 +110,13 @@ private const val TYRE_HEIGHT = .165f
 public fun CurrentVehicle(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    center: @Composable (Modifier) -> Unit = {},
 ) {
     Vehicle(
         component = LocalVehicleComponent.current,
         snackbarHostState = snackbarHostState,
-        modifier = modifier
+        modifier = modifier,
+        center = center,
     )
 }
 
@@ -117,6 +125,8 @@ public fun Vehicle(
     component: VehicleComponent,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    /** Placed over the vehicle, between its axles or in the middle of a single axle one */
+    center: @Composable (Modifier) -> Unit = {},
 ) {
     KeepScreenOn()
     val pressureUnit by component
@@ -143,11 +153,11 @@ public fun Vehicle(
                 ).fold(0.dp, Dp::plus) / 2
             )
         when (component.vehicle.kind) {
-            Kind.CAR -> Car(imageHeight, snackbarHostState, fill)
-            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, fill)
-            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, fill)
-            Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, fill)
-            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, fill)
+            Kind.CAR -> Car(imageHeight, snackbarHostState, center, fill)
+            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, center, fill)
+            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, center, fill)
+            Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, center, fill)
+            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, center, fill)
         }
     }
 }
@@ -235,6 +245,22 @@ private fun Modifier.verticallyCenteredOn(y: Float) = layout { measurable, const
     }
 }
 
+/**
+ * Moves its content to the vertical middle of the window rather than of the space it's given,
+ * which the top bar pushes down
+ */
+@Composable
+private fun Modifier.windowCenteredVertically(): Modifier {
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    var shift by remember { mutableIntStateOf(0) }
+    return this
+        // Before the offset, where it would be without it
+        .onGloballyPositioned {
+            shift = (windowHeight / 2f - it.positionInWindow().y - it.size.height / 2f).roundToInt()
+        }
+        .offset { IntOffset(0, shift) }
+}
+
 private fun ConstrainScope.tyreSize(imageHeight: Float) {
     height = Dimension.percent(imageHeight * TYRE_HEIGHT)
     width = Dimension.ratio("15:40")
@@ -244,7 +270,8 @@ private fun ConstrainScope.tyreSize(imageHeight: Float) {
 private fun Car(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
-    modifier: Modifier = Modifier
+    center: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
@@ -380,6 +407,16 @@ private fun Car(
                 }
             )
         }
+        // Last, over everything else
+        createRef().also { ref ->
+            val middle = imageGuideline((frontY + rearY) / 2, imageHeight)
+            center(
+                Modifier.constrainAs(ref) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(middle)
+                }
+            )
+        }
     }
 }
 
@@ -387,7 +424,8 @@ private fun Car(
 private fun SingleAxleTrailer(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
-    modifier: Modifier = Modifier
+    center: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
@@ -466,6 +504,17 @@ private fun SingleAxleTrailer(
                 }
             )
         }
+        // Last, over everything else
+        createRef().also { ref ->
+            center(
+                Modifier
+                    .constrainAs(ref) {
+                        centerHorizontallyTo(vehicleImage)
+                        centerVerticallyTo(vehicleImage)
+                    }
+                    .windowCenteredVertically()
+            )
+        }
     }
 }
 
@@ -473,7 +522,8 @@ private fun SingleAxleTrailer(
 private fun Motorcycle(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
-    modifier: Modifier = Modifier
+    center: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
@@ -551,6 +601,16 @@ private fun Motorcycle(
                 }
             )
         }
+        // Last, over everything else
+        createRef().also { ref ->
+            val middle = imageGuideline((frontY + rearY) / 2, imageHeight)
+            center(
+                Modifier.constrainAs(ref) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(middle)
+                }
+            )
+        }
     }
 }
 
@@ -558,6 +618,7 @@ private fun Motorcycle(
 private fun TadpoleThreadWheeler(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
+    center: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -672,6 +733,16 @@ private fun TadpoleThreadWheeler(
                 }
             )
         }
+        // Last, over everything else
+        createRef().also { ref ->
+            val middle = imageGuideline((frontY + rearY) / 2, imageHeight)
+            center(
+                Modifier.constrainAs(ref) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(middle)
+                }
+            )
+        }
     }
 }
 
@@ -679,6 +750,7 @@ private fun TadpoleThreadWheeler(
 private fun DeltaThreeWheeler(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
+    center: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -789,6 +861,16 @@ private fun DeltaThreeWheeler(
                 modifier = Modifier.constrainAs(rearRightBinding) {
                     bottom.linkTo(rearRight.top)
                     centerHorizontallyTo(rearRight)
+                }
+            )
+        }
+        // Last, over everything else
+        createRef().also { ref ->
+            val middle = imageGuideline((frontY + rearY) / 2, imageHeight)
+            center(
+                Modifier.constrainAs(ref) {
+                    centerHorizontallyTo(vehicleImage)
+                    centerAround(middle)
                 }
             )
         }
