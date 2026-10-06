@@ -70,10 +70,10 @@ internal class AlertSpeaker(
 
     private val queue = MutableStateFlow(Queue())
 
-    /** Says [phrase] twice, once */
-    fun red(phrase: String) {
+    /** Says [phrase] twice, once, after the notification's sound if it [sounded] */
+    fun red(phrase: String, sounded: Boolean = true) {
         if (appPreferences.spokenAlerts.value) queue.update {
-            it.copy(red = it.red + phrase, sounded = timeSource.markNow())
+            it.copy(red = it.red + phrase, sounded = if (sounded) timeSource.markNow() else it.sounded)
         }
     }
 
