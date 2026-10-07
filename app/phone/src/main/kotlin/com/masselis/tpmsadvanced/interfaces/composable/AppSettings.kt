@@ -91,8 +91,8 @@ internal fun AppSettings(
             )
             TextSettingsItem(
                 headline = "Source code",
-                supporting = "github.com/aveshev/TPMS-advanced-NE",
-                onClick = { uriHandler.openUri("https://github.com/aveshev/TPMS-advanced-NE") },
+                supporting = "github.com/aveshev/persistent-tpms",
+                onClick = { uriHandler.openUri("https://github.com/aveshev/persistent-tpms") },
             )
             TextSettingsItem(
                 headline = "Privacy policy",
