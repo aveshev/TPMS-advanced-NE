@@ -41,6 +41,8 @@ exactly at its minimum pressure is red, a battery exactly at its low voltage ala
 | Temperature | At or above the hot threshold − 10 °C | At or above the hot threshold | At or above the hot threshold + 20 °C |
 | Battery | At or below the low voltage alarm + 0.1 V (today's `LOW_SOON`) | At or below the low voltage alarm, **staying so 10 minutes** | — |
 
+The low voltage alarm is set for 20°C and comes down 5 mV per degree below it, by 0.1 V at most (`Voltage.alarmAt`). Sysgration sensors report a percentage instead: amber at or below the low battery alarm + 10 points, red at or below it (10 % by default), not adjusted to the temperature.
+
 Each column applies when the more severe one doesn't.
 | Pressure loss | A leak detected by the pressure loss tracker | — | — |
 | Sensor alarm (Sysgration's own alarm) | Raised | — | — |

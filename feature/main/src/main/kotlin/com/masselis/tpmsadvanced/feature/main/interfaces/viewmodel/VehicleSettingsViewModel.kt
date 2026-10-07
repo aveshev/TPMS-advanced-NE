@@ -2,6 +2,7 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel
 
 import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase.BatteryKinds
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
@@ -30,6 +31,10 @@ internal interface VehicleSettingsViewModel {
     val temperatureUnit: StateFlow<TemperatureUnit>
 
     val lowBatteryVoltage: MutableStateFlow<Voltage>
+    val lowBatteryPercent: MutableStateFlow<Int>
+
+    /** What the vehicle's sensors report their battery as */
+    val batteryKinds: StateFlow<BatteryKinds>
 
     fun setRearOverrideEnabled(enabled: Boolean)
 

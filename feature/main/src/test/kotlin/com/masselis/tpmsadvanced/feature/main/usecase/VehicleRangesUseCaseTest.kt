@@ -51,6 +51,7 @@ internal class VehicleRangesUseCaseTest {
             every { selectRearHighPressure(uuid) } returns null
             every { selectSeparateRearPressure(uuid) } returns false
             every { selectLowBatteryVoltage(uuid) } returns 2.6f.volts
+            every { selectLowBatteryPercent(uuid) } returns 10
             coEvery { updateLowPressure(any(), any()) } returns Unit
             coEvery { updateHighPressure(any(), any()) } returns Unit
             coEvery { updateLowTemp(any(), any()) } returns Unit
@@ -60,6 +61,7 @@ internal class VehicleRangesUseCaseTest {
             coEvery { updateRearHighPressure(any(), any()) } returns Unit
             coEvery { updateSeparateRearPressure(any(), any()) } returns Unit
             coEvery { updateLowBatteryVoltage(any(), any()) } returns Unit
+            coEvery { updateLowBatteryPercent(any(), any()) } returns Unit
         }
     }
 

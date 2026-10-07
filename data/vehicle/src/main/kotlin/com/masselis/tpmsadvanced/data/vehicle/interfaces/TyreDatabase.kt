@@ -2,6 +2,8 @@ package com.masselis.tpmsadvanced.data.vehicle.interfaces
 
 import com.masselis.tpmsadvanced.core.database.QueryList
 import com.masselis.tpmsadvanced.core.database.QueryList.Companion.asList
+import com.masselis.tpmsadvanced.core.database.QueryOne
+import com.masselis.tpmsadvanced.core.database.QueryOne.Companion.asOne
 import com.masselis.tpmsadvanced.core.database.QueryOneOrNull
 import com.masselis.tpmsadvanced.core.database.QueryOneOrNull.Companion.asOneOrNull
 import com.masselis.tpmsadvanced.data.vehicle.Database
@@ -29,6 +31,7 @@ public class TyreDatabase internal constructor(
             vehicleId,
             tyre.batteryVoltage,
             tyre.raw,
+            tyre.batteryPercent,
         )
     }
 
@@ -39,7 +42,7 @@ public class TyreDatabase internal constructor(
         .latestByTyreLocationByVehicle(
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw, batteryPercent ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -51,6 +54,7 @@ public class TyreDatabase internal constructor(
                 location,
                 batteryVoltage,
                 raw,
+                batteryPercent,
             )
         }
         .asOneOrNull()
@@ -65,7 +69,7 @@ public class TyreDatabase internal constructor(
             sensorId,
             location,
             vehicleId
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw, batteryPercent ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -77,6 +81,7 @@ public class TyreDatabase internal constructor(
                 location,
                 batteryVoltage,
                 raw,
+                batteryPercent,
             )
         }
         .asOneOrNull()
@@ -89,7 +94,7 @@ public class TyreDatabase internal constructor(
         .allByTyreLocationByVehicle(
             location,
             vehicleId,
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw, batteryPercent ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -101,6 +106,7 @@ public class TyreDatabase internal constructor(
                 location,
                 batteryVoltage,
                 raw,
+                batteryPercent,
             )
         }
         .asList()
@@ -115,7 +121,7 @@ public class TyreDatabase internal constructor(
             vehicleId,
             location,
             timestamp,
-        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw ->
+        ) { id, timestamp, rssi, _, pressure, temperature, battery, isAlarm, batteryVoltage, raw, batteryPercent ->
             Tyre.Located(
                 timestamp,
                 rssi,
@@ -127,9 +133,22 @@ public class TyreDatabase internal constructor(
                 location,
                 batteryVoltage,
                 raw,
+                batteryPercent,
             )
         }
         .asList()
+
+    /**
+     * What the vehicle's bound sensors report their battery as, from their latest reading: a sensor
+     * without any reading yet doesn't count
+     */
+    public fun batteryKinds(vehicleId: UUID): QueryOne<BatteryKinds> = queries
+        .batteryKindsByVehicle(vehicleId) { hasVoltage, hasPercent ->
+            BatteryKinds(hasVoltage != 0L, hasPercent != 0L)
+        }
+        .asOne()
+
+    public data class BatteryKinds(val hasVoltage: Boolean, val hasPercent: Boolean)
 
     /**
      * Keeps the readings of [location] below [CAP], about 1 MB with its index: once over it, the

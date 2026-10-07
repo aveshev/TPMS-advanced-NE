@@ -128,6 +128,14 @@ public class VehicleDatabase internal constructor(database: Database) {
             queries.updateLowBatteryVoltage(voltage, uuid)
         }
 
+    public fun selectLowBatteryPercent(vehicleId: UUID): Int =
+        queries.selectLowBatteryPercentByVehicleId(vehicleId).executeAsOne()
+
+    public suspend fun updateLowBatteryPercent(percent: Int, uuid: UUID): Unit =
+        withContext(IO) {
+            queries.updateLowBatteryPercent(percent, uuid)
+        }
+
     public fun selectLowTemp(vehicleId: UUID): Temperature =
         queries.selectLowTempByVehicleId(vehicleId).executeAsOne()
 
@@ -200,11 +208,12 @@ public class VehicleDatabase internal constructor(database: Database) {
             Pressure,
             Double,
             Voltage,
+            Int,
         ) -> Vehicle =
-            // The pressure calibration and the low battery voltage are only read by the vehicle
+            // The pressure calibration and the low battery alarms are only read by the vehicle
             // scope's own queries
             { uuid, name, _, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, _,
-              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _, _ ->
+              rearLowPressure, rearHighPressure, separateRearPressure, _, _, _, _, _ ->
                 Vehicle(
                     uuid,
                     kind,

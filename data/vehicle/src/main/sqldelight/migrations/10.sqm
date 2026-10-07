@@ -1,0 +1,2 @@
+ALTER TABLE Tyre ADD batteryPercent INTEGER;
+ALTER TABLE Vehicle ADD lowBatteryPercent INTEGER NOT NULL DEFAULT 10;

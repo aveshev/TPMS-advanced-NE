@@ -29,6 +29,9 @@ public sealed interface Tyre : Parcelable {
      */
     public val raw: String?
 
+    /** Null for the sensors which report their battery as a voltage, see [batteryVoltage] */
+    public val batteryPercent: Int?
+
     public sealed interface SensorInput : Tyre
 
     @Parcelize
@@ -42,6 +45,7 @@ public sealed interface Tyre : Parcelable {
         override val isAlarm: Boolean,
         override val batteryVoltage: Voltage? = null,
         override val raw: String? = null,
+        override val batteryPercent: Int? = null,
     ) : Tyre, SensorInput
 
     @Parcelize
@@ -56,6 +60,7 @@ public sealed interface Tyre : Parcelable {
         val location: Location,
         override val batteryVoltage: Voltage? = null,
         override val raw: String? = null,
+        override val batteryPercent: Int? = null,
     ) : Tyre {
         public constructor(tyre: Tyre, location: Location) : this(
             tyre.timestamp,
@@ -68,6 +73,7 @@ public sealed interface Tyre : Parcelable {
             location,
             tyre.batteryVoltage,
             tyre.raw,
+            tyre.batteryPercent,
         )
     }
 
@@ -83,6 +89,7 @@ public sealed interface Tyre : Parcelable {
         val location: SensorLocation,
         override val batteryVoltage: Voltage? = null,
         override val raw: String? = null,
+        override val batteryPercent: Int? = null,
     ) : Tyre, SensorInput
 }
 
@@ -107,6 +114,7 @@ public fun Tyre.toAtmosphere(calibration: PressureCalibration?): TyreAtmosphere 
     batteryVoltage,
     isAlarm,
     flags,
+    batteryPercent,
 ).let { atmosphere ->
     calibration
         ?.let { atmosphere.copy(pressure = it.applyTo(atmosphere.pressure)) }

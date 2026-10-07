@@ -14,4 +14,6 @@ public data class TyreAtmosphere(
     val isSensorAlarm: Boolean = false,
     // See Tyre.flags
     val flags: List<UByte>? = null,
+    /** Sysgration's battery, which isn't a voltage */
+    val batteryPercent: Int? = null,
 ) : Parcelable

@@ -45,6 +45,9 @@ public class VehicleRangesUseCase internal constructor(
     /** A sensor's battery alarms at this voltage or below, and is shown as getting low 0.1 V above */
     public val lowBatteryVoltage: MutableStateFlow<Voltage> =
         MutableStateFlow(database.selectLowBatteryVoltage(vehicle.uuid))
+    /** Same as [lowBatteryVoltage] for the Sysgration sensors, which report a percentage */
+    public val lowBatteryPercent: MutableStateFlow<Int> =
+        MutableStateFlow(database.selectLowBatteryPercent(vehicle.uuid))
 
     /**
      * Turning the override off keeps the rear range, so an accidental toggle loses nothing. The
@@ -83,6 +86,7 @@ public class VehicleRangesUseCase internal constructor(
         resolvedHighPressure(location),
         highTemp,
         lowBatteryVoltage,
+        lowBatteryPercent,
         ::AlertThresholds,
     )
 
@@ -130,6 +134,11 @@ public class VehicleRangesUseCase internal constructor(
         lowBatteryVoltage
             .debounce(100.milliseconds)
             .onEach { database.updateLowBatteryVoltage(it, vehicle.uuid) }
+            .launchIn(scope)
+
+        lowBatteryPercent
+            .debounce(100.milliseconds)
+            .onEach { database.updateLowBatteryPercent(it, vehicle.uuid) }
             .launchIn(scope)
     }
 }

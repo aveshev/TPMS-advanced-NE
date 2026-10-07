@@ -173,6 +173,7 @@ public interface Bindings {
             pressureAdapter,
             pressureAdapter,
             voltageAdapter,
+            IntColumnAdapter,
         ),
         SensorAdapter = Sensor.Adapter(IntColumnAdapter, sensorLocationAdapter, uuidAdapter),
         TyreAdapter = Tyre.Adapter(
@@ -184,6 +185,7 @@ public interface Bindings {
             uShortAdapter,
             uuidAdapter,
             voltageAdapter,
+            IntColumnAdapter,
         )
     )
 }

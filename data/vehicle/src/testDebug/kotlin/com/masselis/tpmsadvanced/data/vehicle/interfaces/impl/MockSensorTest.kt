@@ -88,9 +88,14 @@ internal class MockSensorTest {
                 )
                 assertEquals(reading.celsius, tyre.temperature.celsius, 0.01f, "$sensor $reading")
                 reading.battery?.let { assertEquals(it.toUShort(), tyre.battery, "$sensor $reading") }
-                if (sensor == SYSGRATION) assertNull(tyre.batteryVoltage, "$sensor $reading")
-                else reading.battery?.let {
-                    assertEquals(it / 10f, assertNotNull(tyre.batteryVoltage).volts, 0.05f, "$sensor $reading")
+                if (sensor == SYSGRATION) {
+                    assertNull(tyre.batteryVoltage, "$sensor $reading")
+                    assertEquals(reading.battery ?: 100, tyre.batteryPercent, "$sensor $reading")
+                } else {
+                    assertNull(tyre.batteryPercent, "$sensor $reading")
+                    reading.battery?.let {
+                        assertEquals(it / 10f, assertNotNull(tyre.batteryVoltage).volts, 0.05f, "$sensor $reading")
+                    }
                 }
                 if (sensor != PECHAM && sensor != BEKUBEE_KY) assertEquals(reading.id, tyre.sensorId, "$sensor $reading")
             }
@@ -117,6 +122,16 @@ internal class MockSensorTest {
                 .also { assertFalse(it.isAlarm, "$sensor") }
                 .also { assertEquals(2f, assertNotNull(it.batteryVoltage, "$sensor").volts, 0.05f, "$sensor") }
         }
+    }
+
+    @Test
+    fun `sysgration's battery above 100 isn't a percentage`() {
+        SYSGRATION
+            .advertisement(reading(kpa = 200f, celsius = 20f))
+            .also { it[it.size - 2] = 0x7F }
+            .decoded()!!
+            .asTyre()
+            .also { assertNull(it.batteryPercent) }
     }
 
     @Test

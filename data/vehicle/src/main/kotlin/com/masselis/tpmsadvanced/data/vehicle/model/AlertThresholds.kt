@@ -20,6 +20,8 @@ public data class AlertThresholds(
     val highPressure: Pressure,
     val highTemp: Temperature,
     val lowBatteryVoltage: Voltage,
+    /** Sysgration's alarm, its sensors reporting a percentage instead of a voltage */
+    val lowBatteryPercent: Int = DEFAULT_LOW_BATTERY_PERCENT,
 ) {
 
     /**
@@ -34,7 +36,11 @@ public data class AlertThresholds(
         if (isRemoved) put(SENSOR_REMOVED, AMBER)
         else pressureLevel(atmosphere.pressure)?.also { put(PRESSURE, it) }
         temperatureLevel(atmosphere.temperature)?.also { put(TEMPERATURE, it) }
-        atmosphere.batteryVoltage?.let { batteryLevel(it, atmosphere.temperature) }?.also { put(BATTERY, it) }
+        (
+            atmosphere.batteryVoltage?.let { batteryLevel(it, atmosphere.temperature) }
+                ?: atmosphere.batteryPercent?.let(::batteryLevel)
+            )
+            ?.also { put(BATTERY, it) }
         if (isLeaking) put(PRESSURE_LOSS, AMBER)
         if (atmosphere.isSensorAlarm) put(SENSOR_ALARM, AMBER)
     }
@@ -73,9 +79,25 @@ public data class AlertThresholds(
             }
         }
 
+    /**
+     * Not adjusted to the temperature like a voltage is: how the sensor turns its voltage into a
+     * percentage is unknown, it may already be
+     */
+    public fun batteryLevel(percent: Int): AlertLevel? = when {
+        percent <= lowBatteryPercent -> RED
+        percent <= lowBatteryPercent + BATTERY_AMBER_MARGIN_PERCENT -> AMBER
+        else -> null
+    }
+
     public companion object {
         /** Amber from the low voltage alarm up to this much above it */
         public val BATTERY_AMBER_MARGIN: Voltage = 0.1f.volts
+
+        /** Amber from the low percentage alarm up to this many points above it */
+        public const val BATTERY_AMBER_MARGIN_PERCENT: Int = 10
+
+        /** The schema's default for [lowBatteryPercent] */
+        public const val DEFAULT_LOW_BATTERY_PERCENT: Int = 10
 
         private const val AMBER_LOW_PRESSURE = 1.03f
         /** 25% below, where FMVSS 138 has cars' tyre pressure warning light turn on */

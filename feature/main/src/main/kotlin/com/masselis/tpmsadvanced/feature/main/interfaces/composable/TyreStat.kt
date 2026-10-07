@@ -164,9 +164,9 @@ private fun TyreStat(
 
         // A battery getting low shows whatever the setting
         detected
-            ?.batteryVoltage
+            ?.let { it.batteryVoltage?.string() ?: it.batteryPercent?.let { percent -> "$percent %" } }
             ?.takeIf { showBatteryVoltage || BATTERY in levels }
-            ?.also { Reading(it.string(), levels[BATTERY], isFirstPhase, Modifier.align(alignment), fontSize = 16.sp) }
+            ?.also { Reading(it, levels[BATTERY], isFirstPhase, Modifier.align(alignment), fontSize = 16.sp) }
 
         if (sensorId != null && showSensorId) {
             val displaySensorId = if ((sensorId ushr 24) == 0) {
@@ -318,6 +318,7 @@ private fun detected(
     batteryVoltage: Voltage? = null,
     flags: List<UByte>? = null,
     levels: Map<AlertClass, AlertLevel> = emptyMap(),
+    batteryPercent: Int? = null,
 ) = State.Detected(
     timestamp,
     sensorId,
@@ -329,6 +330,7 @@ private fun detected(
     batteryVoltage,
     flags,
     levels,
+    batteryPercent,
 )
 
 @Preview
@@ -468,6 +470,16 @@ internal fun TyreStatBatteryLowPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
         state = detected(batteryVoltage = 2.6f.volts, levels = mapOf(BATTERY to RED)),
+        showTimeSinceUpdate = false,
+    )
+}
+
+@Preview
+@Composable
+internal fun TyreStatBatteryPercentLowPreview() {
+    TyreStat(
+        location = Location.Wheel(SensorLocation.REAR_RIGHT),
+        state = detected(batteryPercent = 10, levels = mapOf(BATTERY to RED)),
         showTimeSinceUpdate = false,
     )
 }

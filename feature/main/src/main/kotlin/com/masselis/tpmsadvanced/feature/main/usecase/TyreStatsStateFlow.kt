@@ -43,6 +43,7 @@ public class TyreStatsStateFlow internal constructor(
                 atmosphere.batteryVoltage,
                 atmosphere.flags,
                 alerts.levels,
+                atmosphere.batteryPercent,
             )
         }
     }
@@ -72,6 +73,8 @@ public class TyreStatsStateFlow internal constructor(
             public val flags: List<UByte>? = null,
             /** The level of each class the tyre alerts for, see AlertThresholds.levels */
             public val levels: Map<AlertClass, AlertLevel> = emptyMap(),
+            /** Sysgration's battery, which isn't a voltage */
+            public val batteryPercent: Int? = null,
         ) : State()
     }
 }

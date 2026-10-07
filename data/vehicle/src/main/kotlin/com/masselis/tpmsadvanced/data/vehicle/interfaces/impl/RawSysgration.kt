@@ -47,6 +47,9 @@ internal data class RawSysgration private constructor(
 
     fun battery() = manufacturerData[14].toInt().toUShort()
 
+    // A percentage according to theengs/decoder's TPMS decoder, anything above 100 isn't one
+    fun batteryPercent() = (manufacturerData[14].toInt() and 0xFF).takeIf { it <= 100 }
+
     fun isAlarm() = manufacturerData[15] == PRESSURE_ALARM_BYTE
 
     override fun asTyre() = Tyre.SensorLocated(
@@ -59,6 +62,7 @@ internal data class RawSysgration private constructor(
         isAlarm(),
         location(),
         // Sysgration's battery isn't a voltage, batteryVoltage stays null
+        batteryPercent = batteryPercent(),
     )
 
     override fun equals(other: Any?): Boolean {

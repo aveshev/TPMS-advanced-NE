@@ -80,6 +80,27 @@ internal class AlertThresholdsTest {
     }
 
     @Test
+    fun `battery percentages, the alarm being red`() {
+        assertNull(thresholds.batteryLevel(21))
+        assertEquals(AMBER, thresholds.batteryLevel(20))
+        assertEquals(AMBER, thresholds.batteryLevel(11))
+        assertEquals(RED, thresholds.batteryLevel(10))
+        assertEquals(RED, thresholds.batteryLevel(0))
+    }
+
+    @Test
+    fun `a Sysgration battery alerts on its percentage`() {
+        assertEquals(
+            mapOf(BATTERY to RED),
+            thresholds.levels(
+                TyreAtmosphere(0.0, 1, 250f.kpa, 20f.celsius, batteryPercent = 5),
+                isLeaking = false,
+                isRemoved = false,
+            ),
+        )
+    }
+
+    @Test
     fun `levels gathers every alerting class`() {
         assertEquals(
             mapOf(PRESSURE to RED, TEMPERATURE to AMBER, BATTERY to AMBER, PRESSURE_LOSS to AMBER, SENSOR_ALARM to AMBER),
