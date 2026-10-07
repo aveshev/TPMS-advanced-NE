@@ -10,11 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,7 +38,6 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettin
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /**
@@ -78,14 +75,8 @@ private fun VehicleBatterySettings(
     batteryKinds: BatteryKinds,
     modifier: Modifier = Modifier,
 ) = Column(modifier) {
-    // Blinks like the alerting values of the main screen
-    var isVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(BLINK)
-            isVisible = isVisible.not()
-        }
-    }
+    // Blinks along with the alerting values of the main screen
+    val isVisible = isFirstBlinkPhase(BLINK)
     if (batteryKinds.showsVoltage) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             BatteryLevelSamples(

@@ -7,13 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -91,17 +88,6 @@ private fun TyreStat(
     val detected = state as? State.Detected
     val levels = detected?.levels.orEmpty()
     val sensorId = detected?.sensorId
-    // Red readings blink, crimson ones alternate with "CRITICAL", both in BLINK phases
-    var isFirstPhase by remember { mutableStateOf(true) }
-    if (levels.values.any { it >= RED }) {
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(BLINK)
-                isFirstPhase = isFirstPhase.not()
-            }
-        }
-    } else
-        isFirstPhase = true
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val alignment = remember {
         when (location) {
@@ -126,14 +112,12 @@ private fun TyreStat(
                 ?.let { if (detected.isPressureCalibrated) "$it*" else it }
                 ?: "-.--",
             levels[PRESSURE],
-            isFirstPhase,
             Modifier.align(alignment),
         )
 
         Reading(
             detected?.temperature?.string(detected.temperatureUnit) ?: "-.-",
             levels[TEMPERATURE],
-            isFirstPhase,
             Modifier.align(alignment),
             fontSize = 16.sp,
         )
@@ -153,14 +137,14 @@ private fun TyreStat(
         // pressure and temperature above stay as the sensor read them. The same goes for the
         // pressure falling while riding.
         if (PRESSURE_LOSS in levels || SENSOR_ALARM in levels) {
-            Reading("Leaking?", AMBER, isFirstPhase, Modifier.align(alignment), fontSize = 16.sp)
+            Reading("Leaking?", AMBER, Modifier.align(alignment), fontSize = 16.sp)
         }
 
         // A battery getting low shows whatever the setting
         detected
             ?.let { it.batteryVoltage?.string() ?: it.batteryPercent?.let { percent -> "$percent %" } }
             ?.takeIf { showBatteryVoltage || BATTERY in levels }
-            ?.also { Reading(it, levels[BATTERY], isFirstPhase, Modifier.align(alignment), fontSize = 16.sp) }
+            ?.also { Reading(it, levels[BATTERY], Modifier.align(alignment), fontSize = 16.sp) }
 
         if (sensorId != null && showSensorId) {
             val displaySensorId = if ((sensorId ushr 24) == 0) {
@@ -207,17 +191,16 @@ private fun TyreStat(
 
 /**
  * A value in the colour of its alert [level]: blinking while red, alternating with "CRITICAL"
- * while crimson, both following [isFirstPhase]
+ * while crimson, in sync with the tyres
  */
 @Composable
 private fun Reading(
     text: String,
     level: AlertLevel?,
-    isFirstPhase: Boolean,
     modifier: Modifier = Modifier,
     fontSize: TextUnit = TextUnit.Unspecified,
 ) = Text(
-    if (level == CRIMSON && isFirstPhase.not()) "CRITICAL" else text,
+    if (level == CRIMSON && isFirstBlinkPhase(CRITICAL_LABEL_BLINK).not()) "CRITICAL" else text,
     fontWeight = FontWeight.SemiBold,
     maxLines = 1,
     fontSize = fontSize,
@@ -226,7 +209,7 @@ private fun Reading(
         AMBER -> Orange
         RED, CRIMSON -> MaterialTheme.colorScheme.error
     },
-    modifier = modifier.alpha(if (level == RED && isFirstPhase.not()) 0f else 1f),
+    modifier = modifier.alpha(if (level == RED && isFirstBlinkPhase(BLINK).not()) 0f else 1f),
 )
 
 private const val UNSET_FLAG_ALPHA = 0.3f
