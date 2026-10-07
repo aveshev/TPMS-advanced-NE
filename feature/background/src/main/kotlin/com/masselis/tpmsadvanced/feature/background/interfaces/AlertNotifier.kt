@@ -18,17 +18,18 @@ import androidx.core.os.bundleOf
 import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
+import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAlerts
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.background.R
@@ -244,7 +245,6 @@ internal class AlertNotifier(
         BATTERY -> if (level == AMBER) "Sensor battery getting low" else "Sensor battery low"
         PRESSURE_LOSS -> "Losing pressure"
         SENSOR_ALARM -> "May be leaking"
-        SENSOR_REMOVED -> "Sensor removed?"
     }
 
     private fun Update.text(alertClass: AlertClass): String = buildString {
@@ -257,9 +257,18 @@ internal class AlertNotifier(
         val reading = requireNotNull(alerts.latest)
         val pressureUnit = unitPreferences.pressure.value
         return when (alertClass) {
-            PRESSURE -> "${reading.pressure.string(pressureUnit)}, " +
-                if (isLowPressure) "minimum ${thresholds.lowPressure.string(pressureUnit)}"
-                else "maximum ${thresholds.highPressure.string(pressureUnit)}"
+            PRESSURE -> buildString {
+                append("${reading.pressure.string(pressureUnit)}, ")
+                append(
+                    if (isLowPressure) "minimum ${thresholds.lowPressure.string(pressureUnit)}"
+                    else "maximum ${thresholds.highPressure.string(pressureUnit)}"
+                )
+                // Not notified on their own then, see action()
+                if (alerts.foldsLeaks) {
+                    loss?.also { append(", ${it.summary(pressureUnit)}") }
+                    if (SENSOR_ALARM in alerts.levels) append(", sensor alarm")
+                }
+            }
 
             TEMPERATURE -> unitPreferences.temperature.value.let { unit ->
                 "${reading.temperature.string(unit)}, hot from ${thresholds.highTemp.string(unit)}"
@@ -267,17 +276,15 @@ internal class AlertNotifier(
 
             BATTERY -> "${reading.batteryVoltage?.string()}, alarm at ${thresholds.lowBatteryVoltage.string()}"
             PRESSURE_LOSS -> loss
-                ?.let { loss ->
-                    "down ${loss.drop.string(pressureUnit)} in ${
-                        ((loss.until - loss.since) / SECONDS_PER_MINUTE).roundToLong().coerceAtLeast(1)
-                    } min, now ${reading.pressure.string(pressureUnit)}"
-                }
+                ?.let { "${it.summary(pressureUnit)}, now ${reading.pressure.string(pressureUnit)}" }
                 ?: reading.pressure.string(pressureUnit)
 
             SENSOR_ALARM -> "the sensor raised its own alarm, at ${reading.pressure.string(pressureUnit)}"
-            SENSOR_REMOVED -> "reads ${reading.pressure.string(pressureUnit)}, as if taken off the valve"
         }
     }
+
+    private fun PressureLoss.summary(unit: PressureUnit) =
+        "down ${drop.string(unit)} in ${((until - since) / SECONDS_PER_MINUTE).roundToLong().coerceAtLeast(1)} min"
 
     /** Which side of the range the pressure alerts for, the closer one */
     private val Update.isLowPressure
@@ -312,7 +319,8 @@ internal class AlertNotifier(
          * while, and holds the notification at it [isHeld] for [HOLD]: a reading lowering it or
          * clearing it meanwhile waits until the hold ends, a reading at that level or above starts it
          * over. It sounds when it's new, higher than shown, or red or crimson again: a lower level
-         * updates silently.
+         * updates silently. A leak isn't notified on its own while the tyre's pressure is red or
+         * crimson, it's told in the pressure's notification, see [foldsLeaks].
          */
         @Suppress("CyclomaticComplexMethod", "MaxLineLength")
         fun action(
@@ -324,6 +332,8 @@ internal class AlertNotifier(
         ): Action {
             val level = alerts.notifiable[alertClass]
             return when {
+                // At once rather than after the hold, the pressure's notification tells it now
+                alertClass in LEAKS && alerts.foldsLeaks -> if (shown == null) Action.None else Action.Cancel
                 shown == null -> if (level == null || isSnoozed(level)) Action.None else Action.Post(level, sound = true)
                 // Another sensor was bound, whatever the previous one alerted for was likely seen to
                 shown.sensorId != alerts.latest?.sensorId ->
@@ -338,6 +348,16 @@ internal class AlertNotifier(
                 else -> Action.Post(level, sound = false)
             }
         }
+
+        /** What tells the tyre may be leaking, "Leaking?" on the main screen */
+        private val LEAKS = setOf(PRESSURE_LOSS, SENSOR_ALARM)
+
+        /**
+         * The pressure being red or crimson already says more than a leak's amber: another
+         * notification would only be one more sound and one more thing to dismiss
+         */
+        val TyreAlerts.foldsLeaks
+            get() = notifiable[PRESSURE]?.let { it >= RED } == true
 
         /** A value hovering on a boundary while riding, read about once a minute, doesn't flicker */
         val HOLD = 3.minutes

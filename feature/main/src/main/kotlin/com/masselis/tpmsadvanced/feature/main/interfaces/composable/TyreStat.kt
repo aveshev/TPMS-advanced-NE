@@ -35,7 +35,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
@@ -155,11 +154,6 @@ private fun TyreStat(
         // pressure falling while riding.
         if (PRESSURE_LOSS in levels || SENSOR_ALARM in levels) {
             Reading("Leaking?", AMBER, isFirstPhase, Modifier.align(alignment), fontSize = 16.sp)
-        }
-
-        // The sensor reads the open air, the pressure above isn't the tyre's
-        if (SENSOR_REMOVED in levels) {
-            Reading("Removed?", AMBER, isFirstPhase, Modifier.align(alignment), fontSize = 16.sp)
         }
 
         // A battery getting low shows whatever the setting
@@ -478,16 +472,6 @@ internal fun TyreStatSensorAlarmPreview() {
     TyreStat(
         location = Location.Wheel(SensorLocation.REAR_RIGHT),
         state = detected(levels = mapOf(SENSOR_ALARM to AMBER)),
-        showTimeSinceUpdate = false,
-    )
-}
-
-@Preview
-@Composable
-internal fun TyreStatSensorRemovedPreview() {
-    TyreStat(
-        location = Location.Wheel(SensorLocation.REAR_RIGHT),
-        state = detected(0.02f.bar, 25f.celsius, levels = mapOf(SENSOR_REMOVED to AMBER)),
         showTimeSinceUpdate = false,
     )
 }

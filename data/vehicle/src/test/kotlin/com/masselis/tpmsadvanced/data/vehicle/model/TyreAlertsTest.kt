@@ -3,7 +3,6 @@ package com.masselis.tpmsadvanced.data.vehicle.model
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
@@ -12,8 +11,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import org.junit.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 @Suppress("MaxLineLength")
 internal class TyreAlertsTest {
@@ -74,41 +71,10 @@ internal class TyreAlertsTest {
     }
 
     @Test
-    fun `a sensor taken off the valve is removed, not crimson`() {
-        track(reading(0.0, 195f), reading(2.0, 1f)).also {
-            assertTrue(it.isRemoved)
-            assertEquals(mapOf(SENSOR_REMOVED to AMBER), it.levels)
-            assertEquals(mapOf(SENSOR_REMOVED to AMBER), it.notifiable)
-        }
-    }
-
-    @Test
-    fun `a removed sensor stays removed while it reads the open air`() {
-        assertTrue(track(reading(0.0, 230f), reading(2.0, 1f), reading(60.0, 3f)).isRemoved)
-    }
-
-    @Test
-    fun `a removed sensor put back reads the tyre again`() {
-        track(reading(0.0, 230f), reading(2.0, 1f), reading(4.0, 190f)).also {
-            assertFalse(it.isRemoved)
-            assertEquals(mapOf(PRESSURE to RED), it.notifiable)
-        }
-    }
-
-    @Test
-    fun `a tyre going flat through crimson readings is crimson`() {
-        track(reading(0.0, 230f), reading(1.0, 150f), reading(2.0, 90f), reading(3.0, 1f)).also {
-            assertFalse(it.isRemoved)
-            assertEquals(mapOf(PRESSURE to CRIMSON), it.notifiable)
-        }
-    }
-
-    @Test
-    fun `a tyre found flat long after its previous reading is crimson`() {
-        track(reading(0.0, 230f), reading(12 * 60.0, 1f)).also {
-            assertFalse(it.isRemoved)
-            assertEquals(mapOf(PRESSURE to CRIMSON), it.notifiable)
-        }
+    fun `a sudden drop to the open air's pressure is crimson`() {
+        // Whether the tyre burst or the sensor was taken off the valve, it can't be told for sure:
+        // a missed critical alert costs more than a dismissed one
+        assertEquals(mapOf(PRESSURE to CRIMSON), track(reading(0.0, 195f), reading(2.0, 1f)).notifiable)
     }
 
     @Test
