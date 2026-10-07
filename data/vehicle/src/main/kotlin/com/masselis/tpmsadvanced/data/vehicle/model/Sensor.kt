@@ -8,4 +8,5 @@ import kotlinx.parcelize.Parcelize
 public data class Sensor(
     val id: Int,
     val location: Location,
+    val brand: SensorBrand,
 ) : Parcelable

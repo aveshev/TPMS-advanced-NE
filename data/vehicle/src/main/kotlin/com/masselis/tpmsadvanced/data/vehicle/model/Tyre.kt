@@ -1,7 +1,7 @@
 package com.masselis.tpmsadvanced.data.vehicle.model
 
 import android.os.Parcelable
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.Advertisement
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.AdvertisingPacket
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlinx.parcelize.Parcelize
 
@@ -12,20 +12,18 @@ public sealed interface Tyre : Parcelable {
     public val pressure: Pressure
     public val temperature: Temperature
 
-    /** The battery byte as the sensor sent it, its unit depends on the sensor */
-    public val battery: UShort
+    public val brand: SensorBrand
 
     /** An alarm raised by the sensor itself, only Sysgration sensors send one */
     public val isAlarm: Boolean
 
-    /** Null for the sensors which don't report their battery as a voltage (Sysgration) */
+    /** Null for the sensors which don't report their battery as a voltage, see [SensorBrand.batteryUnit] */
     public val batteryVoltage: Voltage?
 
     /**
-     * The whole advertisement as received, in hexadecimal, so that what the decoders don't read
-     * yet can be looked into later from an exported database, and [flags] read from it. null for
-     * the readings which didn't come from a scan (demo mode), or were stored before the database
-     * kept it.
+     * The whole advertisement as received, in hexadecimal: what the database stores, the other
+     * values being decoded from it when read back. null only for demo mode's readings, which aren't
+     * stored.
      */
     public val raw: String?
 
@@ -41,7 +39,7 @@ public sealed interface Tyre : Parcelable {
         override val sensorId: Int,
         override val pressure: Pressure,
         override val temperature: Temperature,
-        override val battery: UShort,
+        override val brand: SensorBrand,
         override val isAlarm: Boolean,
         override val batteryVoltage: Voltage? = null,
         override val raw: String? = null,
@@ -55,7 +53,7 @@ public sealed interface Tyre : Parcelable {
         override val sensorId: Int,
         override val pressure: Pressure,
         override val temperature: Temperature,
-        override val battery: UShort,
+        override val brand: SensorBrand,
         override val isAlarm: Boolean,
         val location: Location,
         override val batteryVoltage: Voltage? = null,
@@ -68,7 +66,7 @@ public sealed interface Tyre : Parcelable {
             tyre.sensorId,
             tyre.pressure,
             tyre.temperature,
-            tyre.battery,
+            tyre.brand,
             tyre.isAlarm,
             location,
             tyre.batteryVoltage,
@@ -84,7 +82,7 @@ public sealed interface Tyre : Parcelable {
         override val sensorId: Int,
         override val pressure: Pressure,
         override val temperature: Temperature,
-        override val battery: UShort,
+        override val brand: SensorBrand,
         override val isAlarm: Boolean,
         val location: SensorLocation,
         override val batteryVoltage: Voltage? = null,
@@ -100,7 +98,7 @@ public sealed interface Tyre : Parcelable {
  */
 @OptIn(ExperimentalStdlibApi::class)
 public val Tyre.flags: List<UByte>?
-    get() = raw?.let { Advertisement(it.hexToByteArray()).statusBytes }
+    get() = raw?.let { AdvertisingPacket(it.hexToByteArray()).statusBytes }
 
 /**
  * The atmosphere shown for this record, its pressure corrected by [calibration] when the vehicle has

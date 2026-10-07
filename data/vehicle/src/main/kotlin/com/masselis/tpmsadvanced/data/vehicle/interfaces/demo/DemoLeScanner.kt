@@ -3,6 +3,8 @@ package com.masselis.tpmsadvanced.data.vehicle.interfaces.demo
 import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.SYSGRATION
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
@@ -23,10 +25,10 @@ public class DemoLeScanner : BluetoothLeScanner {
             1,
             0.4f.bar,
             15f.celsius,
-            100u,
+            SYSGRATION,
             false,
             SensorLocation.FRONT_LEFT,
-            3.1f.volts,
+            batteryPercent = 90,
         ),
         Tyre.Unlocated(
             now(),
@@ -34,7 +36,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             2,
             0.4f.bar,
             15f.celsius,
-            100u,
+            PECHAM,
             false,
             3.1f.volts,
         )
@@ -47,10 +49,10 @@ public class DemoLeScanner : BluetoothLeScanner {
             3,
             1.6f.bar,
             20f.celsius,
-            75u,
+            SYSGRATION,
             false,
             SensorLocation.FRONT_RIGHT,
-            3f.volts,
+            batteryPercent = 90,
         ),
         Tyre.Unlocated(
             now(),
@@ -58,7 +60,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             4,
             1.6f.bar,
             20f.celsius,
-            75u,
+            PECHAM,
             false,
             3f.volts,
         )
@@ -71,10 +73,10 @@ public class DemoLeScanner : BluetoothLeScanner {
             5,
             2.0f.bar,
             35f.celsius,
-            50u,
+            SYSGRATION,
             false,
             SensorLocation.REAR_LEFT,
-            2.9f.volts,
+            batteryPercent = 90,
         ),
         Tyre.Unlocated(
             now(),
@@ -82,7 +84,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             6,
             2.0f.bar,
             35f.celsius,
-            50u,
+            PECHAM,
             false,
             2.9f.volts,
         ),
@@ -95,10 +97,10 @@ public class DemoLeScanner : BluetoothLeScanner {
             7,
             2.8f.bar,
             95f.celsius,
-            25u,
+            SYSGRATION,
             false,
             SensorLocation.REAR_RIGHT,
-            3f.volts,
+            batteryPercent = 90,
         ),
         Tyre.Unlocated(
             now(),
@@ -106,7 +108,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             8,
             2.8f.bar,
             95f.celsius,
-            25u,
+            PECHAM,
             false,
             3f.volts,
         )

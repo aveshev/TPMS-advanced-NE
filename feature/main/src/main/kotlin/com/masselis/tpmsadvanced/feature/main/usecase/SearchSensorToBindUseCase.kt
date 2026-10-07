@@ -22,7 +22,7 @@ internal class SearchSensorToBindUseCase(
                 flowOf(Result.AlreadyBound(boundSensor))
             else
                 listenTyreUseCase.listen()
-                    .map { Sensor(it.sensorId, it.location) }
+                    .map { Sensor(it.sensorId, it.location, it.brand) }
                     .flatMapLatest { sensor ->
                         sensorBindingUseCase.boundVehicle(sensor)
                             .map { boundVehicle ->

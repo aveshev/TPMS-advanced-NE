@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.qrcode.usecase
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.SYSGRATION
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
@@ -47,7 +48,9 @@ internal interface BoundSensorMapUseCase {
                                 FRONT_LEFT, FRONT_RIGHT -> it.wheel.toAxle()
                                 REAR_LEFT, REAR_RIGHT -> it.wheel
                             }
-                        }
+                        },
+                        // Only Sysgration sensors come with a QR code
+                        SYSGRATION,
                     )
                 }
                 .map { async { sensorDatabase.upsert(it, currentUuid) } }

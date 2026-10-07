@@ -1,25 +1,21 @@
 package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 
-import android.bluetooth.le.ScanResult
 import android.os.ParcelUuid
-import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.WICARLINK
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import java.util.UUID.fromString
-import kotlin.math.roundToInt
 
-@ConsistentCopyVisibility
 @Suppress("MagicNumber")
-internal data class RawWicarlink private constructor(
-    private val rssi: Int,
-    private val data: ByteArray,
-) : Raw {
+internal class RawWicarlink private constructor(private val data: ByteArray) : Raw {
 
-    fun id() = (data[23].toInt() and 0xFF) or
-            ((data[24].toInt() and 0xFF) shl 8) or
-            ((data[25].toInt() and 0xFF) shl 16)
+    override val brand = WICARLINK
+
+    override val sensorId: Int = (data[23].toInt() and 0xFF) or
+        ((data[24].toInt() and 0xFF) shl 8) or
+        ((data[25].toInt() and 0xFF) shl 16)
 
     fun pressure() = (data[12].toInt() and 0xFF)
         .let { raw -> if ((data[17].toInt() and 0xFF) == 1) raw + 256 else raw }
@@ -30,47 +26,27 @@ internal data class RawWicarlink private constructor(
 
     fun temperature() = ((data[13].toInt() and 0xFF) - 55).toFloat().celsius
 
-    override fun asTyre(): Tyre.SensorInput = Tyre.Unlocated(
-        now(),
+    override fun asTyre(timestamp: Double, rssi: Int, sensorId: Int, raw: String): Tyre.SensorInput = Tyre.Unlocated(
+        timestamp,
         rssi,
-        id(),
+        sensorId,
         pressure(),
         temperature(),
-        voltage().times(10f).roundToInt().toUShort(),
+        brand,
         // The low battery is reported through batteryVoltage, these sensors send no alarm
         false,
         voltage().volts,
+        raw,
     )
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as RawWicarlink
-
-        if (rssi != other.rssi) return false
-        if (!data.contentEquals(other.data)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = rssi
-        result = 31 * result + data.contentHashCode()
-        return result
-    }
 
     companion object {
         internal val SERVICE_UUID = ParcelUuid(fromString("0000fbb0-0000-1000-8000-00805f9b34fb"))
-        @Suppress("ReturnCount")
-        operator fun invoke(scanResult: ScanResult): RawWicarlink? {
-            val scanRecord = scanResult.scanRecord ?: return null
-            if (scanRecord.advertiseFlags != 0x06) return null
-            if (scanRecord.serviceUuids?.contains(SERVICE_UUID)?.not() ?: true) return null
-            if (CRC.validate(scanRecord.bytes).not()) return null
 
-            return RawWicarlink(scanResult.rssi, scanRecord.bytes)
-        }
+        operator fun invoke(packet: AdvertisingPacket): RawWicarlink? = packet
+            .takeIf { it.flags == 0x06 && 0xFBB0 in it.serviceUuids16 }
+            ?.bytes
+            ?.takeIf { it.size >= 26 && CRC.validate(it) }
+            ?.let(::RawWicarlink)
 
         // Reversed engineered from the official LYTPMS app with the help of Claude
         internal object CRC {

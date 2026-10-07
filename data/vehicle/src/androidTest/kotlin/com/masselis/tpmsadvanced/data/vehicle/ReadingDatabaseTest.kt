@@ -5,8 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.DatabaseExport
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
@@ -21,10 +22,12 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 @RunWith(AndroidJUnit4::class)
-internal class TyreDatabaseTest {
+internal class ReadingDatabaseTest {
 
     @ContributesTo(AppScope::class)
     internal interface Extractor {
@@ -34,7 +37,7 @@ internal class TyreDatabaseTest {
 
     private lateinit var database: Database
     private lateinit var databaseExport: DatabaseExport
-    private lateinit var tyreDatabase: TyreDatabase
+    private lateinit var readingDatabase: ReadingDatabase
     private lateinit var currentVehicleUuid: UUID
 
     @Before
@@ -42,47 +45,58 @@ internal class TyreDatabaseTest {
         appContext.getDatabasePath("car.db").delete()
         database = (appGraph as Extractor).database
         databaseExport = (appGraph as Extractor).databaseExport
-        tyreDatabase = TyreDatabase(database)
+        readingDatabase = ReadingDatabase(database)
         currentVehicleUuid = database.vehicleQueries.currentFavourite().executeAsOne().uuid
     }
 
+    // The decoded values don't matter, the stored ones are decoded from raw when read back
     private fun tyre(raw: String?) = Tyre.Located(
-        1.0, -60, 42, 2f.bar, 20f.celsius, 100u, false, Location.Wheel(FRONT_LEFT), null, raw,
+        1.0, -60, 42, 2f.bar, 20f.celsius, PECHAM, false, Location.Wheel(FRONT_LEFT), null, raw,
     )
 
-    private fun latest() = tyreDatabase
-        .latestByTyreLocationByVehicle(Location.Wheel(FRONT_LEFT), currentVehicleUuid)
+    private fun latest() = readingDatabase
+        .latestByLocation(Location.Wheel(FRONT_LEFT), currentVehicleUuid)
         .execute()
 
     // A real Pecham advertisement, whose status byte is 0x80
     private val pecham = "0303a5270308425208ff801b1b02a584ea"
 
     @Test
-    fun rawIsStoredAndTheFlagsReadFromIt() = runTest {
-        tyreDatabase.insert(tyre(pecham), currentVehicleUuid)
-        assertEquals(pecham, latest()?.raw)
-        assertEquals(listOf<UByte>(0x80u), latest()?.flags)
+    fun rawIsStoredAndTheValuesDecodedFromIt() = runTest {
+        readingDatabase.insert(tyre(pecham), currentVehicleUuid)
+        val latest = assertNotNull(latest())
+        assertEquals(pecham, latest.raw)
+        assertEquals(listOf<UByte>(0x80u), latest.flags)
+        assertEquals(PECHAM, latest.brand)
+        assertEquals(42, latest.sensorId)
+        assertEquals(-60, latest.rssi)
+        assertEquals(27f, latest.temperature.celsius)
     }
 
     @Test
-    fun withoutRawThereAreNoFlags() = runTest {
-        tyreDatabase.insert(tyre(null), currentVehicleUuid)
-        assertNull(latest()?.raw)
-        assertNull(latest()?.flags)
+    fun aReadingWithoutRawIsNotStored() = runTest {
+        assertFailsWith<IllegalArgumentException> { readingDatabase.insert(tyre(null), currentVehicleUuid) }
+        assertNull(latest())
+    }
+
+    @Test
+    fun aReadingTheDecodersDontReadIsSkipped() = runTest {
+        readingDatabase.insert(tyre("0201060303b0fb"), currentVehicleUuid)
+        assertNull(latest())
     }
 
     @Test
     fun exportHoldsTheReadings() = runTest {
-        tyreDatabase.insert(tyre(pecham), currentVehicleUuid)
+        readingDatabase.insert(tyre(pecham), currentVehicleUuid)
         val file = File(appContext.cacheDir, "database_export/test.db")
         // Twice: an existing copy must be replaced, VACUUM INTO alone refuses to overwrite
         databaseExport.exportTo(file)
         databaseExport.exportTo(file)
         SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { copy ->
-            copy.rawQuery("SELECT raw FROM Tyre", null).use { cursor ->
+            copy.rawQuery("SELECT hex(raw) FROM Reading", null).use { cursor ->
                 assertEquals(1, cursor.count)
                 cursor.moveToFirst()
-                assertEquals(pecham, cursor.getString(0))
+                assertEquals(pecham, cursor.getString(0).lowercase())
             }
         }
     }

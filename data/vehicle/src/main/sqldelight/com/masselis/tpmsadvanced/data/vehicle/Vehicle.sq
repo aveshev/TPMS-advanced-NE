@@ -7,11 +7,13 @@ import kotlin.Boolean;
 import kotlin.Int;
 
 CREATE TABLE Vehicle(
-    uuid TEXT AS UUID NOT NULL PRIMARY KEY,
+    -- 16 bytes, not its 36 characters of text: every sensor and reading refers to it
+    uuid BLOB AS UUID NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     isFavourite INTEGER AS Boolean NOT NULL,
     lowPressure REAL AS Pressure NOT NULL DEFAULT 100,
-    highPressure REAL AS Pressure NOT NULL DEFAULT 300,
+    -- VehicleDatabase.DEFAULT_HIGH_PRESSURE, 50 psi
+    highPressure REAL AS Pressure NOT NULL DEFAULT 344.75,
     lowTemp REAL AS Temperature NOT NULL DEFAULT 20,
     normalTemp REAL AS Temperature NOT NULL DEFAULT 45,
     highTemp REAL AS Temperature NOT NULL DEFAULT 90,
@@ -78,8 +80,7 @@ END;
 
 -- This statement is put in the end because SQLDelight executes the triggers before the statements
 
--- 344.75 kPa is VehicleDatabase.DEFAULT_HIGH_PRESSURE, 50 psi
-INSERT INTO Vehicle(uuid, kind, name, isFavourite, highPressure) VALUES ("466b2e13-e33a-4adf-a101-a920140a29a1","CAR", "My car",1, 344.75);
+INSERT INTO Vehicle(uuid, kind, name, isFavourite) VALUES (randomblob(16), "CAR", "My car", 1);
 
 insert:
 INSERT INTO Vehicle(uuid, kind, name, isFavourite) VALUES (?,?,?,?);

@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import android.content.Intent
 import android.icu.text.DateFormat.SHORT
 import android.provider.Settings
@@ -517,7 +518,7 @@ private fun TyreCell(
 @Composable
 private fun PlaceholderTyreCell(
     modifier: Modifier = Modifier,
-    tyre: Tyre = Tyre.Unlocated(ts, 0, Int.MAX_VALUE, 2f.bar, 20f.celsius, 50u, false),
+    tyre: Tyre = Tyre.Unlocated(ts, 0, Int.MAX_VALUE, 2f.bar, 20f.celsius, PECHAM, false),
     temperatureUnit: TemperatureUnit = CELSIUS,
     pressureUnit: PressureUnit = BAR,
     showClosest: Boolean = false,
@@ -708,7 +709,7 @@ internal fun SearchingFoundSingleTyrePreview() {
                 "MOCK",
                 Vehicle.Kind.CAR,
                 emptyList(),
-                listOf(Tyre.Unlocated(ts, -20, 1, 1.5f.bar, 20f.celsius, 20u, false)),
+                listOf(Tyre.Unlocated(ts, -20, 1, 1.5f.bar, 20f.celsius, PECHAM, false)),
                 emptyList(),
                 BAR,
                 CELSIUS,
@@ -729,30 +730,30 @@ internal fun SearchingFoundMultipleTyrePreview() {
                 Vehicle.Kind.CAR,
                 listOf(
                     Pair(
-                        Sensor(0, Vehicle.Kind.Location.Wheel(FRONT_LEFT)),
-                        Tyre.Unlocated(ts, -20, 0, 1.5f.bar, 20f.celsius, 20u, false),
+                        Sensor(0, Vehicle.Kind.Location.Wheel(FRONT_LEFT), PECHAM),
+                        Tyre.Unlocated(ts, -20, 0, 1.5f.bar, 20f.celsius, PECHAM, false),
                     )
                 ),
                 listOf(
-                    Tyre.Unlocated(ts, -20, 1, 1.5f.bar, 20f.celsius, 20u, false),
-                    Tyre.Unlocated(ts, -20, 2, 1.75f.bar, 17f.celsius, 20u, false),
-                    Tyre.Unlocated(ts, -20, 3, 2f.bar, 18f.celsius, 20u, false),
+                    Tyre.Unlocated(ts, -20, 1, 1.5f.bar, 20f.celsius, PECHAM, false),
+                    Tyre.Unlocated(ts, -20, 2, 1.75f.bar, 17f.celsius, PECHAM, false),
+                    Tyre.Unlocated(ts, -20, 3, 2f.bar, 18f.celsius, PECHAM, false),
                 ),
                 listOf(
                     Triple(
                         mockVehicle(),
                         mockSensor(4),
-                        Tyre.Unlocated(ts, -20, 4, 1.5f.bar, 20f.celsius, 20u, false),
+                        Tyre.Unlocated(ts, -20, 4, 1.5f.bar, 20f.celsius, PECHAM, false),
                     ),
                     Triple(
                         mockVehicle(),
                         mockSensor(5),
-                        Tyre.Unlocated(ts, -20, 5, 1.75f.bar, 17f.celsius, 20u, false),
+                        Tyre.Unlocated(ts, -20, 5, 1.75f.bar, 17f.celsius, PECHAM, false),
                     ),
                     Triple(
                         mockVehicle(),
                         mockSensor(6),
-                        Tyre.Unlocated(ts, -20, 6, 2f.bar, 18f.celsius, 20u, false),
+                        Tyre.Unlocated(ts, -20, 6, 2f.bar, 18f.celsius, PECHAM, false),
                     ),
                 ),
                 BAR,
@@ -772,23 +773,23 @@ internal fun SearchingFoundOnlyBoundTyrePreview() {
             State.Searching(
                 "MOCK",
                 Vehicle.Kind.CAR,
-                listOf(Sensor(0, Vehicle.Kind.Location.Wheel(FRONT_LEFT)) to null),
+                listOf(Sensor(0, Vehicle.Kind.Location.Wheel(FRONT_LEFT), PECHAM) to null),
                 emptyList(),
                 listOf(
                     Triple(
                         mockVehicle(),
                         mockSensor(4),
-                        Tyre.Unlocated(ts, -20, 4, 1.5f.bar, 20f.celsius, 20u, false),
+                        Tyre.Unlocated(ts, -20, 4, 1.5f.bar, 20f.celsius, PECHAM, false),
                     ),
                     Triple(
                         mockVehicle(),
                         mockSensor(5),
-                        Tyre.Unlocated(ts, -20, 5, 1.75f.bar, 17f.celsius, 20u, false),
+                        Tyre.Unlocated(ts, -20, 5, 1.75f.bar, 17f.celsius, PECHAM, false),
                     ),
                     Triple(
                         mockVehicle(),
                         mockSensor(6),
-                        Tyre.Unlocated(ts, -20, 6, 2f.bar, 18f.celsius, 20u, false),
+                        Tyre.Unlocated(ts, -20, 6, 2f.bar, 18f.celsius, PECHAM, false),
                     ),
                 ),
                 BAR,
@@ -809,13 +810,13 @@ internal fun CompletedPreview() {
                 "MOCK",
                 Vehicle.Kind.CAR,
                 listOf(
-                    Sensor(0, Vehicle.Kind.Location.Wheel(FRONT_LEFT)) to null,
+                    Sensor(0, Vehicle.Kind.Location.Wheel(FRONT_LEFT), PECHAM) to null,
                     Pair(
-                        Sensor(1, Vehicle.Kind.Location.Wheel(FRONT_RIGHT)),
-                        Tyre.Unlocated(ts, -20, 1, 1.5f.bar, 20f.celsius, 20u, false),
+                        Sensor(1, Vehicle.Kind.Location.Wheel(FRONT_RIGHT), PECHAM),
+                        Tyre.Unlocated(ts, -20, 1, 1.5f.bar, 20f.celsius, PECHAM, false),
                     ),
-                    Sensor(2, Vehicle.Kind.Location.Wheel(REAR_LEFT)) to null,
-                    Sensor(3, Vehicle.Kind.Location.Wheel(REAR_RIGHT)) to null
+                    Sensor(2, Vehicle.Kind.Location.Wheel(REAR_LEFT), PECHAM) to null,
+                    Sensor(3, Vehicle.Kind.Location.Wheel(REAR_RIGHT), PECHAM) to null
                 ),
                 BAR,
                 CELSIUS,

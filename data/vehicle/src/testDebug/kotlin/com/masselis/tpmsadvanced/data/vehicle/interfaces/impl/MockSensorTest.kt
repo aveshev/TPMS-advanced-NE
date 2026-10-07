@@ -5,8 +5,6 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.MockSensor.BEKUBEE
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.MockSensor.PECHAM
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.MockSensor.SYSGRATION
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.MockSensor.WICARLINK
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanRecord
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanResult
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_RIGHT
@@ -81,13 +79,12 @@ internal class MockSensorTest {
                     raw?.let { it::class },
                     "$sensor $reading"
                 )
-                val tyre = raw!!.asTyre()
+                val tyre = raw!!.let { it.asTyre(0.0, -60, it.sensorId ?: ADDRESS_SENSOR_ID, "") }
                 assertTrue(
                     abs(tyre.pressure.kpa - reading.kpa) <= resolution.getValue(sensor) / 2 + 0.01f,
                     "$sensor $reading decoded ${tyre.pressure}"
                 )
                 assertEquals(reading.celsius, tyre.temperature.celsius, 0.01f, "$sensor $reading")
-                reading.battery?.let { assertEquals(it.toUShort(), tyre.battery, "$sensor $reading") }
                 if (sensor == SYSGRATION) {
                     assertNull(tyre.batteryVoltage, "$sensor $reading")
                     assertEquals(reading.battery ?: 100, tyre.batteryPercent, "$sensor $reading")
@@ -106,8 +103,8 @@ internal class MockSensorTest {
     fun `sysgration advertises its wheel and alarm`() {
         SYSGRATION
             .advertisement(reading(kpa = 150f, celsius = 30f, location = REAR_RIGHT, isAlarm = true))
-            .decoded()
-            .let { assertIs<Tyre.SensorLocated>(it!!.asTyre()) }
+            .decodedTyre()
+            .let { assertIs<Tyre.SensorLocated>(it) }
             .also { assertEquals(REAR_RIGHT, it.location) }
             .also { assertTrue(it.isAlarm) }
     }
@@ -117,8 +114,7 @@ internal class MockSensorTest {
         listOf(PECHAM, BEKUBEE_KY, WICARLINK, BEKUBEE_TPMS).forEach { sensor ->
             sensor
                 .advertisement(reading(kpa = 200f, celsius = 20f, battery = 20))
-                .decoded()!!
-                .asTyre()
+                .decodedTyre()!!
                 .also { assertFalse(it.isAlarm, "$sensor") }
                 .also { assertEquals(2f, assertNotNull(it.batteryVoltage, "$sensor").volts, 0.05f, "$sensor") }
         }
@@ -129,8 +125,7 @@ internal class MockSensorTest {
         SYSGRATION
             .advertisement(reading(kpa = 200f, celsius = 20f))
             .also { it[it.size - 2] = 0x7F }
-            .decoded()!!
-            .asTyre()
+            .decodedTyre()!!
             .also { assertNull(it.batteryPercent) }
     }
 
@@ -140,14 +135,14 @@ internal class MockSensorTest {
             listOf(PECHAM, BEKUBEE_KY, BEKUBEE_TPMS, SYSGRATION).forEach { sensor ->
                 val advertisement = sensor.advertisement(reading)
                 assertNotNull(advertisement.decoded(), "$sensor with flags")
-                assertEquals(listOf<UByte>(0x5Au), Advertisement(advertisement).statusBytes, "$sensor")
+                assertEquals(listOf<UByte>(0x5Au), AdvertisingPacket(advertisement).statusBytes, "$sensor")
             }
         }
         // Wicarlink's 9th pressure bit is byte 17 being 1
         assertEquals(1.toByte(), WICARLINK.advertisement(reading(kpa = 900f, celsius = 20f))[17])
         assertEquals(0.toByte(), WICARLINK.advertisement(reading(kpa = 200f, celsius = 20f))[17])
         // Sysgration's alarm is its flags byte being 1
-        assertTrue(SYSGRATION.advertisement(reading(kpa = 200f, celsius = 20f, flags = 1)).decoded()!!.asTyre().isAlarm)
+        assertTrue(SYSGRATION.advertisement(reading(kpa = 200f, celsius = 20f, flags = 1)).decodedTyre()!!.isAlarm)
     }
 
     @Test
@@ -161,22 +156,6 @@ internal class MockSensorTest {
         assertFailsWith<IllegalArgumentException> { WICARLINK.advertisement(reading(kpa = 200f, celsius = 20f, id = 0x1000000)) }
         assertFailsWith<IllegalArgumentException> { SYSGRATION.advertisement(reading(kpa = 200f, celsius = 20f, id = 0x123456)) }
     }
-
-    /** Decodes an advertisement like BluetoothLeScannerImpl does, same decoders in the same order */
-    private fun ByteArray.decoded(): Raw? = adStructures()
-        .let { structures ->
-            mockScanResult(
-                mockScanRecord(
-                    mockDeviceName = structures[0x08]?.decodeToString() ?: "",
-                    containsServiceUuids = true,
-                    mockAdvertiseFlags = structures[0x01]?.get(0)?.toInt() ?: -1,
-                    // Like ScanRecord.manufacturerSpecificData, without the company ID
-                    mockManufacturerData = structures[0xFF]?.drop(2)?.toByteArray() ?: byteArrayOf(),
-                    mockBytes = this,
-                )
-            )
-        }
-        .let { RawPecham(it) ?: RawBekubeeKy(it) ?: RawWicarlink(it) ?: RawBekubeeTpms(it) ?: RawSysgration(it) }
 
     /** AD structures by type, as `ScanRecord.parseFromBytes` splits them */
     private fun ByteArray.adStructures(): Map<Int, ByteArray> = generateSequence(0) { it + (this[it].toInt() and 0xFF) + 1 }

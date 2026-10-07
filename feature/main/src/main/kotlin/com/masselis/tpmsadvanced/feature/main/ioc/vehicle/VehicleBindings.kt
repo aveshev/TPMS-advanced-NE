@@ -3,7 +3,6 @@ package com.masselis.tpmsadvanced.feature.main.ioc.vehicle
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.ClearBoundSensorsViewModelImpl
@@ -63,14 +62,14 @@ public interface VehicleBindings {
         renameVehicleUseCase: RenameVehicleUseCase,
         vehicleStateFlow: StateFlow<Vehicle>,
         unitPreferences: UnitPreferences,
-        tyreDatabase: TyreDatabase,
+        sensorDatabase: SensorDatabase,
     ): VehicleSettingsViewModelImpl = VehicleSettingsViewModelImpl(
         vehicleRangesUseCase,
         vehicleCalibrationUseCase,
         renameVehicleUseCase,
         vehicleStateFlow,
         unitPreferences,
-        tyreDatabase,
+        sensorDatabase,
     )
 
     @Provides

@@ -31,7 +31,7 @@ import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase.BatteryKinds
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.BatteryKinds
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds.Companion.BATTERY_AMBER_MARGIN
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds.Companion.BATTERY_AMBER_MARGIN_PERCENT
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage

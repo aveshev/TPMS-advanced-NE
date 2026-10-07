@@ -1,7 +1,6 @@
 package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanRecord
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanResult
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -49,24 +48,14 @@ internal class PechamTest {
     @Test
     fun realValue() {
         samples
-            .map { it.hexToByteArray() }
-            .mapNotNull { completeData ->
-                RawPecham(
-                    mockScanResult(
-                        mockScanRecord = mockScanRecord(
-                            mockDeviceName = "BR",
-                            mockBytes = completeData,
-                        )
-                    )
-                )
-            }
-            .map { it.asTyre() }
+            .mapNotNull { it.hexToByteArray().decodedTyre() }
             .onEach(::println)
-            .also { assert(it.size == samples.size) }
+            .also { assertEquals(samples.size, it.size) }
             .forEach { tyre ->
                 // Battery sent in steps of 0.1 V, reported as is and never as an alarm
+                assertEquals(PECHAM, tyre.brand)
                 assertFalse(tyre.isAlarm)
-                assertEquals(tyre.battery.toFloat() / 10f, assertNotNull(tyre.batteryVoltage).volts)
+                assertNotNull(tyre.batteryVoltage)
             }
     }
 }

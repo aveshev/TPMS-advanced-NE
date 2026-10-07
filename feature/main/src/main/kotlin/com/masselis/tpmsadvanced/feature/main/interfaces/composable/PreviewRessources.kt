@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
@@ -21,5 +22,6 @@ internal val previewVehicle = Vehicle(
 
 internal val previewSensor = Sensor(
     1,
-    Location.Wheel(FRONT_LEFT)
+    Location.Wheel(FRONT_LEFT),
+    PECHAM,
 )

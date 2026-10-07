@@ -1,7 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
 import co.touchlab.kermit.Logger
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.stateIn
 public class TyrePressureLossStateFlow internal constructor(
     vehicle: Vehicle,
     location: Location,
-    tyreDatabase: TyreDatabase,
+    readingDatabase: ReadingDatabase,
     listenTyreUseCase: ListenTyreUseCase,
     calibrationUseCase: VehicleCalibrationUseCase,
     pressureLossUseCase: VehiclePressureLossUseCase,
@@ -45,7 +45,7 @@ public class TyrePressureLossStateFlow internal constructor(
         .flatMapLatest { (calibration, rule) ->
             rule
                 ?.let {
-                    flow { emit(tyreDatabase.allByTyreLocationByVehicle(location, vehicle.uuid).execute()) }
+                    flow { emit(readingDatabase.allByLocation(location, vehicle.uuid).execute()) }
                         .flowOn(Dispatchers.IO)
                         .map { stored ->
                             stored.fold(PressureLoss.Tracker()) { tracker, record ->

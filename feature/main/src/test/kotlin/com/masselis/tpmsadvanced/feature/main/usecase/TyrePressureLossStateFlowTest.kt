@@ -1,7 +1,8 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import com.masselis.tpmsadvanced.core.test.MainDispatcherRule
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureCalibration
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
@@ -51,9 +52,9 @@ internal class TyrePressureLossStateFlowTest {
     private fun test() = TyrePressureLossStateFlow(
         mockk<Vehicle> { every { uuid } returns VEHICLE_UUID },
         Wheel(FRONT_LEFT),
-        mockk<TyreDatabase> {
+        mockk<ReadingDatabase> {
             // any() can't match the Location value classes
-            every { allByTyreLocationByVehicle(Wheel(FRONT_LEFT), VEHICLE_UUID) } returns mockk {
+            every { allByLocation(Wheel(FRONT_LEFT), VEHICLE_UUID) } returns mockk {
                 every { execute() } returns stored
             }
         },
@@ -73,7 +74,7 @@ internal class TyrePressureLossStateFlowTest {
         sensorId,
         kpa.kpa,
         20f.celsius,
-        100u,
+        PECHAM,
         false,
         Wheel(FRONT_LEFT),
     )

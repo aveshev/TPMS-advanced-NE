@@ -3,10 +3,10 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase.BatteryKinds
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureCalibration
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.BatteryKinds
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.usecase.RenameVehicleUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.VehicleCalibrationUseCase
@@ -14,6 +14,7 @@ import com.masselis.tpmsadvanced.feature.main.usecase.VehicleRangesUseCase
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -23,7 +24,7 @@ internal class VehicleSettingsViewModelImpl(
     private val renameVehicleUseCase: RenameVehicleUseCase,
     override val vehicle: StateFlow<Vehicle>,
     unitPreferences: UnitPreferences,
-    tyreDatabase: TyreDatabase,
+    sensorDatabase: SensorDatabase,
 ) : ViewModel(), VehicleSettingsViewModel {
 
     override val lowPressure = vehicleRangesUseCase.lowPressure
@@ -47,9 +48,10 @@ internal class VehicleSettingsViewModelImpl(
     override val lowBatteryVoltage = vehicleRangesUseCase.lowBatteryVoltage
     override val lowBatteryPercent = vehicleRangesUseCase.lowBatteryPercent
 
-    override val batteryKinds = tyreDatabase
-        .batteryKinds(vehicle.value.uuid)
+    override val batteryKinds = sensorDatabase
+        .brandsByVehicleId(vehicle.value.uuid)
         .asFlow()
+        .map { BatteryKinds.of(it) }
         .stateIn(viewModelScope, WhileSubscribed(), BatteryKinds(hasVoltage = false, hasPercent = false))
 
     override fun setRearOverrideEnabled(enabled: Boolean): Unit =

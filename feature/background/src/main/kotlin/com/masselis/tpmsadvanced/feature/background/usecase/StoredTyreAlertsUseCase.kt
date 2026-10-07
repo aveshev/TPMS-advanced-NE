@@ -1,6 +1,6 @@
 package com.masselis.tpmsadvanced.feature.background.usecase
 
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAlerts
@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.merge
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class StoredTyreAlertsUseCase(
     vehicleListUseCase: VehicleListUseCase,
-    private val tyreDatabase: TyreDatabase,
+    private val readingDatabase: ReadingDatabase,
 ) {
 
     /** A tyre's alerts once [TyreAlerts.latest], a new reading, went through */
@@ -58,7 +58,7 @@ internal class StoredTyreAlertsUseCase(
         // starts it over from the stored readings, as TyrePressureLossStateFlow does
         var calibration = component.vehicleCalibrationUseCase.calibration.first()
         var rule = component.vehiclePressureLossUseCase.rule.first()
-        val stored = tyreDatabase.allByTyreLocationByVehicle(location, vehicle.uuid).execute()
+        val stored = readingDatabase.allByLocation(location, vehicle.uuid).execute()
         var (tracker, alerts) = component
             .vehicleRangesUseCase
             .alertThresholds(location)
@@ -75,12 +75,12 @@ internal class StoredTyreAlertsUseCase(
             }
         var since = stored.lastOrNull()?.timestamp ?: Double.NEGATIVE_INFINITY
         // Emits on every change of the readings, of any tyre
-        tyreDatabase
-            .latestByTyreLocationByVehicle(location, vehicle.uuid)
+        readingDatabase
+            .latestByLocation(location, vehicle.uuid)
             .asFlow()
             .collect {
-                tyreDatabase
-                    .afterByTyreLocationByVehicle(location, vehicle.uuid, since)
+                readingDatabase
+                    .afterByLocation(location, vehicle.uuid, since)
                     .execute()
                     .forEach { record ->
                         val newCalibration = component.vehicleCalibrationUseCase.calibration.first()
@@ -90,8 +90,8 @@ internal class StoredTyreAlertsUseCase(
                             rule = newRule
                             tracker = rule
                                 ?.let { lossRule ->
-                                    tyreDatabase
-                                        .allByTyreLocationByVehicle(location, vehicle.uuid)
+                                    readingDatabase
+                                        .allByLocation(location, vehicle.uuid)
                                         .execute()
                                         .filter { it.timestamp < record.timestamp }
                                         .fold(PressureLoss.Tracker()) { tracker, stored ->
