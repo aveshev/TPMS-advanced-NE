@@ -62,12 +62,14 @@ public interface VehicleBindings {
         renameVehicleUseCase: RenameVehicleUseCase,
         vehicleStateFlow: StateFlow<Vehicle>,
         unitPreferences: UnitPreferences,
+        sensorDatabase: SensorDatabase,
     ): VehicleSettingsViewModelImpl = VehicleSettingsViewModelImpl(
         vehicleRangesUseCase,
         vehicleCalibrationUseCase,
         renameVehicleUseCase,
         vehicleStateFlow,
-        unitPreferences
+        unitPreferences,
+        sensorDatabase,
     )
 
     @Provides

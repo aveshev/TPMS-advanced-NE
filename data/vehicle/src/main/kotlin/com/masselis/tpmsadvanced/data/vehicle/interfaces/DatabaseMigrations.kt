@@ -5,6 +5,7 @@ import app.cash.sqldelight.ColumnAdapter
 import app.cash.sqldelight.db.AfterVersion
 import app.cash.sqldelight.db.QueryResult
 import com.masselis.tpmsadvanced.data.vehicle.Database
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.AdvertisingPacket
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.FRONT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.REAR
@@ -109,4 +110,67 @@ internal fun Database.Companion.afterVersion3(
                     }
                 }
         }
+}
+
+/**
+ * Moves the rows 10.sqm kept in temporary tables into the rebuilt ones, their text turned into
+ * bytes. A sensor gets the brand of its latest reading, a sensor without any is unbound: nothing
+ * tells what it is. Plain SQL, SQLDelight's dialect not knowing unhex().
+ */
+@Suppress("MagicNumber", "MaxLineLength", "LongMethod")
+internal fun Database.Companion.afterVersion10() = AfterVersion(10) { driver ->
+    driver.execute(
+        null,
+        """
+            INSERT INTO Vehicle(uuid, name, isFavourite, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, isDeleting, rearLowPressure, rearHighPressure, separateRearPressure, pressureCalibration, pressureOffset, pressureMultiplier, lowBatteryVoltage)
+            SELECT unhex(replace(uuid, '-', '')), name, isFavourite, lowPressure, highPressure, lowTemp, normalTemp, highTemp, kind, isDeleting, rearLowPressure, rearHighPressure, separateRearPressure, pressureCalibration, pressureOffset, pressureMultiplier, lowBatteryVoltage
+            FROM temp.VehicleBefore11
+        """.trimIndent(),
+        0,
+    )
+    driver.execute(
+        null,
+        """
+            INSERT OR IGNORE INTO Reading(vehicleId, location, timestamp, sensorId, rssi, raw)
+            SELECT unhex(replace(vehicleId, '-', '')), location, timestamp, id, rssi, unhex(raw)
+            FROM temp.TyreBefore11
+        """.trimIndent(),
+        0,
+    )
+    driver
+        .executeQuery(
+            identifier = null,
+            sql = """
+                SELECT Sensor.id, Sensor.location, unhex(replace(Sensor.vehicleId, '-', '')), (
+                    SELECT unhex(raw) FROM temp.TyreBefore11 AS Tyre
+                    WHERE Tyre.vehicleId = Sensor.vehicleId AND Tyre.location = Sensor.location AND Tyre.id = Sensor.id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                )
+                FROM temp.SensorBefore11 AS Sensor
+            """.trimIndent(),
+            mapper = { cursor ->
+                buildList {
+                    while (cursor.next().value) add(
+                        listOf(cursor.getLong(0)!!, cursor.getLong(1)!!, cursor.getBytes(2)!!, cursor.getBytes(3))
+                    )
+                }.let { QueryResult.Value(it) }
+            },
+            parameters = 0,
+        )
+        .value
+        .forEach { (id, location, vehicleId, raw) ->
+            (raw as ByteArray?)
+                ?.let { AdvertisingPacket(it).decode()?.brand }
+                ?.also { brand ->
+                    driver.execute(null, "INSERT INTO Sensor(id, location, vehicleId, brand) VALUES (?, ?, ?, ?)", 4) {
+                        bindLong(0, id as Long)
+                        bindLong(1, location as Long)
+                        bindBytes(2, vehicleId as ByteArray)
+                        bindLong(3, brand.code)
+                    }
+                }
+        }
+    listOf("VehicleBefore11", "SensorBefore11", "TyreBefore11")
+        .forEach { driver.execute(null, "DROP TABLE temp.$it", 0) }
 }

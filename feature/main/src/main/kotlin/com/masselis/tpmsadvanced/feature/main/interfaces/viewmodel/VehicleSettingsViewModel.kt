@@ -30,6 +30,10 @@ internal interface VehicleSettingsViewModel {
     val temperatureUnit: StateFlow<TemperatureUnit>
 
     val lowBatteryVoltage: MutableStateFlow<Voltage>
+    val lowBatteryPercent: MutableStateFlow<Int>
+
+    /** What the vehicle's sensors report their battery as */
+    val batteryKinds: StateFlow<BatteryKinds>
 
     fun setRearOverrideEnabled(enabled: Boolean)
 

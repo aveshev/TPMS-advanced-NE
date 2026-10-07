@@ -417,7 +417,7 @@ private fun TopAppBar(
                 is Path.PressureSettings -> Text(text = "Pressure")
                 is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.CalibrationSettings -> Text(text = "Pressure calibration")
-                is Path.BatterySettings -> Text(text = "Battery voltage")
+                is Path.BatterySettings -> Text(text = "Battery")
                 is Path.PressureLoss -> Text(text = "Pressure loss")
                 is Path.AppSettings -> Text(text = "App settings")
                 is Path.TimeSinceUpdate -> Text(text = "Time since last update")

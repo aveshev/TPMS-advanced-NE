@@ -10,14 +10,16 @@ import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.core.database.SQLiteOpenHelperUseCase
 import com.masselis.tpmsadvanced.data.vehicle.Database
 import com.masselis.tpmsadvanced.data.vehicle.Sensor
-import com.masselis.tpmsadvanced.data.vehicle.Tyre
+import com.masselis.tpmsadvanced.data.vehicle.Reading
 import com.masselis.tpmsadvanced.data.vehicle.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.DatabaseExport
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.afterVersion10
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.afterVersion3
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
@@ -27,6 +29,7 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.DelicateCoroutinesApi
+import java.nio.ByteBuffer
 import java.util.UUID
 
 @OptIn(DelicateCoroutinesApi::class)
@@ -42,12 +45,34 @@ public interface Bindings {
     private fun sensorDatabase(database: Database): SensorDatabase = SensorDatabase(database)
 
     @Provides
-    private fun tyreDatabase(database: Database): TyreDatabase = TyreDatabase(database)
+    private fun readingDatabase(database: Database): ReadingDatabase = ReadingDatabase(database)
+
+    /** Its 16 bytes, most significant first, as `unhex()` turned the text ones into */
+    @Provides
+    private fun uuidAdapter(): ColumnAdapter<UUID, ByteArray> = object : ColumnAdapter<UUID, ByteArray> {
+        override fun decode(databaseValue: ByteArray): UUID = ByteBuffer
+            .wrap(databaseValue)
+            .let { UUID(it.long, it.long) }
+
+        override fun encode(value: UUID): ByteArray = ByteBuffer
+            .allocate(UUID_BYTES)
+            .putLong(value.mostSignificantBits)
+            .putLong(value.leastSignificantBits)
+            .array()
+    }
 
     @Provides
-    private fun uuidAdapter(): ColumnAdapter<UUID, String> = object : ColumnAdapter<UUID, String> {
-        override fun decode(databaseValue: String): UUID = UUID.fromString(databaseValue)
-        override fun encode(value: UUID): String = value.toString()
+    private fun brandAdapter(): ColumnAdapter<SensorBrand, Long> = object : ColumnAdapter<SensorBrand, Long> {
+        override fun decode(databaseValue: Long): SensorBrand = SensorBrand.of(databaseValue)
+        override fun encode(value: SensorBrand): Long = value.code
+    }
+
+    /** The advertisements are stored as bytes, and handled in hexadecimal */
+    @OptIn(ExperimentalStdlibApi::class)
+    @Provides
+    private fun hexAdapter(): ColumnAdapter<String, ByteArray> = object : ColumnAdapter<String, ByteArray> {
+        override fun decode(databaseValue: ByteArray): String = databaseValue.toHexString()
+        override fun encode(value: String): ByteArray = value.hexToByteArray()
     }
 
     @Provides
@@ -80,13 +105,6 @@ public interface Bindings {
         object : ColumnAdapter<Voltage, Double> {
             override fun decode(databaseValue: Double): Voltage = Voltage(databaseValue.toFloat())
             override fun encode(value: Voltage): Double = value.volts.toDouble()
-        }
-
-    @Provides
-    private fun uShortAdapter(): ColumnAdapter<UShort, Long> =
-        object : ColumnAdapter<UShort, Long> {
-            override fun decode(databaseValue: Long): UShort = databaseValue.toUShort()
-            override fun encode(value: UShort): Long = value.toLong()
         }
 
     @Provides
@@ -136,6 +154,7 @@ public interface Bindings {
         callback = object : AndroidSqliteDriver.Callback(
             Database.Schema,
             Database.afterVersion3(locationAdapter),
+            Database.afterVersion10(),
         ) {
             val delegate = AndroidSqliteDriver.Callback(Database.Schema)
 
@@ -153,12 +172,13 @@ public interface Bindings {
     @SingleIn(AppScope::class)
     private fun database(
         driver: SqlDriver,
-        uuidAdapter: ColumnAdapter<UUID, String>,
+        uuidAdapter: ColumnAdapter<UUID, ByteArray>,
         sensorLocationAdapter: ColumnAdapter<Location, Long>,
         pressureAdapter: ColumnAdapter<Pressure, Double>,
         temperatureAdapter: ColumnAdapter<Temperature, Double>,
-        uShortAdapter: ColumnAdapter<UShort, Long>,
         voltageAdapter: ColumnAdapter<Voltage, Double>,
+        brandAdapter: ColumnAdapter<SensorBrand, Long>,
+        hexAdapter: ColumnAdapter<String, ByteArray>,
     ): Database = Database(
         driver,
         VehicleAdapter = Vehicle.Adapter(
@@ -173,17 +193,17 @@ public interface Bindings {
             pressureAdapter,
             pressureAdapter,
             voltageAdapter,
+            IntColumnAdapter,
         ),
-        SensorAdapter = Sensor.Adapter(IntColumnAdapter, sensorLocationAdapter, uuidAdapter),
-        TyreAdapter = Tyre.Adapter(
-            IntColumnAdapter,
-            IntColumnAdapter,
-            sensorLocationAdapter,
-            pressureAdapter,
-            temperatureAdapter,
-            uShortAdapter,
+        SensorAdapter = Sensor.Adapter(IntColumnAdapter, sensorLocationAdapter, uuidAdapter, brandAdapter),
+        ReadingAdapter = Reading.Adapter(
             uuidAdapter,
-            voltageAdapter,
-        )
+            sensorLocationAdapter,
+            IntColumnAdapter,
+            IntColumnAdapter,
+            hexAdapter,
+        ),
     )
 }
+
+private const val UUID_BYTES = 16

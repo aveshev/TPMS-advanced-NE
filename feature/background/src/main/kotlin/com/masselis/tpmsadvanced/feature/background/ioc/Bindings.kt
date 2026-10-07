@@ -5,7 +5,7 @@ import com.masselis.tpmsadvanced.core.ui.isAppVisibleFlow
 import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier
 import com.masselis.tpmsadvanced.feature.background.interfaces.MonitoringController
 import com.masselis.tpmsadvanced.feature.background.interfaces.viewmodel.AlertSilenceViewModel
@@ -221,8 +221,8 @@ public interface Bindings {
     @Provides
     private fun storedTyreAlertsUseCase(
         vehicleListUseCase: VehicleListUseCase,
-        tyreDatabase: TyreDatabase,
-    ): StoredTyreAlertsUseCase = StoredTyreAlertsUseCase(vehicleListUseCase, tyreDatabase)
+        readingDatabase: ReadingDatabase,
+    ): StoredTyreAlertsUseCase = StoredTyreAlertsUseCase(vehicleListUseCase, readingDatabase)
 
     @Provides
     @SingleIn(AppScope::class)

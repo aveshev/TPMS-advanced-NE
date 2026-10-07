@@ -29,6 +29,7 @@ import co.touchlab.kermit.Logger
 import com.masselis.tpmsadvanced.core.common.asFlow
 import com.masselis.tpmsadvanced.core.common.dematerializeCompletion
 import com.masselis.tpmsadvanced.core.common.materializeCompletion
+import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.Advertisement
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner.DeviceMatch
@@ -157,27 +158,19 @@ internal class BluetoothLeScannerImpl(
     )
         .mapNotNull { result ->
             logger.v { "Sensor found during scan. Address: ${result.device.address}, scan bytes: ${result.scanRecord?.bytes?.toHexString()}" }
-            (
-                RawPecham(result)
-                    ?: RawBekubeeKy(result)
-                    ?: RawWicarlink(result)
-                    ?: RawBekubeeTpms(result)
-                    ?: RawSysgration(result)
-                    ?: run {
-                        logger.d { "Sensor not parsed. Scan bytes: ${result.scanRecord?.bytes?.toHexString()}" }
-                        null
-                    }
-            )?.let { it to result.scanRecord?.advertisementHex }
+            result.scanRecord?.advertisementHex?.let { Triple(result.device.address, result.rssi, it) }
         }
-        // A real sensor emits the same value up to 10 times in a short time, to avoid to emit the
-        // same value 10 times, only a change of the decoded packet goes through.
-        .distinctUntilChangedBy { (raw, _) -> raw }
-        .map { (raw, advertisement) ->
-            // Kept whole, for what the decoders don't read yet
-            when (val tyre = raw.asTyre()) {
-                is Tyre.Unlocated -> tyre.copy(raw = advertisement)
-                is Tyre.SensorLocated -> tyre.copy(raw = advertisement)
-            }
+        // A real sensor sends the same advertisement up to 10 times in a short time, only a change
+        // goes through. The signal strength isn't compared, it changes from one to the next.
+        .distinctUntilChangedBy { (address, _, advertisement) -> address to advertisement }
+        .mapNotNull { (address, rssi, advertisement) ->
+            AdvertisingPacket(advertisement.hexToByteArray())
+                .decode()
+                ?.let { raw -> raw.asTyre(now(), rssi, raw.sensorId ?: sensorIdOf(address), advertisement) }
+                ?: run {
+                    logger.d { "Sensor not parsed. Scan bytes: $advertisement" }
+                    null
+                }
         }
         .withSimulatedReadings()
         .onEach { logger.d("Sensor content: $it") }

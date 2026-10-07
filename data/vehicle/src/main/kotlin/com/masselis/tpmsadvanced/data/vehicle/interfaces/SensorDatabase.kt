@@ -8,6 +8,7 @@ import com.masselis.tpmsadvanced.core.database.QueryOneOrNull
 import com.masselis.tpmsadvanced.core.database.QueryOneOrNull.Companion.asOneOrNull
 import com.masselis.tpmsadvanced.data.vehicle.Database
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
@@ -37,7 +38,7 @@ public class SensorDatabase internal constructor(
                 "Filled sensor points to a location which is not handled by the vehicle kind. Kind: $kind, sensor: $sensor"
             }
             queries.deleteByVehicleAndLocation(vehicleId, sensor.location)
-            queries.upsert(sensor.id, sensor.location, vehicleId)
+            queries.upsert(sensor.id, sensor.location, vehicleId, sensor.brand)
         }
     }
 
@@ -64,6 +65,11 @@ public class SensorDatabase internal constructor(
         .selectListByVehicleId(uuid, mapper)
         .asList()
 
+    /** The brands of the sensors bound to the vehicle, what its battery alarms apply to */
+    public fun brandsByVehicleId(uuid: UUID): QueryList<SensorBrand> = queries
+        .brandsByVehicleId(uuid)
+        .asList()
+
     public fun selectListExcludingVehicleId(uuid: UUID): QueryList<Sensor> = queries
         .selectListExcludingVehicleId(uuid, mapper)
         .asList()
@@ -73,8 +79,9 @@ public class SensorDatabase internal constructor(
             id: Int,
             location: Location,
             vehicleId: UUID,
-        ) -> Sensor = { id, location, _ ->
-            Sensor(id, location)
+            brand: SensorBrand,
+        ) -> Sensor = { id, location, _, brand ->
+            Sensor(id, location, brand)
         }
     }
 }

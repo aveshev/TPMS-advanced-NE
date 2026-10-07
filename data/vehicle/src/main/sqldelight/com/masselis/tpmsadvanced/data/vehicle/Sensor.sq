@@ -1,3 +1,4 @@
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand;
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle;
 import java.util.UUID;
 import kotlin.Int;
@@ -5,7 +6,8 @@ import kotlin.Int;
 CREATE TABLE Sensor(
     id INTEGER AS Int NOT NULL PRIMARY KEY,
     location INTEGER AS Vehicle.Kind.Location NOT NULL,
-    vehicleId TEXT AS UUID NOT NULL,
+    vehicleId BLOB AS UUID NOT NULL,
+    brand INTEGER AS SensorBrand NOT NULL,
     FOREIGN KEY(vehicleId) REFERENCES Vehicle(uuid) ON DELETE CASCADE,
     UNIQUE(location, vehicleId)
 );
@@ -15,10 +17,10 @@ Insert the sensor. If the sensor already exists in the database, this instructio
 from the previous car and set it into the new car.
 */
 upsert:
-INSERT INTO Sensor (id, location, vehicleId)
-VALUES (?, ?, ?)
+INSERT INTO Sensor (id, location, vehicleId, brand)
+VALUES (?, ?, ?, ?)
 ON CONFLICT(id) DO
-UPDATE SET location=excluded.location, vehicleId=excluded.vehicleId;
+UPDATE SET location=excluded.location, vehicleId=excluded.vehicleId, brand=excluded.brand;
 
 deleteByVehicle:
 DELETE FROM Sensor WHERE rowid IN (
@@ -48,3 +50,7 @@ SELECT * FROM Sensor WHERE Sensor.vehicleId = ?;
 
 selectListExcludingVehicleId:
 SELECT * FROM Sensor WHERE Sensor.vehicleId != ?;
+
+-- What the vehicle's battery alarms apply to, see SensorBrand.batteryUnit
+brandsByVehicleId:
+SELECT DISTINCT brand FROM Sensor WHERE vehicleId = ?;

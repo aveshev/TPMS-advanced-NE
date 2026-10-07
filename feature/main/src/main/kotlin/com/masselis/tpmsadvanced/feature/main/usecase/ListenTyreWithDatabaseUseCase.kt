@@ -2,7 +2,7 @@ package com.masselis.tpmsadvanced.feature.main.usecase
 
 import com.masselis.tpmsadvanced.core.common.dematerializeCompletion
 import com.masselis.tpmsadvanced.core.common.materializeCompletion
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
@@ -19,7 +19,7 @@ internal interface ListenTyreWithDatabaseUseCase : ListenTyreUseCase {
     class Impl(
         vehicle: Vehicle,
         location: Location,
-        tyreDatabase: TyreDatabase,
+        readingDatabase: ReadingDatabase,
         listenTyreUseCase: ListenTyreUseCase,
         sensorBindingUseCase: SensorBindingUseCase,
         scope: CoroutineScope,
@@ -31,28 +31,25 @@ internal interface ListenTyreWithDatabaseUseCase : ListenTyreUseCase {
 
         private val flow = listenTyreUseCase
             .listen()
-            .onStart { tyreDatabase.prune(location, vehicle.uuid) }
+            .onStart { readingDatabase.prune(location, vehicle.uuid) }
             .onEach { tyre ->
                 tyre
-                    // Sensors send each reading several times in a burst, only the first one is
-                    // stored. The signal strength changes from one to the next, it isn't compared.
+                    // Sensors send each advertisement several times in a burst, only the first one
+                    // is stored, with its signal strength
                     .takeIf { new ->
                         lastStored
                             ?.let { last ->
                                 new.sensorId == last.sensorId &&
-                                    new.pressure == last.pressure &&
-                                    new.temperature == last.temperature &&
-                                    new.battery == last.battery &&
-                                    new.isAlarm == last.isAlarm &&
+                                    new.raw == last.raw &&
                                     new.timestamp - last.timestamp < BURST_SECONDS
                             }
                             ?.not()
                             ?: true
                     }
-                    ?.also { tyreDatabase.insert(it, vehicle.uuid) }
+                    ?.also { readingDatabase.insert(it, vehicle.uuid) }
                     ?.also { lastStored = it }
                     ?.takeIf { ++storedCount % PRUNE_EVERY == 0 }
-                    ?.also { tyreDatabase.prune(location, vehicle.uuid) }
+                    ?.also { readingDatabase.prune(location, vehicle.uuid) }
             }
             .materializeCompletion()
             .shareIn(scope, WhileSubscribed())
@@ -63,8 +60,8 @@ internal interface ListenTyreWithDatabaseUseCase : ListenTyreUseCase {
                 sensorBindingUseCase
                     .boundSensor()
                     .value
-                    ?.let { tyreDatabase.latestBySensorByTyreLocationByVehicle(it.id, location, vehicle.uuid) }
-                    .let { it ?: tyreDatabase.latestByTyreLocationByVehicle(location, vehicle.uuid) }
+                    ?.let { readingDatabase.latestBySensorByLocation(it.id, location, vehicle.uuid) }
+                    .let { it ?: readingDatabase.latestByLocation(location, vehicle.uuid) }
                     .execute()
                     ?.also { emit(it) }
             }

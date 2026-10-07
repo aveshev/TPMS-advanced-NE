@@ -43,7 +43,7 @@ import kotlinx.coroutines.delay
  * [openPressure], [openTemperature] and [openBattery]. [openBindingMethod] opens the sensor binding
  * and [openCalibration] the pressure calibration.
  */
-@Suppress("LongMethod", "MaxLineLength")
+@Suppress("LongMethod", "MaxLineLength", "CyclomaticComplexMethod")
 @Composable
 public fun VehicleSettings(
     openPressure: () -> Unit,
@@ -69,6 +69,8 @@ public fun VehicleSettings(
     val normalTemp by viewModel.normalTemp.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
     val lowBatteryVoltage by viewModel.lowBatteryVoltage.collectAsState()
+    val lowBatteryPercent by viewModel.lowBatteryPercent.collectAsState()
+    val batteryKinds by viewModel.batteryKinds.collectAsState()
     val calibration by viewModel.pressureCalibration.collectAsState()
     val offset by viewModel.pressureOffset.collectAsState()
     val multiplier by viewModel.pressureMultiplier.collectAsState()
@@ -101,8 +103,17 @@ public fun VehicleSettings(
                 opensPage = true,
             )
             TextSettingsItem(
-                headline = "Battery voltage",
-                supporting = "Low voltage alarm ${lowBatteryVoltage.string()}",
+                headline = "Battery",
+                // Like the battery page, both while nothing is known about the sensors
+                supporting = when {
+                    batteryKinds.hasVoltage && batteryKinds.hasPercent.not() ->
+                        "Low voltage alarm ${lowBatteryVoltage.string()}"
+
+                    batteryKinds.hasPercent && batteryKinds.hasVoltage.not() ->
+                        "Low battery alarm $lowBatteryPercent %"
+
+                    else -> "Low alarms ${lowBatteryVoltage.string()} · $lowBatteryPercent %"
+                },
                 onClick = openBattery,
                 opensPage = true,
                 modifier = Modifier.testTag(VehicleSettingsTags.battery),

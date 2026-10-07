@@ -1,7 +1,6 @@
 package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanRecord
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanResult
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.BEKUBEE_TPMS
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -11,9 +10,9 @@ import kotlin.test.assertNotNull
 internal class BekubeeTpmsTest {
 
     // 0x08: Shortened Local Name ("TPMS")
-    // 0xFF: Manufacturer Specific Data. The values below are the payload *after* the company ID
-    // (i.e. what ScanRecord.manufacturerSpecificData's valueAt(0) returns). The company ID itself
-    // varies with sensor state (0x0002 mounted, 0x0006 unplugged) so it must not be filtered on.
+    // 0xFF: Manufacturer Specific Data. The values below are the payload *after* the company ID,
+    // wrapped by advertisement() into the rest of the packet. The company ID itself varies with
+    // sensor state (0x0002 mounted, 0x0006 unplugged) so it must not be filtered on.
     // 0x03: Complete List of 16-bit Service Class UUIDs (0xA827)
 
     @Suppress("MaxLineLength")
@@ -41,32 +40,26 @@ internal class BekubeeTpmsTest {
         "B34A0064002FA0057D",
     )
 
+    /** The packet of the live captures: name, manufacturer data under [companyId], service UUID */
+    private fun advertisement(payload: String, companyId: String = "0200") =
+        "050854504D530CFF$companyId${payload}030327A8".hexToByteArray()
+
     @Test
     fun realValue() {
         samples
-            .map { it.hexToByteArray() }
-            .mapNotNull { manufacturerData ->
-                RawBekubeeTpms(
-                    mockScanResult(
-                        mockScanRecord = mockScanRecord(
-                            mockDeviceName = "TPMS",
-                            containsServiceUuids = true,
-                            mockManufacturerData = manufacturerData
-                        )
-                    )
-                )
-            }
-            .map { it.asTyre() }
+            .mapNotNull { advertisement(it).decodedTyre() }
             .onEach(::println)
-            .also { assert(it.size == samples.size) }
+            .also { assertEquals(samples.size, it.size) }
             .forEach { tyre ->
-                // battery holds the voltage rounded to 0.1 V, batteryVoltage keeps the 0.01 V steps
+                assertEquals(BEKUBEE_TPMS, tyre.brand)
                 assertFalse(tyre.isAlarm)
-                assertEquals(
-                    tyre.battery.toFloat() / 10f,
-                    assertNotNull(tyre.batteryVoltage).volts,
-                    absoluteTolerance = 0.05f,
-                )
+                assertNotNull(tyre.batteryVoltage)
             }
+    }
+
+    @Test
+    fun `the live captures decode whatever their company ID`() {
+        assertEquals(5647616, assertNotNull(advertisement(samples[0]).decodedTyre()).sensorId)
+        assertEquals(10497792, assertNotNull(advertisement(samples[3], companyId = "0600").decodedTyre()).sensorId)
     }
 }

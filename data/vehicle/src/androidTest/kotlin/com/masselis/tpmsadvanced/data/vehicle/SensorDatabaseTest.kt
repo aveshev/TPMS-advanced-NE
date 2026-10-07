@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.data.vehicle
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.masselis.tpmsadvanced.core.common.appContext
 import com.masselis.tpmsadvanced.core.common.appGraph
@@ -59,19 +60,19 @@ internal class SensorDatabaseTest {
     @Test
     fun simpleInsert() = runTest {
         assertSensorCount(0, currentVehicleUuid)
-        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT)), currentVehicleUuid)
+        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT), PECHAM), currentVehicleUuid)
         assertSensorId(1, currentVehicleUuid, Location.Wheel(FRONT_LEFT))
         assertSensorCount(1, currentVehicleUuid)
     }
 
     @Test
     fun insertToACarThanUpsertToAnOtherCar() = runTest {
-        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT)), currentVehicleUuid)
+        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT), PECHAM), currentVehicleUuid)
         assertSensorCount(1, currentVehicleUuid)
 
         val uuid = UUID.randomUUID()
         vehicleQueries.insert(uuid, Kind.CAR, "MOCK", false)
-        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT)), uuid)
+        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT), PECHAM), uuid)
         assertSensorCount(0, currentVehicleUuid)
         assertSensorId(1, uuid, Location.Wheel(FRONT_LEFT))
         assertSensorCount(1, uuid)
@@ -79,20 +80,20 @@ internal class SensorDatabaseTest {
 
     @Test
     fun insertSensor1ThenInsertAtTheSamePlaceSensor2() = runTest {
-        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT)), currentVehicleUuid)
+        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT), PECHAM), currentVehicleUuid)
         assertSensorCount(1, currentVehicleUuid)
 
-        sensorDatabase.upsert(Sensor(2, Location.Wheel(FRONT_LEFT)), currentVehicleUuid)
+        sensorDatabase.upsert(Sensor(2, Location.Wheel(FRONT_LEFT), PECHAM), currentVehicleUuid)
         assertSensorId(2, currentVehicleUuid, Location.Wheel(FRONT_LEFT))
         assertSensorCount(1, currentVehicleUuid)
     }
 
     @Test
     fun insertSensor1ThenUpsertWithANewLocation() = runTest {
-        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT)), currentVehicleUuid)
+        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_LEFT), PECHAM), currentVehicleUuid)
         assertSensorCount(1, currentVehicleUuid)
 
-        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_RIGHT)), currentVehicleUuid)
+        sensorDatabase.upsert(Sensor(1, Location.Wheel(FRONT_RIGHT), PECHAM), currentVehicleUuid)
         assertSensorId(1, currentVehicleUuid, Location.Wheel(FRONT_RIGHT))
         assertSensorCount(1, currentVehicleUuid)
     }
@@ -101,7 +102,7 @@ internal class SensorDatabaseTest {
     fun upsertSensorToAWrongLocationForTheKind() = runTest {
         assertSensorCount(0, currentVehicleUuid)
         assertFailsWith<IllegalArgumentException> {
-            sensorDatabase.upsert(Sensor(1, Location.Side(LEFT)), currentVehicleUuid)
+            sensorDatabase.upsert(Sensor(1, Location.Side(LEFT), PECHAM), currentVehicleUuid)
         }
         assertSensorCount(0, currentVehicleUuid)
     }

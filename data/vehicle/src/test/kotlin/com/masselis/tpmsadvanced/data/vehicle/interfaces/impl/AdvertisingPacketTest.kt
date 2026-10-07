@@ -5,9 +5,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 @OptIn(ExperimentalStdlibApi::class)
-internal class AdvertisementTest {
+internal class AdvertisingPacketTest {
 
-    private fun statusBytes(hex: String) = Advertisement(hex.hexToByteArray()).statusBytes
+    private fun statusBytes(hex: String) = AdvertisingPacket(hex.hexToByteArray()).statusBytes
 
     private fun bytes(vararg values: Int) = values.map { it.toUByte() }
 

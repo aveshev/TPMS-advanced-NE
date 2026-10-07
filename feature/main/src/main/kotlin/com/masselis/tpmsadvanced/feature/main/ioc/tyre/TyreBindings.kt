@@ -4,7 +4,7 @@ import com.masselis.tpmsadvanced.data.app.interfaces.AppPreferences
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
@@ -66,7 +66,7 @@ public interface TyreBindings {
     private fun listenTyreWithDatabaseUseCase(
         vehicle: Vehicle,
         location: Location,
-        tyreDatabase: TyreDatabase,
+        readingDatabase: ReadingDatabase,
         listenTyreUseCase: ListenTyreSmartDutyUseCase,
         sensorBindingUseCase: SensorBindingUseCase,
         demoOrBleScannerUseCase: DemoOrBleScannerUseCase,
@@ -80,7 +80,7 @@ public interface TyreBindings {
             ListenTyreWithDatabaseUseCase.Impl(
                 vehicle,
                 location,
-                tyreDatabase,
+                readingDatabase,
                 listenTyreUseCase,
                 sensorBindingUseCase,
                 scope
@@ -126,7 +126,7 @@ public interface TyreBindings {
     private fun tyrePressureLossStateFlow(
         vehicle: Vehicle,
         location: Location,
-        tyreDatabase: TyreDatabase,
+        readingDatabase: ReadingDatabase,
         listenTyreUseCase: ListenTyreUseCase,
         calibrationUseCase: VehicleCalibrationUseCase,
         pressureLossUseCase: VehiclePressureLossUseCase,
@@ -134,7 +134,7 @@ public interface TyreBindings {
     ): TyrePressureLossStateFlow = TyrePressureLossStateFlow(
         vehicle,
         location,
-        tyreDatabase,
+        readingDatabase,
         listenTyreUseCase,
         calibrationUseCase,
         pressureLossUseCase,

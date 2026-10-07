@@ -19,18 +19,25 @@ import kotlinx.coroutines.flow.stateIn
 import kotlin.coroutines.CoroutineContext
 import app.cash.sqldelight.Query as SqlDelightQuery
 
+/**
+ * [transform] turns each row into what the query returns, a row it returns null for is skipped:
+ * see [asList] for the rows which may not be readable.
+ */
 public class QueryList<T : Any> private constructor(
-    private val source: SqlDelightQuery<T>
+    private val source: SqlDelightQuery<out Any>,
+    private val transform: (Any) -> T?,
 ) {
-    public fun execute(): List<T> = source.executeAsList()
+    public fun execute(): List<T> = source.executeAsList().mapNotNull(transform)
 
     public fun asFlow(context: CoroutineContext = IO): Flow<List<T>> = source
         .asFlow()
         .mapToList(context)
+        .map { it.mapNotNull(transform) }
 
     public fun asChillFlow(context: CoroutineContext = IO): Flow<List<T>> = source
         .asChillFlow()
         .mapToList(context)
+        .map { it.mapNotNull(transform) }
 
     /**
      * Under the hood [asStateFlow] uses [asChillFlow] to retrieve values from the database when its
@@ -45,11 +52,17 @@ public class QueryList<T : Any> private constructor(
         started: SharingStarted
     ): StateFlow<List<T>> = source
         .asChillFlow()
-        .map { it.awaitAsList() }
+        .map { query -> query.awaitAsList().mapNotNull(transform) }
         .stateIn(scope, started, execute())
 
     public companion object {
-        public fun <T : Any> SqlDelightQuery<T>.asList(): QueryList<T> = QueryList(this)
+        @Suppress("UNCHECKED_CAST")
+        public fun <T : Any> SqlDelightQuery<T>.asList(): QueryList<T> = QueryList(this) { it as T }
+
+        /** For the rows which can't always be read, such as stored data decoded when read back */
+        @Suppress("UNCHECKED_CAST")
+        public fun <R : Any, T : Any> SqlDelightQuery<R>.asList(transform: (R) -> T?): QueryList<T> =
+            QueryList(this) { transform(it as R) }
     }
 }
 
@@ -87,18 +100,22 @@ public class QueryOne<out T : Any> private constructor(
     }
 }
 
+/** Same as [QueryList] for its [transform] */
 public class QueryOneOrNull<out T : Any> private constructor(
-    private val source: SqlDelightQuery<T>
+    private val source: SqlDelightQuery<out Any>,
+    private val transform: (Any) -> T?,
 ) {
-    public fun execute(): T? = source.executeAsOneOrNull()
+    public fun execute(): T? = source.executeAsOneOrNull()?.let(transform)
 
     public fun asFlow(context: CoroutineContext = IO): Flow<T?> = source
         .asFlow()
         .mapToOneOrNull(context)
+        .map { it?.let(transform) }
 
     public fun asChillFlow(context: CoroutineContext = IO): Flow<T?> = source
         .asChillFlow()
         .mapToOneOrNull(context)
+        .map { it?.let(transform) }
 
     /**
      * Under the hood [asStateFlow] uses [asChillFlow] to retrieve values from the database when its
@@ -113,15 +130,20 @@ public class QueryOneOrNull<out T : Any> private constructor(
         started: SharingStarted
     ): StateFlow<T?> = source
         .asChillFlow()
-        .map { it.awaitAsOneOrNull() }
+        .map { query -> query.awaitAsOneOrNull()?.let(transform) }
         .stateIn(scope, started, execute())
 
     public companion object {
+        @Suppress("UNCHECKED_CAST")
         public fun <T : Any> SqlDelightQuery<T>.asOneOrNull(): QueryOneOrNull<T> =
-            QueryOneOrNull(this)
+            QueryOneOrNull(this) { it as T }
+
+        /** See [QueryList.asList] */
+        @Suppress("UNCHECKED_CAST")
+        public fun <R : Any, T : Any> SqlDelightQuery<R>.asOneOrNull(transform: (R) -> T?): QueryOneOrNull<T> =
+            QueryOneOrNull(this) { transform(it as R) }
     }
 }
-
 
 private fun <T : Any> SqlDelightQuery<T>.asChillFlow(): Flow<SqlDelightQuery<T>> = flow {
     val channel = Channel<Unit>(Channel.CONFLATED)

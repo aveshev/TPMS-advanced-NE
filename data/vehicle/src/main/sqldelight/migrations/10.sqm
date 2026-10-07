@@ -1,0 +1,107 @@
+-- The reading redesign. The vehicle IDs are stored as their 16 bytes instead of their text, the
+-- readings keep only what their advertisement doesn't carry, decoding the rest from it, and the
+-- sensors keep their brand.
+--
+-- The tables are rebuilt: the old rows wait in temporary tables, which afterVersion10 converts into
+-- the new ones. Their text is turned into bytes with unhex(), which the SQLite the app bundles has
+-- (requery's, see SQLiteOpenHelperUseCase) but SQLDelight's dialect doesn't know.
+
+CREATE TEMP TABLE VehicleBefore11 AS SELECT * FROM Vehicle;
+CREATE TEMP TABLE SensorBefore11 AS SELECT * FROM Sensor;
+-- The readings stored before the advertisement was kept can't be decoded, they're dropped
+CREATE TEMP TABLE TyreBefore11 AS SELECT vehicleId, location, timestamp, id, rssi, raw FROM Tyre WHERE raw IS NOT NULL;
+
+-- Children first: dropping Vehicle deletes what still refers to it
+DROP TABLE Tyre;
+DROP TABLE Sensor;
+DROP TABLE Vehicle;
+
+CREATE TABLE Vehicle(
+    -- 16 bytes, not its 36 characters of text: every sensor and reading refers to it
+    uuid BLOB NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    isFavourite INTEGER NOT NULL,
+    lowPressure REAL NOT NULL DEFAULT 100,
+    -- VehicleDatabase.DEFAULT_HIGH_PRESSURE, 50 psi
+    highPressure REAL NOT NULL DEFAULT 344.75,
+    lowTemp REAL NOT NULL DEFAULT 20,
+    normalTemp REAL NOT NULL DEFAULT 45,
+    highTemp REAL NOT NULL DEFAULT 90,
+    kind TEXT NOT NULL DEFAULT "CAR",
+    isDeleting INTEGER NOT NULL DEFAULT 0,
+    rearLowPressure REAL,
+    rearHighPressure REAL,
+    separateRearPressure INTEGER NOT NULL DEFAULT 0,
+    pressureCalibration INTEGER NOT NULL DEFAULT 0,
+    pressureOffset REAL NOT NULL DEFAULT 0,
+    pressureMultiplier REAL NOT NULL DEFAULT 1,
+    lowBatteryVoltage REAL NOT NULL DEFAULT 2.6,
+    lowBatteryPercent INTEGER NOT NULL DEFAULT 10
+);
+
+CREATE TRIGGER IF NOT EXISTS new_favourite_insert
+    AFTER INSERT ON Vehicle
+    WHEN new.isFavourite = 1
+BEGIN
+    UPDATE Vehicle SET isFavourite = 0 WHERE isFavourite = 1 AND uuid != new.uuid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS new_favourite_update
+    AFTER UPDATE OF isFavourite
+    ON Vehicle
+    WHEN new.isFavourite = 1
+BEGIN
+    UPDATE Vehicle SET isFavourite = 0 WHERE isFavourite = 1 AND uuid != new.uuid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS no_favourite_update
+    AFTER UPDATE OF isFavourite
+    ON Vehicle
+    WHEN (SELECT COUNT(*) FROM Vehicle WHERE isFavourite = 1) = 0
+BEGIN
+    UPDATE Vehicle SET isFavourite = 1 WHERE rowid IN (SELECT rowid FROM Vehicle LIMIT 1);
+END;
+
+CREATE TRIGGER IF NOT EXISTS no_vehicle_delete
+    BEFORE DELETE
+    ON Vehicle
+    WHEN (SELECT COUNT(*) FROM Vehicle) = 1
+BEGIN
+    SELECT RAISE(IGNORE);
+END;
+
+CREATE TRIGGER IF NOT EXISTS no_favourite_delete
+    AFTER DELETE
+    ON Vehicle
+    WHEN old.isFavourite = 1
+BEGIN
+    UPDATE Vehicle SET isFavourite = 1 WHERE rowid IN (SELECT rowid FROM Vehicle LIMIT 1);
+END;
+
+CREATE TRIGGER IF NOT EXISTS no_update_when_deleting
+    BEFORE UPDATE
+    ON Vehicle
+    WHEN old.isDeleting = 1
+BEGIN
+    SELECT RAISE(FAIL, 'Cannot update a vehicule which is currently deleting');
+END;
+
+CREATE TABLE Sensor(
+    id INTEGER NOT NULL PRIMARY KEY,
+    location INTEGER NOT NULL,
+    vehicleId BLOB NOT NULL,
+    brand INTEGER NOT NULL,
+    FOREIGN KEY(vehicleId) REFERENCES Vehicle(uuid) ON DELETE CASCADE,
+    UNIQUE(location, vehicleId)
+);
+
+CREATE TABLE Reading(
+    vehicleId BLOB NOT NULL,
+    location INTEGER NOT NULL,
+    timestamp REAL NOT NULL,
+    sensorId INTEGER NOT NULL,
+    rssi INTEGER NOT NULL,
+    raw BLOB NOT NULL,
+    PRIMARY KEY (vehicleId, location, timestamp),
+    FOREIGN KEY(vehicleId) REFERENCES Vehicle(uuid) ON DELETE CASCADE
+) WITHOUT ROWID;

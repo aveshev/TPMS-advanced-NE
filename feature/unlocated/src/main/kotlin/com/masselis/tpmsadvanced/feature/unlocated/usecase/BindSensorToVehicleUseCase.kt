@@ -1,7 +1,7 @@
 package com.masselis.tpmsadvanced.feature.unlocated.usecase
 
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.TyreDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import java.util.UUID
@@ -12,12 +12,12 @@ internal interface BindSensorToVehicleUseCase {
 
     class Impl(
         private val sensorDatabase: SensorDatabase,
-        private val tyreDatabase: TyreDatabase,
+        private val readingDatabase: ReadingDatabase,
     ) : BindSensorToVehicleUseCase {
 
         override suspend fun bind(vehicleUuid: UUID, sensor: Sensor, tyre: Tyre) {
             sensorDatabase.upsert(sensor, vehicleUuid)
-            tyreDatabase.insert(Tyre.Located(tyre, sensor.location), vehicleUuid)
+            readingDatabase.insert(Tyre.Located(tyre, sensor.location), vehicleUuid)
         }
 
         override suspend fun clearBindings(vehicleUuid: UUID) =

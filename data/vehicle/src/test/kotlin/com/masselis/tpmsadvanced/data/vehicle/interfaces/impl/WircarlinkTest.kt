@@ -1,7 +1,6 @@
 package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanRecord
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.impl.utils.mockScanResult
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.WICARLINK
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -23,29 +22,14 @@ internal class WircarlinkTest {
     @Test
     fun realValue() {
         samples
-            .map { it.hexToByteArray() }
-            .mapNotNull { completeData ->
-                RawWicarlink(
-                    mockScanResult(
-                        mockScanRecord = mockScanRecord(
-                            mockAdvertiseFlags = 0x06,
-                            containsServiceUuids = true,
-                            mockBytes = completeData
-                        )
-                    ),
-                )
-            }
-            .map { it.asTyre() }
+            .mapNotNull { it.hexToByteArray().decodedTyre() }
             .onEach(::println)
-            .also { assert(it.size == samples.size) }
+            .also { assertEquals(samples.size, it.size) }
             .forEach { tyre ->
-                // battery holds the voltage rounded to 0.1 V, batteryVoltage keeps the 0.01 V steps
+                assertEquals(WICARLINK, tyre.brand)
+                assertEquals(402095, tyre.sensorId)
                 assertFalse(tyre.isAlarm)
-                assertEquals(
-                    tyre.battery.toFloat() / 10f,
-                    assertNotNull(tyre.batteryVoltage).volts,
-                    absoluteTolerance = 0.05f,
-                )
+                assertEquals(3.3f, assertNotNull(tyre.batteryVoltage).volts, absoluteTolerance = 0.005f)
             }
     }
 }

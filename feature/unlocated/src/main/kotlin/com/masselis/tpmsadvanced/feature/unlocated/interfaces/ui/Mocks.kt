@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
@@ -21,7 +23,7 @@ internal fun mockTyre(
     rssi: Int = -20,
     pressure: Pressure = 2f.bar,
     temperature: Temperature = 20f.celsius,
-    battery: UShort = 50u,
+    brand: SensorBrand = PECHAM,
     isAlarm: Boolean = false
 ) = Tyre.Unlocated(
     timestamp,
@@ -29,13 +31,13 @@ internal fun mockTyre(
     id,
     pressure,
     temperature,
-    battery,
+    brand,
     isAlarm
 )
 
 internal fun mockSensor(
     id: Int, location: Location = Location.Wheel(FRONT_LEFT)
-) = Sensor(id, location)
+) = Sensor(id, location, PECHAM)
 
 internal fun mockVehicle(
     uuid: UUID = UUID.randomUUID(),

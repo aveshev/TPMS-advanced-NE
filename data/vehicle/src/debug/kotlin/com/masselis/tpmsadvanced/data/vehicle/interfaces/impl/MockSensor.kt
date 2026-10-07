@@ -99,7 +99,7 @@ internal enum class MockSensor {
                 .let { byteArrayOf((it shr 8).toByte(), (it shr 16).toByte(), (it shr 24).toByte()) },
             *reading.kpa.within("kpa", 0f..1000f).times(1000).roundToInt().littleEndian(),
             *reading.celsius.within("celsius", -100f..200f).times(100).roundToInt().littleEndian(),
-            (reading.battery ?: 100).within("battery", 0..127).toByte(),
+            (reading.battery ?: 100).within("battery", 0..100).toByte(),
             (
                 reading.flags
                     ?.also { require(reading.isAlarm.not()) { "Send either flags or alarm for SYSGRATION, flags 1 is the alarm" } }
@@ -116,7 +116,7 @@ internal enum class MockSensor {
 
     /**
      * @param battery What the app shows as the battery: decivolts (30 for 3.0 V) for every sensor
-     * but SYSGRATION, whose unit is unknown. `null` picks a healthy value.
+     * but SYSGRATION, a percentage for it. `null` picks a healthy value.
      * @param id The sensor ID the app shows. Ignored by PECHAM and BEKUBEE_KY, see their doc.
      * @param location Only SYSGRATION advertises its location.
      * @param isAlarm Only SYSGRATION advertises an alarm, the others report their battery as a voltage

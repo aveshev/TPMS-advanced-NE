@@ -1,0 +1,61 @@
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle;
+import java.util.UUID;
+import kotlin.Int;
+import kotlin.String;
+
+-- A bound sensor's advertisement, the first of each burst (see ListenTyreWithDatabaseUseCase).
+-- Only what the advertisement doesn't carry is a column: its pressure, temperature, battery and
+-- alarm are decoded from raw when read back (AdvertisingPacket), so a decoder change applies to
+-- the stored readings too. Stored in the order of the only lookup, a tyre's readings by time.
+CREATE TABLE Reading(
+    vehicleId BLOB AS UUID NOT NULL,
+    location INTEGER AS Vehicle.Kind.Location NOT NULL,
+    timestamp REAL NOT NULL,
+    -- Pecham and Bekubee KY's come from their Bluetooth address, which raw doesn't carry
+    sensorId INTEGER AS Int NOT NULL,
+    -- Of the first advertisement of the burst
+    rssi INTEGER AS Int NOT NULL,
+    -- The advertisement, in hexadecimal on the Kotlin side
+    raw BLOB AS String NOT NULL,
+    PRIMARY KEY (vehicleId, location, timestamp),
+    FOREIGN KEY(vehicleId) REFERENCES Vehicle(uuid) ON DELETE CASCADE
+) WITHOUT ROWID;
+
+-- A second reading at the same time for the same tyre is the same reading
+insert:
+INSERT OR IGNORE INTO Reading (vehicleId, location, timestamp, sensorId, rssi, raw) VALUES (?, ?, ?, ?, ?, ?);
+
+latestByLocation:
+SELECT * FROM Reading
+WHERE vehicleId = ? AND location = ?
+ORDER BY timestamp DESC
+LIMIT 1;
+
+latestBySensorByLocation:
+SELECT * FROM Reading
+WHERE vehicleId = ? AND location = ? AND sensorId = ?
+ORDER BY timestamp DESC
+LIMIT 1;
+
+allByLocation:
+SELECT * FROM Reading
+WHERE vehicleId = ? AND location = ?
+ORDER BY timestamp ASC;
+
+afterByLocation:
+SELECT * FROM Reading
+WHERE vehicleId = ? AND location = ? AND timestamp > ?
+ORDER BY timestamp ASC;
+
+countByLocation:
+SELECT COUNT(*) FROM Reading WHERE vehicleId = ? AND location = ?;
+
+-- Deletes all but the latest :kept readings of a tyre
+keepLatestByLocation:
+DELETE FROM Reading
+WHERE vehicleId = :vehicleId AND location = :location AND timestamp <= (
+    SELECT timestamp FROM Reading
+    WHERE vehicleId = :vehicleId AND location = :location
+    ORDER BY timestamp DESC
+    LIMIT 1 OFFSET :kept
+);

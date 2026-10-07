@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.SYSGRATION
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
@@ -44,9 +46,9 @@ internal class LocatedTyreScannerUseCaseTest {
     private fun test() = LocatedTyreScannerUseCase(source, location, sensorBindingUseCase)
 
     private fun sysgration(id: Int, at: SensorLocation = FRONT_LEFT) =
-        Tyre.SensorLocated(0.0, -60, id, 2f.bar, 20f.celsius, 100u, false, at)
+        Tyre.SensorLocated(0.0, -60, id, 2f.bar, 20f.celsius, SYSGRATION, false, at)
 
-    private fun pecham(id: Int) = Tyre.Unlocated(0.0, -60, id, 2f.bar, 20f.celsius, 30u, false)
+    private fun pecham(id: Int) = Tyre.Unlocated(0.0, -60, id, 2f.bar, 20f.celsius, PECHAM, false)
 
     /** The records this location keeps out of [tyres], in order */
     private suspend fun keeps(vararg tyres: Tyre.SensorInput): List<Tyre.Located> = tyres
@@ -55,13 +57,13 @@ internal class LocatedTyreScannerUseCaseTest {
 
     @Test
     fun `a bound sensor is kept, at its bound location`() = runTest {
-        boundSensor.value = Sensor(1, location)
+        boundSensor.value = Sensor(1, location, PECHAM)
         assertEquals(listOf(Tyre.Located(pecham(1), location)), keeps(pecham(1)))
     }
 
     @Test
     fun `a location with a bound sensor drops the others, advertising this location or not`() = runTest {
-        boundSensor.value = Sensor(1, location)
+        boundSensor.value = Sensor(1, location, PECHAM)
         assertEquals(listOf(1), keeps(pecham(2), sysgration(3), pecham(1)).map { it.sensorId })
     }
 

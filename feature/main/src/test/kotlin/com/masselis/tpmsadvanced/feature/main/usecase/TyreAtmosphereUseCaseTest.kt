@@ -1,5 +1,6 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import app.cash.turbine.test
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
@@ -35,7 +36,7 @@ internal class TyreAtmosphereUseCaseTest {
 
     private fun setTyre(pressure: Pressure, isAlarm: Boolean = false) =
         every { listenTyreUseCase.listen() } returns flowOf(
-            Tyre.Located(0.0, 0, 0, pressure, 20f.celsius, 100u, isAlarm, Wheel(FRONT_LEFT))
+            Tyre.Located(0.0, 0, 0, pressure, 20f.celsius, PECHAM, isAlarm, Wheel(FRONT_LEFT))
         )
 
     @Test

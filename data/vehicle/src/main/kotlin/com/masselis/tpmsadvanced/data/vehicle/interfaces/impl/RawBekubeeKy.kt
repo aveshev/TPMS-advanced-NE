@@ -1,11 +1,8 @@
 package com.masselis.tpmsadvanced.data.vehicle.interfaces.impl
 
-import android.bluetooth.le.ScanRecord
-import android.bluetooth.le.ScanResult
 import android.os.ParcelUuid
-import co.touchlab.kermit.Logger
-import com.masselis.tpmsadvanced.core.common.now
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.psi
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.BEKUBEE_KY
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
@@ -17,16 +14,13 @@ import java.util.UUID.fromString
  * Copied from [RawPecham], the only changes are name filtering ("KY" instead of "BR") and the CRC
  * tables
  */
-@OptIn(ExperimentalStdlibApi::class)
-@Suppress("MagicNumber")
-@ConsistentCopyVisibility
-internal data class RawBekubeeKy private constructor(
-    private val macAddress: String,
-    private val rssi: Int,
-    private val data: ByteArray
-) : Raw {
+@Suppress("MagicNumber", "MaxLineLength")
+internal class RawBekubeeKy private constructor(private val data: ByteArray) : Raw {
 
-    fun id() = macAddress.hashCode()
+    override val brand = BEKUBEE_KY
+
+    // The advertisement doesn't carry an ID, the sensor is identified by its Bluetooth address
+    override val sensorId: Int? = null
 
     fun pressure() = (((data[3].toInt() and 0xFF) shl 8) or (data[4].toInt() and 0xFF))
         .minus(146)
@@ -34,71 +28,37 @@ internal data class RawBekubeeKy private constructor(
         .div(10)
         .psi
 
-    fun battery() = data[1].toUShort() // Returns 27 for 2.7 volts
+    fun voltage() = data[1].toFloat().div(10f).volts // Returns 2.7 for 27
 
     fun temperature() = data[2].toFloat().celsius
 
-    override fun asTyre() = Tyre.Unlocated(
-        now(),
+    override fun asTyre(timestamp: Double, rssi: Int, sensorId: Int, raw: String) = Tyre.Unlocated(
+        timestamp,
         rssi,
-        id(),
+        sensorId,
         pressure(),
         temperature(),
-        battery(),
+        brand,
         // The low battery is reported through batteryVoltage, these sensors send no alarm
         false,
-        battery().toFloat().div(10f).volts,
+        voltage(),
+        raw,
     )
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as RawBekubeeKy
-
-        if (macAddress != other.macAddress) return false
-        return data.contentEquals(other.data)
-    }
-
-    override fun hashCode(): Int {
-        var result = macAddress.hashCode()
-        result = 31 * result + data.contentHashCode()
-        return result
-    }
-
     companion object {
-        private val logger = Logger.withTag("RawBekubeeKy.Companion")
         internal val SERVICE_UUID = ParcelUuid(fromString("000027a5-0000-1000-8000-00805f9b34fb"))
 
-        @Suppress("ReturnCount")
-        operator fun invoke(result: ScanResult): RawBekubeeKy? {
-            val scanRecord = result.scanRecord
-                ?: return null
-            if (scanRecord.deviceName != "KY")
-                return null
-            if (CRC.isValid(scanRecord).not())
-                return null
-            // Calling result.scanRecord?.manufacturerSpecificData?.valueAt(0) will not work because
-            // the returned array is 5 bytes only instead of 7 bytes. It doesn't contain the first 2
-            // bytes
-            val data = runCatching { scanRecord.bytes.copyOfRange(10, 17) }
-                .onFailure {
-                    logger.e(
-                        "Filled bytes are incorrect: $${scanRecord.bytes.toHexString()}",
-                        it
-                    )
-                }
-                .getOrNull()
-                ?: return null
-            return RawBekubeeKy(result.device.address, result.rssi, data)
-        }
+        operator fun invoke(packet: AdvertisingPacket): RawBekubeeKy? = packet
+            .takeIf { it.name == "KY" }
+            // The manufacturer data's first 2 bytes aren't a company ID, its 7 bytes are read from
+            // the advertisement's
+            ?.bytes
+            ?.takeIf { it.size >= 17 && CRC.isValid(it) }
+            ?.copyOfRange(10, 17)
+            ?.let(::RawBekubeeKy)
 
-        // Reverse engineered by decompiling Bekubee's official HRTPMS Android app
-        // (com.bekubee.hrtpms) with the help of Claude
-        @Suppress("MagicNumber")
         internal object CRC {
-            fun isValid(scanRecord: ScanRecord): Boolean {
-                val dataWithCRC = scanRecord.bytes
+            fun isValid(dataWithCRC: ByteArray): Boolean {
                 val (highByteIndex, lowByteIndex) = bytes(
                     dataWithCRC.take(dataWithCRC.size - 2).toByteArray()
                 )

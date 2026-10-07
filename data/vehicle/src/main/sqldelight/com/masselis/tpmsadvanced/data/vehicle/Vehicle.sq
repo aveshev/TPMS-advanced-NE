@@ -4,13 +4,16 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Voltage;
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind;
 import java.util.UUID;
 import kotlin.Boolean;
+import kotlin.Int;
 
 CREATE TABLE Vehicle(
-    uuid TEXT AS UUID NOT NULL PRIMARY KEY,
+    -- 16 bytes, not its 36 characters of text: every sensor and reading refers to it
+    uuid BLOB AS UUID NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     isFavourite INTEGER AS Boolean NOT NULL,
     lowPressure REAL AS Pressure NOT NULL DEFAULT 100,
-    highPressure REAL AS Pressure NOT NULL DEFAULT 300,
+    -- VehicleDatabase.DEFAULT_HIGH_PRESSURE, 50 psi
+    highPressure REAL AS Pressure NOT NULL DEFAULT 344.75,
     lowTemp REAL AS Temperature NOT NULL DEFAULT 20,
     normalTemp REAL AS Temperature NOT NULL DEFAULT 45,
     highTemp REAL AS Temperature NOT NULL DEFAULT 90,
@@ -22,7 +25,8 @@ CREATE TABLE Vehicle(
     pressureCalibration INTEGER AS Boolean NOT NULL DEFAULT 0,
     pressureOffset REAL AS Pressure NOT NULL DEFAULT 0,
     pressureMultiplier REAL NOT NULL DEFAULT 1,
-    lowBatteryVoltage REAL AS Voltage NOT NULL DEFAULT 2.6
+    lowBatteryVoltage REAL AS Voltage NOT NULL DEFAULT 2.6,
+    lowBatteryPercent INTEGER AS Int NOT NULL DEFAULT 10
 );
 
 -- This succession of triggers ensure there is always exactly 1 car with isFavourite set to 1
@@ -76,8 +80,7 @@ END;
 
 -- This statement is put in the end because SQLDelight executes the triggers before the statements
 
--- 344.75 kPa is VehicleDatabase.DEFAULT_HIGH_PRESSURE, 50 psi
-INSERT INTO Vehicle(uuid, kind, name, isFavourite, highPressure) VALUES ("466b2e13-e33a-4adf-a101-a920140a29a1","CAR", "My car",1, 344.75);
+INSERT INTO Vehicle(uuid, kind, name, isFavourite) VALUES (randomblob(16), "CAR", "My car", 1);
 
 insert:
 INSERT INTO Vehicle(uuid, kind, name, isFavourite) VALUES (?,?,?,?);
@@ -138,6 +141,12 @@ SELECT lowBatteryVoltage FROM Vehicle WHERE uuid = ?;
 
 updateLowBatteryVoltage:
 UPDATE Vehicle SET lowBatteryVoltage = ? WHERE uuid = ?;
+
+selectLowBatteryPercentByVehicleId:
+SELECT lowBatteryPercent FROM Vehicle WHERE uuid = ?;
+
+updateLowBatteryPercent:
+UPDATE Vehicle SET lowBatteryPercent = ? WHERE uuid = ?;
 
 selectLowTempByVehicleId:
 SELECT lowTemp FROM Vehicle WHERE uuid = ?;

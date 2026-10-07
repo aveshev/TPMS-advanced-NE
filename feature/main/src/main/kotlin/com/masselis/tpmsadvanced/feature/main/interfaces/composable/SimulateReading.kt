@@ -31,7 +31,6 @@ import com.masselis.tpmsadvanced.data.unit.model.PressureUnit
 import com.masselis.tpmsadvanced.data.unit.model.TemperatureUnit
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.toPressure
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.toTemperature
-import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.SimulateReadingViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.Bindings.Companion.SimulateReadingViewModel
 import java.text.DateFormat
@@ -72,7 +71,7 @@ internal fun SimulateReadingDialog(
     val location = vehicle.kind.locations.elementAt(locationIndex)
     val pressureValue = pressure.number()
     val temperatureValue = temperature.number()
-    // Empty is no voltage, as most sensors send
+    // Empty is a healthy battery
     val voltageValue = voltage.number()
     val isValid = pressureValue != null && temperatureValue != null && (voltage.isBlank() || voltageValue != null)
     AlertDialog(
@@ -118,7 +117,7 @@ internal fun SimulateReadingDialog(
                 OutlinedTextField(
                     value = voltage,
                     onValueChange = { voltage = it },
-                    label = { Text("Battery voltage (optional)") },
+                    label = { Text("Battery (optional): V, or % for Sysgration") },
                     suffix = { Text("V") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
@@ -145,7 +144,7 @@ internal fun SimulateReadingDialog(
                         location,
                         requireNotNull(pressureValue).toPressure(pressureUnit),
                         requireNotNull(temperatureValue).toTemperature(temperatureUnit),
-                        voltageValue?.volts,
+                        voltageValue,
                         isAlarm,
                     )
                     sentAt = System.currentTimeMillis()
