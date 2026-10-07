@@ -16,6 +16,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage.CREATOR.volts
 import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier.Action
 import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier.Companion.action
+import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier.Companion.reevaluation
 import com.masselis.tpmsadvanced.feature.background.interfaces.AlertNotifier.Shown
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -116,5 +117,44 @@ internal class AlertNotifierTest {
     @Test
     fun `classes are apart`() {
         assertEquals(Action.None, action(alerts(190f), TEMPERATURE, null, false, notSnoozed))
+    }
+
+    /** [kpa] read under [thresholds], then re-evaluated under [low] as the minimum pressure */
+    private fun reevaluated(kpa: Float, low: Float, loss: PressureLoss? = null) = alerts(kpa, loss = loss)
+        .let { it.next(requireNotNull(it.latest), AlertThresholds(low.kpa, 300f.kpa, 90f.celsius, 2.6f.volts), loss) }
+
+    @Test
+    fun `a lower threshold lowers the notification silently, its hold notwithstanding`() {
+        assertEquals(Action.Post(AMBER, sound = false), reevaluation(reevaluated(130f, 127f), PRESSURE, Shown(1, CRIMSON), notSnoozed))
+    }
+
+    @Test
+    fun `a lower threshold clears the notification`() {
+        assertEquals(Action.Cancel, reevaluation(reevaluated(190f, 150f), PRESSURE, Shown(1, RED), notSnoozed))
+    }
+
+    @Test
+    fun `a lower level dismissed for a while clears the notification`() {
+        assertEquals(Action.Cancel, reevaluation(reevaluated(130f, 127f), PRESSURE, Shown(1, CRIMSON)) { it == AMBER })
+    }
+
+    @Test
+    fun `the same level updates silently`() {
+        assertEquals(Action.Post(RED, sound = false), reevaluation(reevaluated(190f, 195f), PRESSURE, Shown(1, RED), notSnoozed))
+    }
+
+    @Test
+    fun `a higher threshold doesn't raise the notification`() {
+        assertEquals(Action.None, reevaluation(reevaluated(205f, 260f), PRESSURE, Shown(1, AMBER), notSnoozed))
+    }
+
+    @Test
+    fun `a leak folded into a pressure turned red goes`() {
+        assertEquals(Action.Cancel, reevaluation(reevaluated(205f, 210f, loss), PRESSURE_LOSS, Shown(1, AMBER), notSnoozed))
+    }
+
+    @Test
+    fun `another sensor's notification is left to the next reading`() {
+        assertEquals(Action.None, reevaluation(reevaluated(250f, 200f), PRESSURE, Shown(2, RED), notSnoozed))
     }
 }

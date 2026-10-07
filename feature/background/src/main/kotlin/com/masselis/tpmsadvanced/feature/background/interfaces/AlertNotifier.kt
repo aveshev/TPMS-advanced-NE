@@ -111,7 +111,13 @@ internal class AlertNotifier(
 
         storedTyreAlertsUseCase
             .updates
-            .onEach { update -> shown().let { shown -> AlertClass.entries.forEach { update.notify(it, shown) } } }
+            .onEach { update ->
+                shown().let { shown ->
+                    AlertClass.entries.forEach {
+                        if (update.isReevaluation) update.reevaluate(it, shown) else update.notify(it, shown)
+                    }
+                }
+            }
             .catch { logger.e("Failed to follow the tyres' alerts", it) }
             .launchIn(scope)
     }
@@ -167,6 +173,37 @@ internal class AlertNotifier(
                 // Coming down from crimson, said as red although its notification is held silently
                 if (level == RED && (isSounding || current?.level == CRIMSON)) speaker.red(tag, alertClass, sounded = isSounding)
             }
+        }
+    }
+
+    /**
+     * The thresholds changed: the notification, its hold notwithstanding, and its speech come down
+     * to the latest reading's level at once, see [reevaluation]
+     */
+    private fun Update.reevaluate(alertClass: AlertClass, shown: Map<String?, Shown>) {
+        val tag = tag(vehicle, location, alertClass)
+        val current = shown[tag] ?: return
+        val sensorId = requireNotNull(alerts.latest).sensorId
+        val action = reevaluation(alerts, alertClass, current) { snoozeUseCase.isSnoozed(sensorId, alertClass, it) }
+        when (action) {
+            Action.Cancel -> {
+                notificationManager.cancel(tag, NOTIFICATION_ID)
+                holds.remove(tag)?.job?.cancel()
+                speaker.stop(tag, isDismissed = true)
+            }
+
+            is Action.Post -> {
+                notificationManager.notify(tag, NOTIFICATION_ID, notification(tag, alertClass, action))
+                // A reading held back is older than the one just re-evaluated
+                holds.remove(tag)?.job?.cancel()
+                if (action.level < current.level) {
+                    speaker.stop(tag, isDismissed = action.level < RED)
+                    // Coming down from crimson, said as red, as a reading lowering it would be
+                    if (action.level == RED) speaker.red(tag, alertClass, sounded = false)
+                }
+            }
+
+            Action.None, is Action.Hold -> Unit
         }
     }
 
@@ -353,6 +390,28 @@ internal class AlertNotifier(
 
                 isHeld -> Action.Hold(level)
                 level == null || isSnoozed(level) -> Action.Cancel
+                else -> Action.Post(level, sound = false)
+            }
+        }
+
+        /**
+         * What re-evaluating the latest reading under other thresholds does to a [shown]
+         * notification: lowered silently or cleared, the hold notwithstanding, see docs/alerts.md.
+         * Never raised nor posted, a threshold change doesn't alert about a reading already stored.
+         */
+        fun reevaluation(
+            alerts: TyreAlerts,
+            alertClass: AlertClass,
+            shown: Shown,
+            isSnoozed: (AlertLevel) -> Boolean,
+        ): Action {
+            val level = alerts.notifiable[alertClass]
+            return when {
+                // About another sensor than the latest reading's, left to the next reading
+                shown.sensorId != alerts.latest?.sensorId -> Action.None
+                alertClass in LEAKS && alerts.foldsLeaks -> Action.Cancel
+                level == null || isSnoozed(level) -> Action.Cancel
+                level > shown.level -> Action.None
                 else -> Action.Post(level, sound = false)
             }
         }

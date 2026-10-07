@@ -150,6 +150,15 @@ next reading.
 The hold only concerns the notification. The speech follows each reading right away: a reading
 lowering a crimson alert stops its loop at once, and a red one is said as red.
 
+### Changing a threshold
+
+Once a vehicle's thresholds settle for a second, each tyre's latest reading is evaluated again. A
+notification it showed which that lowers or clears is updated at once, silently, its hold and any
+reading held back dropped: the threshold was changed on purpose, it isn't hovering. The speech
+follows, a crimson loop stops, said as red if it's red now. A notification at the same level is
+updated silently, telling the new threshold. Nothing is posted nor raised: a reading made worse by
+the new thresholds alerts with the tyre's next reading.
+
 ### Only new readings alert
 
 The evaluator only alerts on readings stored **after it started listening**. The latest stored
@@ -162,7 +171,8 @@ What this costs:
   at its first reading during it. That's usually within minutes: a tyre starting to move or warm
   up transmits.
 - Changing a threshold doesn't alert about readings already stored. The main screen shows the new
-  level at once.
+  level at once. A notification already shown is brought down to it, see
+  [Changing a threshold](#changing-a-threshold).
 - Readings stored while nothing was evaluating them never alert.
 - Force-stopping the app clears its notifications. An ongoing alert then stays silent until the
   next reading. The process being killed also forgets the loops, the same way.
