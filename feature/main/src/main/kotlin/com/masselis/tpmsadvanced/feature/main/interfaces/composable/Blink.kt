@@ -43,8 +43,8 @@ private fun currentTick() = System.currentTimeMillis() / TICK.inWholeMillisecond
 
 /**
  * Whether a blinking element is in the first of its two alternating [phase]s, in sync with all the
- * other blinking elements. Always the first one in previews and screenshot tests, which would
- * otherwise depend on the time they're drawn at.
+ * other blinking elements. Always the first one under [LocalInspectionMode], as in previews and
+ * the screenshot tests providing it, which would otherwise depend on the time they're drawn at.
  */
 @Composable
 internal fun isFirstBlinkPhase(phase: Duration): Boolean {

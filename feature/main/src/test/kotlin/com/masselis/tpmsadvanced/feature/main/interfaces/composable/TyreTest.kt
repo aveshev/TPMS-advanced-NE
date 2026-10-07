@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.Paparazzi
 import com.masselis.tpmsadvanced.core.test.MainDispatcherRule
@@ -50,16 +52,19 @@ internal class TyreTest {
     @Test
     fun tyres() {
         paparazzi.snapshot {
-            FlowRow {
-                Wrap { NotDetectedPreview() }
-                Wrap { BlueToGreenPreview() }
-                Wrap { BlueToGreen2Preview() }
-                Wrap { BlueToGreen3Preview() }
-                Wrap { GreenToRedPreview() }
-                Wrap { GreenToRed2Preview() }
-                Wrap { GreenToRed3Preview() }
-                Wrap { AlertingPreview() }
-                Wrap { DetectionIssuePreview() }
+            // Shows the blinking tyres in their first phase, as previews do, instead of the current one
+            CompositionLocalProvider(LocalInspectionMode provides true) {
+                FlowRow {
+                    Wrap { NotDetectedPreview() }
+                    Wrap { BlueToGreenPreview() }
+                    Wrap { BlueToGreen2Preview() }
+                    Wrap { BlueToGreen3Preview() }
+                    Wrap { GreenToRedPreview() }
+                    Wrap { GreenToRed2Preview() }
+                    Wrap { GreenToRed3Preview() }
+                    Wrap { AlertingPreview() }
+                    Wrap { DetectionIssuePreview() }
+                }
             }
         }
     }
