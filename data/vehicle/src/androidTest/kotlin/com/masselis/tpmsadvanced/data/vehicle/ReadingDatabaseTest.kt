@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -75,7 +74,7 @@ internal class ReadingDatabaseTest {
 
     @Test
     fun aReadingWithoutRawIsNotStored() = runTest {
-        assertFailsWith<IllegalArgumentException> { readingDatabase.insert(tyre(null), currentVehicleUuid) }
+        readingDatabase.insert(tyre(null), currentVehicleUuid)
         assertNull(latest())
     }
 

@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl
 
 import androidx.lifecycle.SavedStateHandle
+import co.touchlab.kermit.Logger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
@@ -56,7 +57,10 @@ internal class BindSensorButtonViewModelImpl(
                     }
                 }
             }
-            .catch { emit(State.Empty) }
+            .catch {
+                Logger.withTag("BindSensorButtonViewModel").e(it) { "No sensor to bind" }
+                emit(State.Empty)
+            }
             .onEach { mutableStateFlow.value = it }
             .launchIn(viewModelScope)
     }

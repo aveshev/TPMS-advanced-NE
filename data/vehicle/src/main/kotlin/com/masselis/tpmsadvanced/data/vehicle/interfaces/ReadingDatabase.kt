@@ -22,16 +22,11 @@ public class ReadingDatabase internal constructor(
 ) {
     private val queries = database.readingQueries
 
-    /** [tyre] must come from a scan, demo mode's readings have no advertisement to store */
+    /** A reading without its advertisement, only made up by previews and tests, isn't stored */
     public suspend fun insert(tyre: Tyre.Located, vehicleId: UUID): Unit = withContext(IO) {
-        queries.insert(
-            vehicleId,
-            tyre.location,
-            tyre.timestamp,
-            tyre.sensorId,
-            tyre.rssi,
-            requireNotNull(tyre.raw) { "A reading without its advertisement can't be stored: $tyre" },
-        )
+        tyre.raw?.also { raw ->
+            queries.insert(vehicleId, tyre.location, tyre.timestamp, tyre.sensorId, tyre.rssi, raw)
+        }
     }
 
     public fun latestByLocation(location: Location, vehicleId: UUID): QueryOneOrNull<Tyre.Located> = queries

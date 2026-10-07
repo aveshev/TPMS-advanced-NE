@@ -22,8 +22,8 @@ public sealed interface Tyre : Parcelable {
 
     /**
      * The whole advertisement as received, in hexadecimal: what the database stores, the other
-     * values being decoded from it when read back. null only for demo mode's readings, which aren't
-     * stored.
+     * values being decoded from it when read back. null only for the readings previews and tests
+     * make up, which aren't stored.
      */
     public val raw: String?
 
