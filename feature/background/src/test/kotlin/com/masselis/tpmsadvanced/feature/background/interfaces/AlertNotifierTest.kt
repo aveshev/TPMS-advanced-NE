@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.background.interfaces
 
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
+import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
@@ -8,6 +9,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertThresholds
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.kpa
+import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAlerts
 import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
@@ -23,11 +25,13 @@ internal class AlertNotifierTest {
 
     private val thresholds = AlertThresholds(200f.kpa, 300f.kpa, 90f.celsius, 2.6f.volts)
 
-    private fun alerts(vararg kpa: Float, sensorId: Int = 1) = kpa
+    private fun alerts(vararg kpa: Float, sensorId: Int = 1, loss: PressureLoss? = null) = kpa
         .withIndex()
         .fold(TyreAlerts()) { alerts, (index, value) ->
-            alerts.next(TyreAtmosphere(index * 60.0, sensorId, value.kpa, 30f.celsius), thresholds, null)
+            alerts.next(TyreAtmosphere(index * 60.0, sensorId, value.kpa, 30f.celsius), thresholds, loss)
         }
+
+    private val loss = PressureLoss(10f.kpa, 7f.kpa, 0.0, 60.0)
 
     private val notSnoozed: (AlertLevel) -> Boolean = { false }
 
@@ -90,6 +94,23 @@ internal class AlertNotifierTest {
     @Test
     fun `a higher level than snoozed posts`() {
         assertEquals(Action.Post(CRIMSON, sound = true), action(alerts(90f), null) { it <= RED })
+    }
+
+    @Test
+    fun `a leak is notified on its own while the pressure is fine or amber`() {
+        assertEquals(Action.Post(AMBER, sound = true), action(alerts(250f, loss = loss), PRESSURE_LOSS, null, false, notSnoozed))
+        assertEquals(Action.Post(AMBER, sound = true), action(alerts(205f, loss = loss), PRESSURE_LOSS, null, false, notSnoozed))
+    }
+
+    @Test
+    fun `a leak isn't notified on its own while the pressure is red or crimson`() {
+        assertEquals(Action.None, action(alerts(190f, loss = loss), PRESSURE_LOSS, null, false, notSnoozed))
+        assertEquals(Action.None, action(alerts(90f, loss = loss), PRESSURE_LOSS, null, false, notSnoozed))
+    }
+
+    @Test
+    fun `a leak's notification goes at once when the pressure turns red, its hold notwithstanding`() {
+        assertEquals(Action.Cancel, action(alerts(190f, loss = loss), PRESSURE_LOSS, Shown(1, AMBER), true, notSnoozed))
     }
 
     @Test
