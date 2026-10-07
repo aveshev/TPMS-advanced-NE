@@ -11,7 +11,4 @@ public enum class AlertClass {
 
     /** Raised by the sensor itself (Sysgration), see [Tyre.isAlarm] */
     SENSOR_ALARM,
-
-    /** The sensor taken off the valve, see [TyreAlerts.isRemoved] */
-    SENSOR_REMOVED,
 }

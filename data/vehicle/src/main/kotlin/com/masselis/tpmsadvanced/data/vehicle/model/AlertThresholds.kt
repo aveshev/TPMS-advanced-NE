@@ -4,7 +4,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
@@ -24,15 +23,13 @@ public data class AlertThresholds(
 
     /**
      * The level of each class [atmosphere] alerts for, the classes it doesn't alert for being left
-     * out. A sensor [isRemoved] from the valve reads the open air: its pressure isn't the tyre's.
+     * out.
      */
     public fun levels(
         atmosphere: TyreAtmosphere,
         isLeaking: Boolean,
-        isRemoved: Boolean,
     ): Map<AlertClass, AlertLevel> = buildMap {
-        if (isRemoved) put(SENSOR_REMOVED, AMBER)
-        else pressureLevel(atmosphere.pressure)?.also { put(PRESSURE, it) }
+        pressureLevel(atmosphere.pressure)?.also { put(PRESSURE, it) }
         temperatureLevel(atmosphere.temperature)?.also { put(TEMPERATURE, it) }
         atmosphere.batteryVoltage?.let(::batteryLevel)?.also { put(BATTERY, it) }
         if (isLeaking) put(PRESSURE_LOSS, AMBER)
