@@ -99,6 +99,13 @@ pumping up, which the silence button or a dismiss quiets.
 - Every alert is a notification of its own, keyed by **vehicle, sensor and class**. A tyre with a
   pressure alert that then also gets hot shows a second notification, so the new alert is seen as
   new rather than as an update of the first.
+- **Except a leak while the pressure is red or crimson**: a pressure loss or the sensor's own
+  alarm isn't notified on its own then, its notification going at once if it was shown. It's told
+  in the pressure's notification instead ("Rear left wheel: 21.0 psi, minimum 30.0 psi, down
+  3.0 psi in 5 min"), and the main screen still shows "Leaking?". The pressure already says more
+  than the leak's amber: another notification would only be one more sound and one more thing to
+  dismiss. While the pressure is fine or amber, a leak is the earliest warning, notified on its
+  own.
 - Alert notifications are separate from the persistent scanning notification, which only shows the
   scanning status (active, suspended, idle) on its low importance channel.
 - They're posted whatever the app's state, including while the main screen is open: the user may
