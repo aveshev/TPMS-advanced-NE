@@ -253,6 +253,7 @@ internal class AlertNotifier(
         append(details(alertClass))
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun Update.details(alertClass: AlertClass): String {
         val reading = requireNotNull(alerts.latest)
         val pressureUnit = unitPreferences.pressure.value

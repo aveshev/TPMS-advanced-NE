@@ -94,7 +94,6 @@ internal class AlertThresholdsTest {
             thresholds.levels(
                 TyreAtmosphere(0.0, 1, 250f.kpa, 20f.celsius, batteryPercent = 5),
                 isLeaking = false,
-                isRemoved = false,
             ),
         )
     }
