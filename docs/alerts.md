@@ -310,12 +310,16 @@ condition, its pressure and temperature: a low battery blinks its voltage, not t
 | Level | Tyre icon | Tyre stats |
 |---|---|---|
 | Amber | Unchanged (no blinking) | The offending value in the theme's warning orange, as the battery's "getting low" is today |
-| Red | Blinks red, in 400 ms phases | The offending value in red, as today |
-| Crimson | Blinks red, in 200 ms phases | The offending value in red, alternating with "CRITICAL" in 400 ms phases |
+| Red | Blinks red, in 400 ms phases | The offending value blinks red, in 400 ms phases |
+| Crimson | Blinks red, in 200 ms phases | The offending value in red, alternating with "CRITICAL" in 800 ms phases |
 
 The tyre blinks in 300 ms phases today. Halving that would make about 3.3 flashes a second, above
 the usual photosensitivity limit of 3 (WCAG): red slows down to 400 ms instead, and crimson stays
 under the limit at 2.5 flashes a second.
+
+Everything blinking on every screen, tyres, values and the battery settings' samples, follows one
+clock: each phase starts on a multiple of its length since the epoch, so the 200, 400 and 800 ms
+phases switch together and two tyres at the same level are never out of step.
 
 The normal tyre colour already fades from green to red as the temperature nears the hot threshold,
 so a tyre at amber temperature is already reddish: the orange value in the stats is what marks it

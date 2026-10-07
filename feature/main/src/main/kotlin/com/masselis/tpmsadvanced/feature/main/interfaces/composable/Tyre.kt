@@ -24,7 +24,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -52,7 +51,6 @@ import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreIconStateFlow.State
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 private val evaluator = ArgbEvaluator()
@@ -83,22 +81,12 @@ internal fun Tyre(
     // Names the tyre in the logs, null for the demo tyres which aren't logged
     logName: String? = null,
 ) {
-    var isVisible by remember { mutableStateOf(true) }
-    if (state is State.Alerting) {
-        // Under 3 flashes a second either way, see docs/alerts.md
-        LaunchedEffect(key1 = isVisible, key2 = state.isCritical) {
-            launch {
-                repeat(Int.MAX_VALUE) {
-                    delay(if (state.isCritical) CRITICAL_BLINK else BLINK)
-                    isVisible = isVisible.not()
-                }
-            }
-        }
-    } else
-        isVisible = true
+    // Under 3 flashes a second either way, see docs/alerts.md
+    val isHidden = (state as? State.Alerting)
+        ?.let { isFirstBlinkPhase(if (it.isCritical) CRITICAL_BLINK else BLINK).not() }
+        ?: false
     // Traces #35, a tyre not drawn at all, whose cause is unknown. The drawn state, to compare with
     // TyreIconStateFlow's logs, and a warning when the tyre stays hidden longer than a blink phase.
-    val isHidden = state is State.Alerting && isVisible.not()
     if (logName != null) {
         LaunchedEffect(state) { logger.d { "$logName drawn as $state" } }
         LaunchedEffect(isHidden) {
@@ -208,12 +196,6 @@ private fun AlertButton(
             onDismissRequest = { showDialog = false },
         )
 }
-
-/** A phase of a red alert's blinking, shown or hidden */
-internal val BLINK = 400.milliseconds
-
-/** A phase of a crimson alert's blinking */
-internal val CRITICAL_BLINK = 200.milliseconds
 
 @Preview
 @Composable

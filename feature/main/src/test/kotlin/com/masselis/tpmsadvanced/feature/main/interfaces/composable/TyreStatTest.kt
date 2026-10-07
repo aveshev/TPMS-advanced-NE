@@ -1,6 +1,9 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalInspectionMode
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.masselis.tpmsadvanced.core.test.MainDispatcherRule
@@ -30,51 +33,56 @@ internal class TyreStatTest {
         TimeZone.setDefault(TimeZone.getTimeZone("Europe/Paris"))
     }
 
+    // Shows the blinking values in their first phase, as previews do, instead of the current one
+    private fun snapshot(content: @Composable () -> Unit) = paparazzi.snapshot {
+        CompositionLocalProvider(LocalInspectionMode provides true, content)
+    }
+
     @Test
     fun notDetected() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatNotDetectedPreview()
         }
     }
 
     @Test
     fun normal() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatNormalPreview()
         }
     }
 
     @Test
     fun calibrated() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatCalibratedPreview()
         }
     }
 
     @Test
     fun alerting() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatAlertingPreview()
         }
     }
 
     @Test
     fun pressureAlerting() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatPressureAlertingPreview()
         }
     }
 
     @Test
     fun temperatureAlerting() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatTemperatureAlertingPreview()
         }
     }
 
     @Test
     fun pressureLoss() {
-        paparazzi.snapshot {
+        snapshot {
             TyreStatPressureLossPreview()
         }
     }
