@@ -15,6 +15,7 @@ plugins {
     compose
     alias(libs.plugins.metro)
     alias(libs.plugins.paparazzi)
+    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.crashlytics) apply false
 }
@@ -53,7 +54,7 @@ rootProject.file("secrets/publisher-service-account.json").takeIf { it.exists() 
 
 android {
     defaultConfig {
-        applicationId = "com.masselis.tpmsadvanced"
+        applicationId = "com.aveshev.persistenttpms"
         namespace = "com.masselis.tpmsadvanced"
     }
     keys(keysFile.asFile)?.also { keys ->
@@ -114,6 +115,8 @@ dependencies {
     implementation(project(":feature:shortcut"))
     implementation(project(":feature:unit"))
     implementation(project(":feature:android-auto"))
+
+    implementation(libs.aboutlibraries.compose.m3)
 
     testImplementation(project(":core:test"))
 }

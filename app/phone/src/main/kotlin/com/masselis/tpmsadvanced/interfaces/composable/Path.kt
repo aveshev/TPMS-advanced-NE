@@ -92,6 +92,10 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings/activate_scan_conditions/beacons/scan"
     }
 
+    data object Licenses : Path {
+        override fun toString(): String = "app_settings/licenses"
+    }
+
     @JvmInline
     value class QrCode(val vehicleUUID: UUID) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/qrcode"
@@ -119,6 +123,7 @@ internal sealed interface Path {
                 SuspendBluetoothDevices,
                 Beacons,
                 BeaconScan,
+                Licenses,
             )
 
         @Suppress("NAME_SHADOWING")

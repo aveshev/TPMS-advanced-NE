@@ -13,8 +13,10 @@ sqlDelight = "2.4.0"
 mockk = "1.14.11"
 ndk = "29.0.14206865"
 car-app = "1.7.0"
+aboutLibraries = "15.2.0"
 
 [libraries]
+aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutLibraries" }
 accompanist-permissions = "com.google.accompanist:accompanist-permissions:0.37.3"
 # Do NOT update to 9.4.0 because bundled managed device doesn't accept orientation changes anymore,
 # ignore this version until it is fixed
@@ -103,3 +105,4 @@ sqldelight = { id = "app.cash.sqldelight", version.ref = "sqlDelight" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 paparazzi = "app.cash.paparazzi:2.0.0-alpha05"
 metro = "dev.zacsweers.metro:1.4.4"
+aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutLibraries" }

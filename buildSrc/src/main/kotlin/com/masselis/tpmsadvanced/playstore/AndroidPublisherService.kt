@@ -42,7 +42,7 @@ internal abstract class AndroidPublisherService : BuildService<AndroidPublisherS
                     setWriteTimeout(timeout)
                 }
             )
-            .setApplicationName("TPMS Advanced publisher")
+            .setApplicationName("Persistent TPMS publisher")
             .build()
     }
 

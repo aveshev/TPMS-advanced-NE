@@ -155,10 +155,10 @@ internal class ServiceNotifier(
                                 "${state.reason}), background scanning tries again shortly"
 
                             is ScanFailure -> "The Android system can't run the Bluetooth scan (error " +
-                                "${state.reason}), TPMS Advanced must be restarted"
+                                "${state.reason}), Persistent TPMS must be restarted"
 
                             MonitoringFailure -> "Background monitoring stopped because of an unexpected " +
-                                "error, TPMS Advanced must be restarted"
+                                "error, Persistent TPMS must be restarted"
 
                             is Suspended -> state.decision.explanation()
                             Idle -> ScanDecision.Idle.explanation()

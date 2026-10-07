@@ -3,15 +3,19 @@
 package com.masselis.tpmsadvanced.interfaces.composable
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.masselis.tpmsadvanced.BuildConfig
+import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.SettingsSectionHeader
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
@@ -41,6 +45,8 @@ import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.alerts
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.developerOptions
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.persistentScanning
 import com.masselis.tpmsadvanced.interfaces.composable.AppSettingsTag.tyreDisplay
+import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
+import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 
 @Composable
 internal fun AppSettings(
@@ -50,6 +56,7 @@ internal fun AppSettings(
     openSuspendScanConditions: () -> Unit,
     openDebug: () -> Unit,
     openPressureLoss: () -> Unit,
+    openLicenses: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
     SettingsSectionHeader("Display")
@@ -74,9 +81,38 @@ internal fun AppSettings(
         modifier = Modifier.testTag(developerOptions),
     )
     SettingsSectionHeader("About")
-    SettingsGroup {
-        TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
+    LocalUriHandler.current.also { uriHandler ->
+        SettingsGroup {
+            TextSettingsItem(headline = "Version", supporting = BuildConfig.VERSION_NAME)
+            TextSettingsItem(
+                headline = "Based on TPMS Advanced",
+                supporting = "By Vincent Masselis, under the Apache License 2.0",
+                onClick = { uriHandler.openUri("https://github.com/VincentMasselis/TPMS-advanced") },
+            )
+            TextSettingsItem(
+                headline = "Source code",
+                supporting = "github.com/aveshev/TPMS-advanced-NE",
+                onClick = { uriHandler.openUri("https://github.com/aveshev/TPMS-advanced-NE") },
+            )
+            TextSettingsItem(
+                headline = "Privacy policy",
+                onClick = { uriHandler.openUri("https://aveshev.com/persistent-tpms/privacy/") },
+            )
+            TextSettingsItem(
+                headline = "Open-source licenses",
+                onClick = openLicenses,
+                opensPage = true,
+            )
+        }
     }
+}
+
+@Composable
+internal fun Licenses(
+    modifier: Modifier = Modifier
+) {
+    val libraries by produceLibraries(R.raw.aboutlibraries)
+    LibrariesContainer(libraries, modifier.fillMaxSize())
 }
 
 @Composable

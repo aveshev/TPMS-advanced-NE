@@ -66,8 +66,10 @@ Room is not used. SQLDelight generates type-safe Kotlin from `.sq` files. Migrat
 
 Readings (`Reading.sq`) are stored as the advertisement itself (`raw`, bytes), plus only what it doesn't carry: the tyre, the time, the sensor ID and the signal strength. Pressure, temperature, battery and alarm are decoded from `raw` when read back, by the same decoders as a live scan (`AdvertisingPacket.decode()`), so a new or fixed decoder needs no migration and applies to past readings. Only add a column for what a packet doesn't carry or what SQL must filter on. Vehicle IDs are stored as their 16 bytes. The app bundles its own SQLite (requery, 3.49), but SQLDelight's newest dialect is 3.38: functions such as `unhex()` run through the driver in a Kotlin `AfterVersion` step (see `afterVersion10`), not in a `.sqm`.
 
-**Database version on test devices.** A build's database version is its highest `migrations/N.sqm` plus one: `develop` is at version 11 (`10.sqm`, snapshot `11.db`). Before `installDebug` on a phone that has app data, compare it with the device's version: back up the data (`adb exec-out run-as com.masselis.tpmsadvanced tar cf - databases shared_prefs > <dir>/data.tar`), extract it, and read `sqlite3 databases/car.db "PRAGMA user_version;"`. Reading the tar keeps the WAL with the database, so the value is current.
-- A build **below** the device's version crashes on launch with `Can't downgrade database`. Branches cut from `upstream/develop` carry upstream's own, shorter migration list, so a downport build hits this on a fork device.
+**Two app IDs.** The fork ships as "Persistent TPMS" with the application ID `com.aveshev.persistenttpms` (only `applicationId` changed: namespaces and Kotlin packages stay `com.masselis.tpmsadvanced.*`). Upstream downport branches, and fork branches that don't contain the rebrand, still install as `com.masselis.tpmsadvanced`. The two are separate apps on a phone, each with its own data, so the version checks below apply per app ID: use the ID of the build being installed in `run-as` and `-p`.
+
+**Database version on test devices.** A build's database version is its highest `migrations/N.sqm` plus one: `develop` is at version 11 (`10.sqm`, snapshot `11.db`). Before `installDebug` on a phone that has app data, compare it with the device's version: back up the data (`adb exec-out run-as com.aveshev.persistenttpms tar cf - databases shared_prefs > <dir>/data.tar`), extract it, and read `sqlite3 databases/car.db "PRAGMA user_version;"`. Reading the tar keeps the WAL with the database, so the value is current.
+- A build **below** the device's version crashes on launch with `Can't downgrade database`. Branches cut from `upstream/develop` carry upstream's own, shorter migration list, so a downport build hits this on a device whose `com.masselis.tpmsadvanced` data came from a fork build.
 - A build **above** it migrates the data, and older builds can't open it afterwards: another session reviewing an older build on that phone loses it.
 - Equal versions are only safe if both builds have the same migrations. The numbers were reused once (below), so the same number doesn't guarantee the same schema.
 
@@ -82,8 +84,8 @@ No build flavors — a single build. Demo mode (used for Play Store screenshots/
 Debug builds accept BLE advertisements over adb, merged into the real scan so they go through the same scan filters and decoders as over-the-air packets (`data/vehicle/src/debug/.../MockAdvertisements.kt`; the release source set is a no-op). Either have the app encode a reading (`MockSensor.kt`, round-trip tested against the decoders), or replay raw bytes:
 
 ```bash
-adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.masselis.tpmsadvanced --es brand pecham --ef kpa 230 --ef celsius 21 --ei battery 30 --es address AA:BB:CC:DD:EE:01
-adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.masselis.tpmsadvanced --es bytes <hex>
+adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.aveshev.persistenttpms --es brand pecham --ef kpa 230 --ef celsius 21 --ei battery 30 --es address AA:BB:CC:DD:EE:01
+adb shell am broadcast -a com.masselis.tpmsadvanced.MOCK_ADVERTISEMENT -p com.aveshev.persistenttpms --es bytes <hex>
 ```
 
 - `brand`: `pecham`, `bekubee_ky`, `wicarlink`, `bekubee_tpms` or `sysgration`. `kpa` is required; `celsius`, `battery` (decivolts, a percentage for Sysgration), `id` and `rssi` are optional. Sysgration also takes `wheel` (`FL`/`FR`/`RL`/`RR`) and `alarm` (`--ez`); `flags` (`--ei`, 0 to 255) sets each brand's raw status byte, see `MockSensor`'s KDoc.
