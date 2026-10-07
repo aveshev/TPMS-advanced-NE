@@ -19,12 +19,14 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class AlertActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val tag = requireNotNull(intent.getStringExtra(EXTRA_TAG))
-        Bindings
+        // Gone since the notification was posted, as the sensor removed one is
+        val alertClass = AlertClass.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_CLASS) }
+        if (alertClass != null) Bindings
             .featureBackgroundInternal
             .alertSnoozeUseCase
             .snooze(
                 intent.getIntExtra(EXTRA_SENSOR_ID, 0),
-                AlertClass.valueOf(requireNotNull(intent.getStringExtra(EXTRA_CLASS))),
+                alertClass,
                 AlertLevel.valueOf(requireNotNull(intent.getStringExtra(EXTRA_LEVEL))),
                 intent.getLongExtra(EXTRA_DURATION, 0L).milliseconds,
             )

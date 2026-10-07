@@ -4,7 +4,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
@@ -76,16 +75,7 @@ internal class AlertThresholdsTest {
             thresholds.levels(
                 TyreAtmosphere(0.0, 1, 190f.kpa, 85f.celsius, 2.7f.volts, isSensorAlarm = true),
                 isLeaking = true,
-                isRemoved = false,
             ),
-        )
-    }
-
-    @Test
-    fun `a removed sensor's pressure isn't the tyre's`() {
-        assertEquals(
-            mapOf(SENSOR_REMOVED to AMBER),
-            thresholds.levels(TyreAtmosphere(0.0, 1, 2f.kpa, 20f.celsius), isLeaking = false, isRemoved = true),
         )
     }
 }

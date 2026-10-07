@@ -23,7 +23,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
@@ -244,7 +243,6 @@ internal class AlertNotifier(
         BATTERY -> if (level == AMBER) "Sensor battery getting low" else "Sensor battery low"
         PRESSURE_LOSS -> "Losing pressure"
         SENSOR_ALARM -> "May be leaking"
-        SENSOR_REMOVED -> "Sensor removed?"
     }
 
     private fun Update.text(alertClass: AlertClass): String = buildString {
@@ -275,7 +273,6 @@ internal class AlertNotifier(
                 ?: reading.pressure.string(pressureUnit)
 
             SENSOR_ALARM -> "the sensor raised its own alarm, at ${reading.pressure.string(pressureUnit)}"
-            SENSOR_REMOVED -> "reads ${reading.pressure.string(pressureUnit)}, as if taken off the valve"
         }
     }
 

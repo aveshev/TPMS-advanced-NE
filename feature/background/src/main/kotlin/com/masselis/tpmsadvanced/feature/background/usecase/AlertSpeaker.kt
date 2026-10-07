@@ -22,7 +22,6 @@ import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.PRESSURE_LOSS
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_ALARM
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.SENSOR_REMOVED
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.TEMPERATURE
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
@@ -447,7 +446,7 @@ internal class AlertSpeaker(
                 PRESSURE -> "Tyre pressure"
                 TEMPERATURE -> "Tyre hot"
                 BATTERY -> "Sensor battery"
-                PRESSURE_LOSS, SENSOR_ALARM, SENSOR_REMOVED -> error("$this is never said")
+                PRESSURE_LOSS, SENSOR_ALARM -> error("$this is never said")
             }
 
         /** How long a notification's sound can take to start after it's posted */

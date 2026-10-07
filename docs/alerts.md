@@ -6,8 +6,8 @@ levels, snoozing and spoken alerts.
 
 ## Terms
 
-- **Class**: what an alert is about: pressure, temperature, battery, pressure loss, sensor alarm
-  or sensor removed (see [Classes and levels](#classes-and-levels)).
+- **Class**: what an alert is about: pressure, temperature, battery, pressure loss or sensor
+  alarm (see [Classes and levels](#classes-and-levels)).
 - **Level**: how urgent an alert is: amber, red or crimson.
 - **Reading**: one stored sensor record. Sensors send each reading several times in a burst, and
   `ListenTyreWithDatabaseUseCase` stores only the first copy, so a burst counts as one reading.
@@ -44,7 +44,6 @@ exactly at its minimum pressure is red, a battery exactly at its low voltage ala
 Each column applies when the more severe one doesn't.
 | Pressure loss | A leak detected by the pressure loss tracker | — | — |
 | Sensor alarm (Sysgration's own alarm) | Raised | — | — |
-| Sensor removed | See [Sensor removed](#sensor-removed) | — | — |
 
 - **Every level notifies from the first qualifying reading**, except battery red. A value
   hovering on a boundary is handled by the [hold](#holding-a-notification-at-its-level) instead.
@@ -85,33 +84,13 @@ Each column applies when the more severe one doesn't.
   their own alerts. It's still shown as "Leaking?" in the app.
 - Fast leaks don't escalate to crimson. That's left out on purpose, to avoid false positives.
 
-### Sensor removed
+### No sensor removed detection
 
-Taking a valve-cap sensor off to pump the tyre must not raise a crimson pressure alert. A reading
-below `OFF_VALVE` (10 kPa, already used by `PressureLoss.Tracker`) counts as the sensor being
-removed when:
-
-- the previous reading from the same sensor was **not** at crimson pressure, and
-- that previous reading is recent: within **10 minutes**, the tracker's ride gap.
-
-A removal is the pressure jumping straight from a tyre's pressure to near zero. A real deflation
-goes through readings in between, since a sensor transmits more often while its pressure keeps
-changing, and the last of them before the open air is crimson. The previous reading can be amber
-or red: a tyre that's already low is the most common one to be pumped up. The recency check keeps a tyre that went flat overnight from being misread as a removal:
-nothing was listening while it deflated, so its previous stored reading is yesterday's normal one.
-That case is a real crimson pressure alert.
-
-A removal raises a **sensor removed** alert at amber level:
-
-- It notifies on the **first** reading: a sensor reading open air has no pressure change left to
-  report, and may never transmit again.
-- It clears on the first reading **above `OFF_VALVE`**, not on any non-zero reading: open air can
-  read a few kPa of noise. That reading is evaluated normally, so a tyre pumped up too little goes
-  straight to red.
-- The removal reading itself raises no pressure alert.
-
-Motion detection (`ActivityRecognitionUseCase`, `SignificantMotionUseCase`) could be added later as
-a second check, it isn't needed for this.
+A sensor taken off the valve to pump the tyre up reads the open air, which is crimson pressure.
+Telling that apart from a tyre that burst was tried (a reading near zero right after a normal one
+was taken for a removal and only raised an amber "Sensor removed?" alert), and dropped: a burst
+between two readings looks the same, and missing it costs far more than a crimson alert while
+pumping up, which the silence button or a dismiss quiets.
 
 ## Notifications
 

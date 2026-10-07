@@ -2,10 +2,7 @@ package com.masselis.tpmsadvanced.data.vehicle.model
 
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertClass.BATTERY
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.AMBER
-import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.CRIMSON
 import com.masselis.tpmsadvanced.data.vehicle.model.AlertLevel.RED
-import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss.Tracker.Companion.OFF_VALVE
-import com.masselis.tpmsadvanced.data.vehicle.model.PressureLoss.Tracker.Companion.RIDE_GAP
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.DurationUnit.SECONDS
@@ -19,13 +16,6 @@ import kotlin.time.DurationUnit.SECONDS
  */
 public data class TyreAlerts(
     val latest: TyreAtmosphere? = null,
-    /**
-     * The sensor was taken off the valve, to pump the tyre up most likely: its pressure jumped
-     * straight from a recent reading to the open air's. A real deflation goes through the readings
-     * in between, the sensor sending more often while its pressure keeps changing, the last one
-     * before the open air being crimson. It lasts until the sensor reads a tyre again.
-     */
-    val isRemoved: Boolean = false,
     val levels: Map<AlertClass, AlertLevel> = emptyMap(),
     val notifiable: Map<AlertClass, AlertLevel> = emptyMap(),
     /** When the battery's readings in a row at red started, null while it isn't red */
@@ -46,24 +36,16 @@ public data class TyreAlerts(
         latest != null && reading.sensorId != latest.sensorId -> TyreAlerts().next(reading, thresholds, loss)
         latest != null && reading.timestamp < latest.timestamp -> this
         latest != null && reading.timestamp == latest.timestamp ->
-            copy(levels = thresholds.levels(latest, loss != null, isRemoved))
+            copy(levels = thresholds.levels(latest, loss != null))
 
-        else -> (
-            reading.pressure < OFF_VALVE && (
-                isRemoved || latest
-                    ?.takeIf { reading.timestamp - it.timestamp < RIDE_GAP.toDouble(SECONDS) }
-                    ?.let { thresholds.pressureLevel(it.pressure) != CRIMSON }
-                    ?: false
-                )
-            )
-            .let { isRemoved -> thresholds.levels(reading, loss != null, isRemoved) to isRemoved }
-            .let { (levels, isRemoved) ->
+        else -> thresholds
+            .levels(reading, loss != null)
+            .let { levels ->
                 (batteryRedSince ?: reading.timestamp)
                     .takeIf { levels[BATTERY] == RED }
                     .let { batteryRedSince ->
                         copy(
                             latest = reading,
-                            isRemoved = isRemoved,
                             levels = levels,
                             notifiable = levels.mapValues { (alertClass, level) ->
                                 // A single low voltage can be a dip, see BATTERY_CONFIRMATION
