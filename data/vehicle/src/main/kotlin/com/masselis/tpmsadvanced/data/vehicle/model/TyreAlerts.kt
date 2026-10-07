@@ -23,8 +23,8 @@ public data class TyreAlerts(
 ) {
 
     /**
-     * [reading] being [latest] again re-evaluates its [levels], for the [thresholds] or the [loss]
-     * which changed since, without counting it as another reading.
+     * [reading] being [latest] again re-evaluates its [levels] and [notifiable], for the
+     * [thresholds] or the [loss] which changed since, without counting it as another reading.
      */
     @Suppress("MaxLineLength", "CyclomaticComplexMethod", "ComplexCondition")
     public fun next(
@@ -35,9 +35,8 @@ public data class TyreAlerts(
         // Another sensor was bound to this tyre, whatever was going on was about the previous one
         latest != null && reading.sensorId != latest.sensorId -> TyreAlerts().next(reading, thresholds, loss)
         latest != null && reading.timestamp < latest.timestamp -> this
-        latest != null && reading.timestamp == latest.timestamp ->
-            copy(levels = thresholds.levels(latest, loss != null))
-
+        // The same reading again goes through as a new one: the battery's red streak it started, or
+        // went on with, is the same, the reading isn't counted twice
         else -> thresholds
             .levels(reading, loss != null)
             .let { levels ->

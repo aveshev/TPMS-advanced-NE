@@ -87,8 +87,24 @@ internal class TyreAlertsTest {
         val first = track(reading(0.0, 250f, 2.6f))
         first.next(reading(0.0, 250f, 2.6f), thresholds, loss).also {
             assertEquals(mapOf(BATTERY to RED, PRESSURE_LOSS to AMBER), it.levels)
-            assertEquals(mapOf(BATTERY to AMBER), it.notifiable)
+            assertEquals(mapOf(BATTERY to AMBER, PRESSURE_LOSS to AMBER), it.notifiable)
         }
+    }
+
+    @Test
+    fun `the same reading again under other thresholds lowers its notifiable level`() {
+        track(reading(0.0, 190f)).next(reading(0.0, 190f), AlertThresholds(185f.kpa, 300f.kpa, 90f.celsius, 2.6f.volts), null).also {
+            assertEquals(mapOf(PRESSURE to AMBER), it.levels)
+            assertEquals(mapOf(PRESSURE to AMBER), it.notifiable)
+        }
+    }
+
+    @Test
+    fun `the same reading again keeps the battery's red streak`() {
+        assertEquals(
+            mapOf(BATTERY to RED),
+            track(reading(0.0, 250f, 2.6f), reading(10.0, 251f, 2.6f), reading(10.0, 251f, 2.6f)).notifiable,
+        )
     }
 
     @Test
