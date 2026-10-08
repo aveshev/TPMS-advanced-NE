@@ -1,14 +1,22 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.createSavedStateHandle
 import com.masselis.tpmsadvanced.core.ui.SettingsGroup
 import com.masselis.tpmsadvanced.core.ui.TextSettingsItem
 import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ClearBoundSensorsButtonTags.confirm
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ClearBoundSensorsButtonTags.root
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ClearBoundSensorsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ClearBoundSensorsViewModel.State
@@ -16,7 +24,7 @@ import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Compan
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
 
-/** A [SettingsGroup] item unbinding the vehicle's sensors */
+/** A [SettingsGroup] item unbinding all the vehicle's sensors, once confirmed */
 @Composable
 internal fun ClearBoundSensorsButton(
     modifier: Modifier = Modifier,
@@ -26,19 +34,35 @@ internal fun ClearBoundSensorsButton(
     }
 ) {
     val state by viewModel.stateFlow.collectAsState()
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
     TextSettingsItem(
-        headline = "Clear favourites",
+        headline = "Clear all sensors",
         supporting = when (state) {
-            State.ClearingPossible -> "Unbind the sensors bound to this vehicle"
-            State.AlreadyCleared -> "No sensor is bound to this vehicle"
+            State.ClearingPossible -> "Remove every sensor assigned to this vehicle"
+            State.AlreadyCleared -> "No sensor is assigned to this vehicle"
         },
-        onClick = { viewModel.clear() },
+        onClick = { confirmClear = true },
         enabled = state is State.ClearingPossible,
+        headlineColor = MaterialTheme.colorScheme.error,
         modifier = modifier.testTag(root),
+    )
+    if (confirmClear) AlertDialog(
+        onDismissRequest = { confirmClear = false },
+        text = { Text("Remove every sensor assigned to this vehicle?\nThis cannot be undone.") },
+        dismissButton = {
+            TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { viewModel.clear(); confirmClear = false },
+                modifier = Modifier.testTag(confirm),
+            ) { Text("Remove all") }
+        },
     )
 }
 
 @Suppress("ConstPropertyName")
 internal object ClearBoundSensorsButtonTags {
     const val root = "ClearBoundSensorsButtonTags_root"
+    const val confirm = "ClearBoundSensorsButtonTags_confirm"
 }

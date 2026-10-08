@@ -67,7 +67,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButt
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.QuietScanStatusAnnouncementsEffect
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.SilenceAlertsButton
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ConfigurableCurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.SimulateReadingDialog
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.isReadingSimulationAvailable
@@ -114,13 +114,14 @@ internal fun VehicleHome(
         var showManualMonitoringSpotlight by remember { mutableStateOf(false) }
         var showAndroidAutoSupportAlert by remember { mutableStateOf(false) }
         var showWicarlinkSupportAlert by remember { mutableStateOf(false) }
-        // A vehicle just added becomes the current one, its settings open once its home is shown
-        var openSettingsOf by rememberSaveable { mutableStateOf<UUID?>(null) }
+        // Kept while switching vehicles: the configuration is part of the main screen
+        var configuring by rememberSaveable { mutableStateOf(false) }
         val snackbarHostState = remember { SnackbarHostState() }
         Scaffold(
             topBar = {
                 TopAppBar(
-                    onVehicleAdded = { openSettingsOf = it },
+                    // A vehicle just added becomes the current one, its sensors come first
+                    onVehicleAdded = { configuring = true },
                     manualBackgroundButtonModifier = Modifier.onGloballyPositioned { coordinates ->
                         if (offsetToFocus != null) return@onGloballyPositioned
                         coordinates.positionInRoot()
@@ -146,20 +147,17 @@ internal fun VehicleHome(
                     composable(route = "${Path.Home(vehicleComponent.vehicle.uuid)}") {
                         // The bell tells the status here, nothing to hear
                         QuietScanStatusAnnouncementsEffect()
-                        CurrentVehicle(
+                        ConfigurableCurrentVehicle(
+                            isConfiguring = configuring,
+                            onConfiguringChange = { configuring = it },
+                            // Until the configuration has its own assign flow
+                            assign = {
+                                navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
+                            },
                             snackbarHostState = snackbarHostState,
                             modifier = modifier,
                             center = { SilenceAlertsButton(it) },
                         )
-                        // Inside the graph so the settings route of this vehicle surely exists
-                        LaunchedEffect(openSettingsOf) {
-                            openSettingsOf
-                                ?.takeIf { it == vehicleComponent.vehicle.uuid }
-                                ?.also {
-                                    openSettingsOf = null
-                                    navController.navigate("${Path.Settings(it)}")
-                                }
-                        }
                     }
                     composable("${Path.Settings(vehicleComponent.vehicle.uuid)}") {
                         Settings(
@@ -172,8 +170,9 @@ internal fun VehicleHome(
                             openBattery = {
                                 navController.navigate("${Path.BatterySettings(vehicleComponent.vehicle.uuid)}")
                             },
-                            openBindingMethod = {
-                                navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
+                            openSensorConfiguration = {
+                                configuring = true
+                                navController.popBackStack("${Path.Home(vehicleComponent.vehicle.uuid)}", false)
                             },
                             openCalibration = {
                                 navController.navigate("${Path.CalibrationSettings(vehicleComponent.vehicle.uuid)}")

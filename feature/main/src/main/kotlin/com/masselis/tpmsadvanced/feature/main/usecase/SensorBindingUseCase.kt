@@ -23,11 +23,14 @@ internal interface SensorBindingUseCase {
 
     suspend fun bind(sensor: Sensor)
 
+    /** Unbinds the sensor bound to this location, if any */
+    suspend fun unbind()
+
     class Impl(
         private val currentVehicle: Vehicle,
         private val vehicleDatabase: VehicleDatabase,
         private val sensorDatabase: SensorDatabase,
-        currentLocation: Location,
+        private val currentLocation: Location,
         scope: CoroutineScope,
     ) : SensorBindingUseCase {
 
@@ -47,6 +50,9 @@ internal interface SensorBindingUseCase {
 
         override suspend fun bind(sensor: Sensor) =
             sensorDatabase.upsert(sensor, currentVehicle.uuid)
+
+        override suspend fun unbind() =
+            sensorDatabase.deleteFromVehicle(currentVehicle.uuid, currentLocation)
     }
 
     object NoOp : SensorBindingUseCase {
@@ -54,5 +60,6 @@ internal interface SensorBindingUseCase {
         override fun boundVehicle(sensor: Sensor): Flow<Vehicle?> = MutableStateFlow(null)
         override fun isBound(sensorId: Int): Boolean = false
         override suspend fun bind(sensor: Sensor) {}
+        override suspend fun unbind() {}
     }
 }

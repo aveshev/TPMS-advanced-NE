@@ -9,6 +9,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreActionsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreIconViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreStatsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.BindSensorButtonViewModelImpl
@@ -193,6 +194,10 @@ public interface TyreBindings {
     @Provides
     private fun tyreIconViewModel(vm: TyreIconViewModelImpl): TyreIconViewModel = vm
 
+    @Provides
+    private fun tyreActionsViewModel(sensorBindingUseCase: SensorBindingUseCase): TyreActionsViewModel =
+        TyreActionsViewModel(sensorBindingUseCase)
+
     public val internal: Internal
 
     @Inject
@@ -200,6 +205,7 @@ public interface TyreBindings {
         internal val tyreIconViewModel: () -> TyreIconViewModelImpl,
         internal val tyreStatsViewModel: () -> TyreStatsViewModelImpl,
         internal val bindSensorButtonViewModel: BindSensorButtonViewModelImpl.Factory,
+        internal val tyreActionsViewModel: () -> TyreActionsViewModel,
     )
 
     @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
@@ -210,5 +216,6 @@ public interface TyreBindings {
         internal fun TyreComponent.TyreIconViewModel() = internal.tyreIconViewModel()
         internal fun TyreComponent.TyreStatsViewModel() = internal.tyreStatsViewModel()
         internal val TyreComponent.BindSensorButtonViewModel get() = internal.bindSensorButtonViewModel
+        internal fun TyreComponent.TyreActionsViewModel() = internal.tyreActionsViewModel()
     }
 }

@@ -46,6 +46,11 @@ public class SensorDatabase internal constructor(
         queries.deleteByVehicle(vehicleId)
     }
 
+    /** Unbinds the sensor at [location] of the vehicle, if any */
+    public suspend fun deleteFromVehicle(vehicleId: UUID, location: Location): Unit = withContext(IO) {
+        queries.deleteByVehicleAndLocation(vehicleId, location)
+    }
+
     public fun selectByVehicleAndLocation(
         vehicleId: UUID,
         location: Location,

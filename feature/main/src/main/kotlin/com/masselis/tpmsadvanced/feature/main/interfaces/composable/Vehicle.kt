@@ -127,6 +127,8 @@ public fun Vehicle(
     modifier: Modifier = Modifier,
     /** Placed over the vehicle, between its axles or in the middle of a single axle one */
     center: @Composable (Modifier) -> Unit = {},
+    /** Shown in place of each location's readout when set, see [ConfigurableCurrentVehicle] */
+    tyreActions: TyreActions? = null,
 ) {
     KeepScreenOn()
     val pressureUnit by component
@@ -153,17 +155,25 @@ public fun Vehicle(
                 ).fold(0.dp, Dp::plus) / 2
             )
         when (component.vehicle.kind) {
-            Kind.CAR -> Car(imageHeight, snackbarHostState, center, fill)
-            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, center, fill)
-            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, center, fill)
-            Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, center, fill)
-            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, center, fill)
+            Kind.CAR -> Car(imageHeight, snackbarHostState, center, tyreActions, fill)
+            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, center, tyreActions, fill)
+            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, center, tyreActions, fill)
+            Kind.TADPOLE_THREE_WHEELER ->
+                TadpoleThreadWheeler(imageHeight, snackbarHostState, center, tyreActions, fill)
+            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, center, tyreActions, fill)
         }
     }
 }
 
+/** What replaces a location's readout, placed by [modifier] like the readout would be */
+internal typealias TyreActions = @Composable (location: Location, modifier: Modifier) -> Unit
+
+@Composable
+private fun Readout(location: Location, actions: TyreActions?, modifier: Modifier) =
+    actions?.invoke(location, modifier) ?: TyreStat(location = location, modifier = modifier)
+
 /** Side of the image the readout of this location sits on, see the layouts below */
-private val Location.readoutSide: SensorLocation.Side
+internal val Location.readoutSide: SensorLocation.Side
     get() = when (this) {
         is Location.Axle -> RIGHT
         is Location.Wheel -> location.side
@@ -271,6 +281,7 @@ private fun Car(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
+    tyreActions: TyreActions?,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -306,8 +317,9 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -317,7 +329,8 @@ private fun Car(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftBinding) {
                     top.linkTo(frontLeft.top)
@@ -335,8 +348,9 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -344,7 +358,8 @@ private fun Car(
                     start.linkTo(frontRight.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightBinding) {
                     top.linkTo(frontRight.top)
@@ -362,8 +377,9 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -372,7 +388,8 @@ private fun Car(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftBinding) {
                     bottom.linkTo(rearLeft.bottom)
@@ -390,8 +407,9 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -399,7 +417,8 @@ private fun Car(
                     start.linkTo(rearRight.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightBinding) {
                     bottom.linkTo(rearRight.bottom)
@@ -425,6 +444,7 @@ private fun SingleAxleTrailer(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
+    tyreActions: TyreActions?,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -457,8 +477,9 @@ private fun SingleAxleTrailer(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(leftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -467,7 +488,8 @@ private fun SingleAxleTrailer(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(axleY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(leftBinding) {
                     top.linkTo(tyreLeft.top)
@@ -486,8 +508,9 @@ private fun SingleAxleTrailer(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -495,7 +518,8 @@ private fun SingleAxleTrailer(
                     start.linkTo(tyreRight.end, 8.dp)
                 }.verticallyCenteredOn(axleY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rightBinding) {
                     top.linkTo(tyreRight.top)
@@ -523,6 +547,7 @@ private fun Motorcycle(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
+    tyreActions: TyreActions?,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -555,8 +580,9 @@ private fun Motorcycle(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -564,7 +590,8 @@ private fun Motorcycle(
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontBinding) {
                     top.linkTo(tyreFront.top)
@@ -583,8 +610,9 @@ private fun Motorcycle(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -592,7 +620,8 @@ private fun Motorcycle(
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearBinding) {
                     top.linkTo(tyreRear.top)
@@ -619,6 +648,7 @@ private fun TadpoleThreadWheeler(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
+    tyreActions: TyreActions?,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -659,8 +689,9 @@ private fun TadpoleThreadWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -670,7 +701,8 @@ private fun TadpoleThreadWheeler(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontLeftBinding) {
                     top.linkTo(frontLeft.bottom)
@@ -688,8 +720,9 @@ private fun TadpoleThreadWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -697,7 +730,8 @@ private fun TadpoleThreadWheeler(
                     start.linkTo(frontRight.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontRightBinding) {
                     top.linkTo(frontRight.bottom)
@@ -715,8 +749,9 @@ private fun TadpoleThreadWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -724,7 +759,8 @@ private fun TadpoleThreadWheeler(
                     start.linkTo(rearOutline.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearBinding) {
                     top.linkTo(tyreRear.top)
@@ -751,6 +787,7 @@ private fun DeltaThreeWheeler(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
+    tyreActions: TyreActions?,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -791,8 +828,9 @@ private fun DeltaThreeWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -800,7 +838,8 @@ private fun DeltaThreeWheeler(
                     start.linkTo(frontOutline.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(frontBinding) {
                     top.linkTo(tyreFront.top)
@@ -819,8 +858,9 @@ private fun DeltaThreeWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -829,7 +869,8 @@ private fun DeltaThreeWheeler(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearLeftBinding) {
                     bottom.linkTo(rearLeft.top)
@@ -847,8 +888,9 @@ private fun DeltaThreeWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            TyreStat(
+            Readout(
                 location = this,
+                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -856,7 +898,8 @@ private fun DeltaThreeWheeler(
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            BindSensorButton(
+            // The configuration's actions take over binding
+            if (tyreActions == null) BindSensorButton(
                 location = this,
                 modifier = Modifier.constrainAs(rearRightBinding) {
                     bottom.linkTo(rearRight.top)
