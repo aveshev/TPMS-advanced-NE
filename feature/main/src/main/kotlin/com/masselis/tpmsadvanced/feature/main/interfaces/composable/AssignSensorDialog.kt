@@ -81,7 +81,7 @@ internal fun AssignSensorDialog(
                 }
                 ListItem(
                     headlineContent = { Text("Scan QR code") },
-                    supportingContent = { Text("Printed on the sensors' box or card") },
+                    supportingContent = { Text("Printed on the sensors' box, card or cap") },
                     leadingContent = { Icon(ImageVector.vectorResource(R.drawable.qr_code_24px), null) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier
