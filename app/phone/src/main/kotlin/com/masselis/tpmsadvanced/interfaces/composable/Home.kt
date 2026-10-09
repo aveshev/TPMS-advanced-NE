@@ -61,6 +61,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
+import com.masselis.tpmsadvanced.core.ui.isWideWindow
 import com.masselis.tpmsadvanced.core.ui.Spotlight
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.DetectedActivitiesIndicator
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButton
@@ -116,9 +117,15 @@ internal fun VehicleHome(
         var showAndroidAutoSupportAlert by remember { mutableStateOf(false) }
         var showWicarlinkSupportAlert by remember { mutableStateOf(false) }
         val snackbarHostState = remember { SnackbarHostState() }
+        val currentPath = navController.currentBackStackEntryAsState()
+            .value
+            ?.destination
+            ?.route
+            ?.let { Path.from(it) }
         Scaffold(
             topBar = {
-                TopAppBar(
+                // Manage sensors shows its own beside the vehicle, see isWideWindow
+                if ((currentPath is Path.ManageSensors && isWideWindow()).not()) TopAppBar(
                     manualBackgroundButtonModifier = Modifier.onGloballyPositioned { coordinates ->
                         if (offsetToFocus != null) return@onGloballyPositioned
                         coordinates.positionInRoot()
@@ -185,7 +192,8 @@ internal fun VehicleHome(
                             scanBluetooth = {
                                 navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
                             },
-                            modifier = modifier
+                            modifier = modifier,
+                            navigationIcon = { BackButton() },
                         )
                     }
                     composable("${Path.PressureSettings(vehicleComponent.vehicle.uuid)}") {
@@ -461,18 +469,7 @@ private fun TopAppBar(
                 is Path.BeaconScan,
                 is Path.Licenses,
                 is Path.QrCode,
-                is Path.Unlocated -> {
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        content = {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.arrow_back_24px),
-                                contentDescription = "Go back"
-                            )
-                        },
-                        modifier = Modifier.testTag(backButton)
-                    )
-                }
+                is Path.Unlocated -> BackButton()
 
                 // What the phone detects it is doing, when asked for in the debug settings
                 is Path.Home -> DetectedActivitiesIndicator()
@@ -654,4 +651,19 @@ internal object HomeTags {
         const val settings = "HomeTags_Overflow_settings"
         const val appSettings = "HomeTags_Overflow_appSettings"
     }
+}
+
+@Composable
+private fun BackButton() {
+    val navController = LocalHomeNavController.current
+    IconButton(
+        onClick = { navController.popBackStack() },
+        content = {
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.arrow_back_24px),
+                contentDescription = "Go back"
+            )
+        },
+        modifier = Modifier.testTag(backButton)
+    )
 }

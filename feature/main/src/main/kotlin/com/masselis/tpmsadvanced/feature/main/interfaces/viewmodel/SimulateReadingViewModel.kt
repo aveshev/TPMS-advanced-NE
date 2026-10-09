@@ -61,7 +61,8 @@ internal class SimulateReadingViewModel(
                     SimulatedReadings.send(
                         brand,
                         sensorId,
-                        SensorLocation.entries.first { it matches location },
+                        // A spare has none, nothing would detect it unbound but its bound sensor
+                        SensorLocation.entries.firstOrNull { it matches location } ?: SensorLocation.REAR_LEFT,
                         pressure.kpa,
                         temperature.celsius,
                         battery?.let { if (brand.batteryUnit == VOLT) it.times(DECIVOLTS_PER_VOLT).roundToInt() else it.roundToInt() },
@@ -75,6 +76,8 @@ internal class SimulateReadingViewModel(
         is Location.Axle -> axle == location.axle
         is Location.Side -> side == location.side
         is Location.Wheel -> this == location.location
+        Location.Spare -> false
+        Location.Single -> true
     }
 
     private companion object {

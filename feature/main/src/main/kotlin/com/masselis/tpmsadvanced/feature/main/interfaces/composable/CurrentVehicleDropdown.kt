@@ -213,6 +213,8 @@ private fun AddVehicle(
                                 Vehicle.Kind.MOTORCYCLE -> "Motorcycle"
                                 Vehicle.Kind.TADPOLE_THREE_WHEELER -> "Tadpole three wheeler"
                                 Vehicle.Kind.DELTA_THREE_WHEELER -> "Delta three wheeler"
+                                Vehicle.Kind.CAR_WITH_SPARE -> "Car with a spare"
+                                Vehicle.Kind.MONOWHEEL -> "Mono-wheel"
                             }
                         )
                     }

@@ -87,8 +87,17 @@ public class VehicleRangesUseCase internal constructor(
         highTemp,
         lowBatteryVoltage,
         lowBatteryPercent,
-        ::AlertThresholds,
-    )
+    ) { lowPressure, highPressure, highTemp, lowBatteryVoltage, lowBatteryPercent ->
+        AlertThresholds(
+            lowPressure,
+            highPressure,
+            highTemp,
+            lowBatteryVoltage,
+            lowBatteryPercent,
+            // Nothing critical about a spare that isn't driven on
+            allowsCritical = location != Location.Spare,
+        )
+    }
 
     init {
         lowPressure

@@ -30,11 +30,13 @@ internal class ShortcutUseCase(
                             .setIcon(
                                 IconCompat.createWithResource(
                                     appContext, when (vehicle.kind) {
-                                        Vehicle.Kind.CAR -> R.drawable.car_convertible
+                                        Vehicle.Kind.CAR, Vehicle.Kind.CAR_WITH_SPARE -> R.drawable.car_convertible
                                         Vehicle.Kind.SINGLE_AXLE_TRAILER -> R.drawable.truck_trailer
                                         Vehicle.Kind.MOTORCYCLE -> R.drawable.motorbike
                                         Vehicle.Kind.TADPOLE_THREE_WHEELER -> R.drawable.atv
                                         Vehicle.Kind.DELTA_THREE_WHEELER -> R.drawable.atv
+                                        // No closer icon yet
+                                        Vehicle.Kind.MONOWHEEL -> R.drawable.motorbike
                                     }
                                 )
                             )

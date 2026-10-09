@@ -18,8 +18,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
@@ -61,7 +64,9 @@ internal fun TyreTapArea(
     scanBluetooth: () -> Unit,
     move: TyreMove?,
     startMove: (Location) -> Unit,
+    canMove: Boolean,
     modifier: Modifier = Modifier,
+    onOutlinePositioned: ((Location, Rect) -> Unit)? = null,
     vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
     viewModel: TyreActionsViewModel = vehicleComponent
         .TyreComponent(location)
@@ -89,6 +94,11 @@ internal fun TyreTapArea(
     Box(
         modifier
             .outset(OUTLINE_OUTSET)
+            .run {
+                onOutlinePositioned
+                    ?.let { report -> onGloballyPositioned { report(location, it.boundsInWindow()) } }
+                    ?: this
+            }
             .run { outline?.let { border(2.dp, it, SHAPE) } ?: this }
             .clip(SHAPE)
             .run { onTap?.let { clickable(onClick = it) } ?: this }
@@ -101,6 +111,7 @@ internal fun TyreTapArea(
                 location = location,
                 sensor = assigned.sensor,
                 move = { isOpen = false; startMove(location) },
+                canMove = canMove,
                 delete = { isOpen = false; confirmDelete = true },
                 onDismissRequest = { isOpen = false },
             )
@@ -166,17 +177,18 @@ private fun ManageSensorDialog(
     location: Location,
     sensor: Sensor,
     move: () -> Unit,
+    canMove: Boolean,
     delete: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AlertDialog(
+    OptionsDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Column {
                 Text(buildString { appendLoc(location, withType = false, capitalized = true) })
                 Text(
-                    "Sensor ${sensor.id.asSensorId()}",
+                    "Sensor ID ${sensor.id.asSensorId()}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -189,6 +201,7 @@ private fun ManageSensorDialog(
                     title = "Move/swap",
                     subtitle = "Assign this sensor to another wheel",
                     onClick = move,
+                    isEnabled = canMove,
                     modifier = Modifier.testTag(TyreTapAreaTags.move),
                 )
                 // Coming next
@@ -225,7 +238,14 @@ private fun ManageSensorDialog(
 @Preview
 @Composable
 internal fun ManageSensorDialogPreview() {
-    ManageSensorDialog(Location.Wheel(FRONT_RIGHT), Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM), {}, {}, {})
+    ManageSensorDialog(
+        Location.Wheel(FRONT_RIGHT),
+        Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM),
+        move = {},
+        canMove = true,
+        delete = {},
+        onDismissRequest = {},
+    )
 }
 
 @Suppress("ConstPropertyName")

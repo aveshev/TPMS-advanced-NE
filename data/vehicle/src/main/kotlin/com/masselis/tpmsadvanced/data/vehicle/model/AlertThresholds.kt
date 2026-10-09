@@ -21,6 +21,8 @@ public data class AlertThresholds(
     val lowBatteryVoltage: Voltage,
     /** Sysgration's alarm, its sensors reporting a percentage instead of a voltage */
     val lowBatteryPercent: Int = DEFAULT_LOW_BATTERY_PERCENT,
+    /** Off for a spare, which isn't driven on: red at worst, never crimson */
+    val allowsCritical: Boolean = true,
 ) {
 
     /**
@@ -56,14 +58,16 @@ public data class AlertThresholds(
             pressure.kpa >= highPressure.kpa * AMBER_HIGH_PRESSURE - EPSILON -> AMBER
             else -> null
         },
-    ).maxOrNull()
+    ).maxOrNull()?.capped()
 
     public fun temperatureLevel(temperature: Temperature): AlertLevel? = when {
         temperature.celsius >= highTemp.celsius + CRIMSON_TEMPERATURE_ABOVE - EPSILON -> CRIMSON
         temperature.celsius >= highTemp.celsius - EPSILON -> RED
         temperature.celsius >= highTemp.celsius - AMBER_TEMPERATURE_BELOW - EPSILON -> AMBER
         else -> null
-    }
+    }?.capped()
+
+    private fun AlertLevel.capped(): AlertLevel = if (this == CRIMSON && allowsCritical.not()) RED else this
 
     /** Against the low voltage alarm adjusted to the sensor's [temperature], see [Voltage.alarmAt] */
     public fun batteryLevel(voltage: Voltage, temperature: Temperature): AlertLevel? = lowBatteryVoltage

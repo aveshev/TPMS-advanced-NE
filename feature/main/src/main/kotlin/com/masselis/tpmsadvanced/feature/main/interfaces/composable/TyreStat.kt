@@ -103,19 +103,13 @@ private fun TyreStat(
     val sensorId = detected?.sensorId
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val alignment = remember(isBasic) {
-        // Centered inside its outline on the sensors' page, against the tyre otherwise
-        if (isBasic) Alignment.CenterHorizontally
-        else when (location) {
-            is Location.Axle -> Alignment.Start
-            is Location.Wheel -> when (location.location.side) {
-                LEFT -> Alignment.End
-                RIGHT -> Alignment.Start
-            }
-
-            is Location.Side -> when (location.side) {
-                LEFT -> Alignment.End
-                RIGHT -> Alignment.Start
-            }
+        // Centered inside its outline on the sensors' page, or under the spare, against the
+        // tyre otherwise
+        if (isBasic || location == Location.Spare) Alignment.CenterHorizontally
+        // Against the tyre, on whichever side of it the readout is
+        else when (location.readoutSide) {
+            LEFT -> Alignment.End
+            RIGHT -> Alignment.Start
         }
     }
     Column(modifier = modifier) {

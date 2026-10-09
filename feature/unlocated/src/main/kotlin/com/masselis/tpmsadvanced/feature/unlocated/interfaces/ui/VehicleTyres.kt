@@ -40,7 +40,8 @@ internal fun Vehicle(
 ) {
     val modifier = modifier.aspectRatio(.5f)
     when (kind) {
-        Vehicle.Kind.CAR -> Car(
+        // Its spare isn't drawn, until assigning by Bluetooth replaces this list
+        Vehicle.Kind.CAR, Vehicle.Kind.CAR_WITH_SPARE -> Car(
             frontLeft = states.getValue(Vehicle.Kind.Location.Wheel(FRONT_LEFT)),
             frontRight = states.getValue(Vehicle.Kind.Location.Wheel(FRONT_RIGHT)),
             rearLeft = states.getValue(Vehicle.Kind.Location.Wheel(REAR_LEFT)),
@@ -76,6 +77,14 @@ internal fun Vehicle(
             rearLeft = states.getValue(Vehicle.Kind.Location.Wheel(REAR_LEFT)),
             rearRight = states.getValue(Vehicle.Kind.Location.Wheel(REAR_RIGHT)),
             onWheelTap = onWheelTap,
+            modifier = modifier
+        )
+
+        // Its only wheel as a motorcycle's front, until assigning by Bluetooth replaces this list
+        Vehicle.Kind.MONOWHEEL -> Motorcycle(
+            front = states.getValue(Vehicle.Kind.Location.Single),
+            rear = WheelState.Fade,
+            onWheelTap = { onWheelTap(it?.let { Vehicle.Kind.Location.Single }) },
             modifier = modifier
         )
     }

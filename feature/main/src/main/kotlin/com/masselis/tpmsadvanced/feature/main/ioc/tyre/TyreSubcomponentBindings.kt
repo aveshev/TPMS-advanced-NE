@@ -21,6 +21,7 @@ import dev.zacsweers.metro.SingleIn
 @ContributesTo(VehicleComponent.Scope::class)
 public interface TyreSubcomponentBindings {
 
+    @Suppress("LongParameterList")
     @Provides
     private fun findTyreComponentUseCase(
         vehicle: Vehicle,
@@ -32,6 +33,8 @@ public interface TyreSubcomponentBindings {
         @AxleQualifier(REAR) rear: Lazy<TyreComponent>,
         @SideQualifier(LEFT) left: Lazy<TyreComponent>,
         @SideQualifier(RIGHT) right: Lazy<TyreComponent>,
+        @SpareQualifier spare: Lazy<TyreComponent>,
+        @SingleQualifier single: Lazy<TyreComponent>,
     ): FindTyreComponentUseCase = FindTyreComponentUseCase(
         vehicle = vehicle,
         frontLeft = frontLeft,
@@ -41,8 +44,22 @@ public interface TyreSubcomponentBindings {
         front = front,
         rear = rear,
         left = left,
-        right = right
+        right = right,
+        spare = spare,
+        single = single,
     )
+
+    @Provides
+    @SingleIn(VehicleComponent.Scope::class)
+    @SpareQualifier
+    private fun spareTyreComponent(factory: TyreComponent.Factory): TyreComponent =
+        factory.build(Location.Spare)
+
+    @Provides
+    @SingleIn(VehicleComponent.Scope::class)
+    @SingleQualifier
+    private fun singleTyreComponent(factory: TyreComponent.Factory): TyreComponent =
+        factory.build(Location.Single)
 
     @Provides
     @SingleIn(VehicleComponent.Scope::class)

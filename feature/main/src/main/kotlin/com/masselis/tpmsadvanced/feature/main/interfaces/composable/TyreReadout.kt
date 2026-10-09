@@ -41,7 +41,8 @@ internal fun TyreReadout(
 ) {
     val state by viewModel.stateFlow.collectAsState()
     // What's centered in the outline keeps away from its outer edge, the tyre's side is far enough
-    val outlined = modifier.padding(
+    // The spare's readout is under it, centered with no outer edge
+    val outlined = if (location == Location.Spare) modifier else modifier.padding(
         start = OUTLINE_PADDING.takeIf { location.readoutSide == LEFT } ?: 0.dp,
         end = OUTLINE_PADDING.takeIf { location.readoutSide == RIGHT } ?: 0.dp,
     )
