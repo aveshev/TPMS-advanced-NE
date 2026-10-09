@@ -105,16 +105,12 @@ internal sealed interface Path {
         }
     }
 
-    /**
-     * Assigns the location at [location] in the vehicle kind's locations a sensor by Bluetooth,
-     * listening only to [ids] when given: those of a QR code
-     */
-    data class BluetoothAssign(val vehicleUUID: UUID, val location: Int, val ids: Collection<Int>? = null) : Path {
-        override fun toString(): String =
-            "vehicle/$vehicleUUID/bluetooth_assign/$location" + (ids?.joinToString(",", prefix = "?ids=") ?: "")
+    /** Assigns the location at [location] in the vehicle kind's locations a sensor by Bluetooth */
+    data class BluetoothAssign(val vehicleUUID: UUID, val location: Int) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/bluetooth_assign/$location"
 
         companion object {
-            fun route(vehicleUUID: UUID) = "vehicle/$vehicleUUID/bluetooth_assign/{location}?ids={ids}"
+            fun route(vehicleUUID: UUID) = "vehicle/$vehicleUUID/bluetooth_assign/{location}"
         }
     }
 
@@ -147,7 +143,7 @@ internal sealed interface Path {
                     assert(host == "vehicle")
                     val uuid = UUID.fromString(uuidString)
                     // A route's pattern, as a destination has it, has no location
-                    val location = segments.getOrNull(3)?.substringBefore('?')?.toIntOrNull() ?: 0
+                    val location = segments.getOrNull(3)?.toIntOrNull() ?: 0
                     when (screen) {
                         "home" -> Home(uuid)
                         "settings" -> Settings(uuid)

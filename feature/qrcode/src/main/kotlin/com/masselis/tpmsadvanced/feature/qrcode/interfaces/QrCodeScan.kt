@@ -49,7 +49,6 @@ import com.masselis.tpmsadvanced.feature.qrcode.ioc.Bindings.Companion.QrCodeVie
 public fun QrCodeScan(
     snackbarHostState: SnackbarHostState,
     scanBluetooth: () -> Unit,
-    assignViaBluetooth: (sensorIds: Set<Int>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val permissionState = rememberMultiplePermissionsState(listOf(CAMERA))
@@ -65,18 +64,16 @@ public fun QrCodeScan(
         else -> Preview(
             snackbarHostState = snackbarHostState,
             scanBluetooth = scanBluetooth,
-            assignViaBluetooth = assignViaBluetooth,
             modifier = modifier,
         )
     }
 }
 
-@Suppress("NAME_SHADOWING")
+@Suppress("NAME_SHADOWING", "LongMethod")
 @Composable
 private fun Preview(
     snackbarHostState: SnackbarHostState,
     scanBluetooth: () -> Unit,
-    assignViaBluetooth: (sensorIds: Set<Int>) -> Unit,
     modifier: Modifier = Modifier,
     cameraSelector: CameraSelector = DEFAULT_BACK_CAMERA,
 ) {
@@ -113,7 +110,13 @@ private fun Preview(
             state = state,
             onDismissRequest = viewModel::scanAgain,
             onBind = viewModel::bindSensors,
-            assignViaBluetooth = { assignViaBluetooth(state.qrCodeSensors.map { it.id }.toSet()) },
+        )
+
+        // Scanning the code again would tell the same
+        is State.TooManySensors -> AlertDialog(
+            onDismissRequest = viewModel::leave,
+            text = { Text("This QR lists more sensors than ${state.vehicle.name} needs, please assign via Bluetooth") },
+            confirmButton = { TextButton(onClick = viewModel::leave) { Text(text = "OK") } },
         )
 
         is State.Error -> ErrorAlert(
@@ -143,54 +146,30 @@ private fun Preview(
     }
 }
 
-@Suppress("CyclomaticComplexMethod", "LongMethod")
 @Composable
 private fun BindingAlert(
     state: State.AskForBinding,
     onDismissRequest: () -> Unit,
     onBind: () -> Unit,
-    assignViaBluetooth: () -> Unit,
 ) {
     AlertDialog(
         text = {
             Text(
-                text = StringBuilder(
-                    "Sysgration sensors can be assigned to all wheels automatically at once, do you want to do it now?"
-                )
-                    .apply {
-                        when (state) {
-
-                            is State.AskForBinding.Compatible -> {}
-
-                            is State.AskForBinding.Missing -> {
-                                append("\n\n⚠️ Filled QR Code doesn't contains sensors dedicated to ")
-                                state.locations.forEachIndexed { index, location ->
-                                    append("the ")
-                                    appendLoc(location)
-                                    append(
-                                        when (index) {
-                                            state.locations.size - 1 -> "."
-                                            state.locations.size - 2 -> " and "
-                                            else -> ", "
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .toString()
+                buildString {
+                    append("Assign the ${state.sensors.size} Sysgration sensors from this QR to ${state.vehicle.name}?")
+                    if (state.overwrites) append("\n\n⚠️ Warning: this will overwrite already assigned sensors")
+                }
             )
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(onClick = onBind) {
-                Text(text = "Assign automatically")
+                Text(text = "Yes")
             }
         },
-        // Listening to the code's sensors only, the neighbours' are left out
         dismissButton = {
-            TextButton(onClick = assignViaBluetooth) {
-                Text(text = "Assign via Bluetooth")
+            TextButton(onClick = onDismissRequest) {
+                Text(text = "Cancel")
             }
         }
     )

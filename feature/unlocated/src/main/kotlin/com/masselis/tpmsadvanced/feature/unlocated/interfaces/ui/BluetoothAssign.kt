@@ -36,8 +36,7 @@ import java.util.UUID
 
 /**
  * Assigns [location] a sensor found by Bluetooth: the user puts it on the wheel, takes it off and
- * puts it back, see [AssignStep]. Only [allowedIds] are listened to when given, those of a QR code.
- * [onLeave] once assigned.
+ * puts it back, see [AssignStep]. [onLeave] once assigned.
  */
 @Suppress("LongMethod")
 @Composable
@@ -46,9 +45,8 @@ public fun BluetoothAssign(
     location: Location,
     onLeave: () -> Unit,
     modifier: Modifier = Modifier,
-    allowedIds: Set<Int>? = null,
 ) {
-    val viewModel: BluetoothAssignViewModel = viewModel { BluetoothAssignViewModel(vehicleUuid, location, allowedIds) }
+    val viewModel: BluetoothAssignViewModel = viewModel { BluetoothAssignViewModel(vehicleUuid, location) }
     val state by viewModel.stateFlow.collectAsState()
     LaunchedEffect(viewModel) {
         for (event in viewModel.eventChannel) when (event) {

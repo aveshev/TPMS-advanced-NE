@@ -42,10 +42,8 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Assigns [location] of the vehicle [vehicleUuid] a sensor found by Bluetooth, see [AssignStep].
- * Sensors already bound to this vehicle are ignored, and only [allowedIds] are listened to when
- * given: those of a QR code.
+ * Sensors already bound to this vehicle are ignored.
  */
-@Suppress("LongParameterList")
 @OptIn(ExperimentalCoroutinesApi::class)
 @AssistedInject
 internal class BluetoothAssignViewModel(
@@ -55,12 +53,11 @@ internal class BluetoothAssignViewModel(
     private val bindSensorToVehicleUseCase: BindSensorToVehicleUseCase,
     @Assisted private val vehicleUuid: UUID,
     @Assisted val location: Location,
-    @Assisted private val allowedIds: Set<Int>?,
 ) : ViewModel() {
 
     @AssistedFactory
     interface Factory {
-        operator fun invoke(vehicleUuid: UUID, location: Location, allowedIds: Set<Int>?): BluetoothAssignViewModel
+        operator fun invoke(vehicleUuid: UUID, location: Location): BluetoothAssignViewModel
     }
 
     data class State(
@@ -111,7 +108,7 @@ internal class BluetoothAssignViewModel(
             .map { it.step.isListening() }
             .distinctUntilChanged()
             .flatMapLatest { isListening -> if (isListening) scanner.highDutyScan() else emptyFlow() }
-            .filter { tyre -> tyre.sensorId !in boundIds.value && (allowedIds == null || tyre.sensorId in allowedIds) }
+            .filter { tyre -> tyre.sensorId !in boundIds.value }
             .onEach(::onReading)
             .launchIn(viewModelScope)
         // Nothing on a wheel 10 s after it should be: offers the sensors heard below it

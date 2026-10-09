@@ -3,14 +3,19 @@ package com.masselis.tpmsadvanced.feature.qrcode.interfaces
 import androidx.camera.view.CameraController
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
+import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeSensors
+import com.masselis.tpmsadvanced.feature.qrcode.model.sensorsFor
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.BoundSensorMapUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.QrCodeSensorUseCase
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.BUFFERED
@@ -24,12 +29,15 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @AssistedInject
 internal class QRCodeViewModel(
     private val qrCodeSensorUseCase: QrCodeSensorUseCase,
     private val boundSensorMapUseCase: BoundSensorMapUseCase,
+    private val currentVehicleUseCase: CurrentVehicleUseCase,
+    private val sensorDatabase: SensorDatabase,
     @Assisted private val controller: CameraController
 ) : ViewModel() {
 
@@ -41,17 +49,15 @@ internal class QRCodeViewModel(
     sealed interface State {
         data object Scanning : State
 
-        sealed interface AskForBinding : State {
-            val qrCodeSensors: QrCodeSensors
+        /** Assign [sensors] to [vehicle]? [overwrites] when one of its wheels has another sensor */
+        data class AskForBinding(
+            val vehicle: Vehicle,
+            val sensors: List<Sensor>,
+            val overwrites: Boolean,
+        ) : State
 
-            @JvmInline
-            value class Compatible(override val qrCodeSensors: QrCodeSensors) : AskForBinding
-
-            data class Missing(
-                override val qrCodeSensors: QrCodeSensors,
-                val locations: Set<Vehicle.Kind.Location>
-            ) : AskForBinding
-        }
+        /** [vehicle] has fewer wheels than the code has sensors */
+        data class TooManySensors(val vehicle: Vehicle) : State
 
         sealed interface Error : State {
             @JvmInline
@@ -82,15 +88,27 @@ internal class QRCodeViewModel(
         stateFlow
             .flatMapLatest { state ->
                 when (state) {
-                    is State.AskForBinding, is State.Error, State.Assigned -> emptyFlow()
+                    is State.AskForBinding, is State.TooManySensors, is State.Error, State.Assigned -> emptyFlow()
 
                     State.Scanning -> qrCodeSensorUseCase
                         .analyse(controller)
-                        .map { (sensors, missingLocations) ->
-                            if (missingLocations.isEmpty())
-                                State.AskForBinding.Compatible(sensors)
-                            else
-                                State.AskForBinding.Missing(sensors, missingLocations) as State
+                        .map { qrCodeSensors ->
+                            val vehicle = currentVehicleUseCase.value.vehicle
+                            qrCodeSensors
+                                .sensorsFor(vehicle.kind)
+                                ?.let { sensors ->
+                                    val assigned = withContext(IO) {
+                                        sensorDatabase.selectListByVehicleId(vehicle.uuid).execute()
+                                    }
+                                    State.AskForBinding(
+                                        vehicle,
+                                        sensors,
+                                        overwrites = sensors.any { sensor ->
+                                            assigned.any { it.location == sensor.location && it.id != sensor.id }
+                                        },
+                                    )
+                                }
+                                ?: State.TooManySensors(vehicle) as State
                         }
                         .catch { exc ->
                             when (exc) {
@@ -125,7 +143,7 @@ internal class QRCodeViewModel(
         val state = mutableStateFlow.value
         if (state !is State.AskForBinding)
             return@launch
-        boundSensorMapUseCase.bind(state.qrCodeSensors)
+        boundSensorMapUseCase.bind(state.vehicle.uuid, state.sensors)
         mutableStateFlow.value = State.Assigned
     }
 

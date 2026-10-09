@@ -3,7 +3,6 @@ package com.masselis.tpmsadvanced.feature.qrcode.ioc
 import com.masselis.tpmsadvanced.core.common.appGraph
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
-import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.CameraAnalyser
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.BoundSensorMapUseCase
@@ -24,16 +23,14 @@ public interface Bindings {
     private fun boundSensorMapUseCase(
         demoOrBleScannerUseCase: DemoOrBleScannerUseCase,
         sensorDatabase: SensorDatabase,
-        currentVehicleUseCase: CurrentVehicleUseCase,
     ): BoundSensorMapUseCase =
         if (demoOrBleScannerUseCase.isDemo.value) BoundSensorMapUseCase.NoOp
-        else BoundSensorMapUseCase.Impl(sensorDatabase, currentVehicleUseCase)
+        else BoundSensorMapUseCase.Impl(sensorDatabase)
 
     @Provides
     private fun qrCodeSensorUseCase(
         cameraAnalyser: CameraAnalyser,
-        currentVehicleUseCase: CurrentVehicleUseCase
-    ): QrCodeSensorUseCase = QrCodeSensorUseCase(cameraAnalyser, currentVehicleUseCase)
+    ): QrCodeSensorUseCase = QrCodeSensorUseCase(cameraAnalyser)
 
     public val featureQrCodeInternal: Internal
 

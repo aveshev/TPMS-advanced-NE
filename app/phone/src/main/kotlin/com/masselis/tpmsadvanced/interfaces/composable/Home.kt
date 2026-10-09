@@ -340,26 +340,16 @@ internal fun VehicleHome(
                             scanBluetooth = {
                                 navController.navigate("${Path.BluetoothAssign(vehicleUuid, location)}")
                             },
-                            assignViaBluetooth = { ids ->
-                                navController.navigate("${Path.BluetoothAssign(vehicleUuid, location, ids)}")
-                            },
                             modifier = modifier
                         )
                     }
                     composable(
                         route = Path.BluetoothAssign.route(vehicleUuid),
-                        arguments = listOf(
-                            navArgument("location") { type = NavType.IntType },
-                            navArgument("ids") {
-                                type = NavType.StringType
-                                nullable = true
-                            },
-                        ),
+                        arguments = listOf(navArgument("location") { type = NavType.IntType }),
                     ) { entry ->
                         BluetoothAssign(
                             vehicleUuid = vehicleUuid,
                             location = locations[entry.arguments!!.getInt("location")],
-                            allowedIds = entry.arguments!!.getString("ids")?.split(',')?.map { it.toInt() }?.toSet(),
                             // Back to the screen the assignment started from, home or the sensors
                             onLeave = {
                                 navController.popBackStack(Path.BluetoothAssign.route(vehicleUuid), true)
