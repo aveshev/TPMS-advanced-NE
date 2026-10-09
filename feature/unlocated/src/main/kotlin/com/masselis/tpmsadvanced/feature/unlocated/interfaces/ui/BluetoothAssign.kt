@@ -81,7 +81,7 @@ private fun Steps(
 ) {
     val step = state.step
     // The step's instruction in the middle, its actions anchored at the bottom
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().testTag(BluetoothAssignTags.root)) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
