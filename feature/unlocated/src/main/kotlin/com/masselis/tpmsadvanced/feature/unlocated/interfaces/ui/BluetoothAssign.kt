@@ -1,10 +1,9 @@
 package com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui
 
+import com.masselis.tpmsadvanced.core.ui.appendBold
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.asSensorId
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
 import com.masselis.tpmsadvanced.feature.main.R
 import androidx.compose.ui.text.font.FontWeight
@@ -225,12 +224,13 @@ private fun Dialogs(vehicle: Vehicle?, dialog: Dialog?, viewModel: BluetoothAssi
 
         is Dialog.BoundElsewhere -> AlertDialog(
             onDismissRequest = viewModel::dismissDialog,
+            title = { Text("Already assigned") },
             text = {
                 Text(buildAnnotatedString {
-                    append("This sensor is already assigned to ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(dialog.vehicle.name) }
-                    append(". Reassign it to ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(vehicle?.name.orEmpty()) }
+                    append("Warning: this sensor is already assigned to ")
+                    appendBold(dialog.vehicle.name)
+                    append(".\n\nReassign it to ")
+                    appendBold(vehicle?.name.orEmpty())
                     append("?")
                 })
             },
@@ -276,24 +276,23 @@ private fun AnnotatedString.Builder.appendWheelOn(location: Location, vehicle: V
     append("the ")
     if (location == Location.Single) append("wheel")
     else {
-        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-            append(buildString { appendLoc(location, withType = false) })
-        }
+        appendBold(buildString { appendLoc(location, withType = false) })
         append(" wheel")
     }
     vehicle?.also {
         append(" on ")
-        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(it.name) }
+        appendBold(it.name)
     }
 }
 
-/** A pulsing bar while listening, [found] under it */
+/** A pulsing bar while listening, [found] under it once there's any */
 @Composable
 private fun Listening(text: String, found: String?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        found?.also { Text(it, style = MaterialTheme.typography.titleMedium) }
+        // Its line kept while nothing is found yet, so the page doesn't move when something is
+        Text(found.orEmpty(), style = MaterialTheme.typography.titleMedium)
     }
 }
 

@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.qrcode.interfaces
 
+import androidx.compose.ui.text.buildAnnotatedString
+import com.masselis.tpmsadvanced.core.ui.appendBold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,8 +35,10 @@ public fun QrCodeResultDialog(
             onDismissRequest = onDismiss,
             text = {
                 Text(
-                    buildString {
-                        append("Assign the ${state.sensors.size} Sysgration sensors from this QR to ${state.vehicle.name}?")
+                    buildAnnotatedString {
+                        append("Assign the ${state.sensors.size} Sysgration sensors from this QR to ")
+                        appendBold(state.vehicle.name)
+                        append("?")
                         if (state.overwrites) append("\n\n⚠️ Warning: this will overwrite already assigned sensors")
                     }
                 )
@@ -45,7 +49,16 @@ public fun QrCodeResultDialog(
 
         is State.TooManySensors -> AlertDialog(
             onDismissRequest = onDismiss,
-            text = { Text("This QR lists more sensors than ${state.vehicle.name} needs, please assign via Bluetooth") },
+            title = { Text("Too many sensors") },
+            text = {
+                Text(
+                    buildAnnotatedString {
+                        append("This QR lists ${state.count} sensors, but ")
+                        appendBold(state.vehicle.name)
+                        append(" only needs ${state.vehicle.kind.locations.size}.\nPlease assign via Bluetooth instead.")
+                    }
+                )
+            },
             confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } },
         )
 

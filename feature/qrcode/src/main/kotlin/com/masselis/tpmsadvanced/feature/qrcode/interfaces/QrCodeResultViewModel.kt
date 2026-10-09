@@ -39,8 +39,8 @@ internal class QrCodeResultViewModel(
         /** Assign [sensors] to [vehicle]? [overwrites] when one of its wheels has another sensor */
         data class Ask(val vehicle: Vehicle, val sensors: List<Sensor>, val overwrites: Boolean) : State
 
-        /** [vehicle] has fewer wheels than the code has sensors */
-        data class TooManySensors(val vehicle: Vehicle) : State
+        /** [vehicle] has fewer wheels than the code's [count] sensors */
+        data class TooManySensors(val vehicle: Vehicle, val count: Int) : State
 
         /** The code can't be assigned as it is */
         @JvmInline
@@ -73,7 +73,7 @@ internal class QrCodeResultViewModel(
                                 },
                             )
                         }
-                        ?: State.TooManySensors(vehicle)
+                        ?: State.TooManySensors(vehicle, found.sensors.size)
                 }
                 ?: State.Unusable(result)
         }

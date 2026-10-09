@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.ui.text.buildAnnotatedString
+import com.masselis.tpmsadvanced.core.ui.appendBold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -71,7 +73,13 @@ private fun DeleteVehicleDialog(
 ) {
     AlertDialog(
         text = {
-            Text("Do you really want to delete the car \"${vehicle.name}\" ?\nThis action cannot be undone !")
+            Text(
+                buildAnnotatedString {
+                    append("Do you really want to delete ")
+                    appendBold(vehicle.name)
+                    append("?\nThis action cannot be undone.")
+                }
+            )
         }, onDismissRequest = onDismissRequest, dismissButton = {
             TextButton(
                 onClick = onDismissRequest,
