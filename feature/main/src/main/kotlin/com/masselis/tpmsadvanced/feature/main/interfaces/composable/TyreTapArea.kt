@@ -18,8 +18,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
@@ -63,6 +66,7 @@ internal fun TyreTapArea(
     startMove: (Location) -> Unit,
     canMove: Boolean,
     modifier: Modifier = Modifier,
+    onOutlinePositioned: ((Location, Rect) -> Unit)? = null,
     vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
     viewModel: TyreActionsViewModel = vehicleComponent
         .TyreComponent(location)
@@ -90,6 +94,11 @@ internal fun TyreTapArea(
     Box(
         modifier
             .outset(OUTLINE_OUTSET)
+            .run {
+                onOutlinePositioned
+                    ?.let { report -> onGloballyPositioned { report(location, it.boundsInWindow()) } }
+                    ?: this
+            }
             .run { outline?.let { border(2.dp, it, SHAPE) } ?: this }
             .clip(SHAPE)
             .run { onTap?.let { clickable(onClick = it) } ?: this }

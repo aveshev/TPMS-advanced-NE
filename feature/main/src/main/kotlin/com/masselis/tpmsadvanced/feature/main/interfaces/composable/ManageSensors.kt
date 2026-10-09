@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -79,6 +80,7 @@ public fun ManageSensors(
     var confirming by rememberSaveable { mutableStateOf<MoveChain?>(null) }
     // Where each tyre is in the window, for the arrows of the moves
     val tyreCenters = remember { mutableStateMapOf<Location, Offset>() }
+    val outlines = remember { mutableStateMapOf<Location, Rect>() }
     fun stop() {
         moving = null
         asking = null
@@ -144,6 +146,7 @@ public fun ManageSensors(
                         moving = MoveChain.from(location)
                 },
                 onTyrePositioned = { location, center -> tyreCenters[location] = center },
+                onOutlinePositioned = { location, outline -> outlines[location] = outline },
                 canMove = all.size > 1,
             ),
             modifier = Modifier.fillMaxSize(),
@@ -154,6 +157,7 @@ public fun ManageSensors(
                 ?: (asking ?: moving)?.locations?.zipWithNext()
                 ?: emptyList(),
             tyreCenters = tyreCenters,
+            outlines = outlines,
             modifier = Modifier.fillMaxSize(),
         )
         }
@@ -193,6 +197,7 @@ public fun ManageSensors(
 private fun MoveArrows(
     moves: List<Pair<Location, Location>>,
     tyreCenters: Map<Location, Offset>,
+    outlines: Map<Location, Rect>,
     modifier: Modifier = Modifier,
 ) {
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -206,17 +211,30 @@ private fun MoveArrows(
             val normal = Offset(-direction.y, direction.x)
             // Side by side with the swap's other arrow, rather than over it
             val shift = if ((to to from) in moves) normal * ARROW_SPACING.toPx() else Offset.Zero
-            // Off the tyres at both ends
-            val inset = direction * ARROW_INSET.toPx().coerceAtMost(length / 3)
-            val tail = start + inset + shift
-            val tip = end - inset + shift
+            val tail = start + shift
+            val tip = end + shift
+            // Out of the outlines at both ends, or off the tyres when they're too close for it
+            val gap = ARROW_GAP.toPx()
+            val (fromInset, toInset) = outlines[from]
+                ?.translate(-origin)
+                ?.exitDistance(tail, direction)
+                ?.let { fromInset ->
+                    outlines[to]
+                        ?.translate(-origin)
+                        ?.exitDistance(tip, -direction)
+                        ?.let { toInset -> fromInset + gap to toInset + gap }
+                }
+                ?.takeIf { (fromInset, toInset) -> length - fromInset - toInset > ARROW_HEAD.toPx() * 2 }
+                ?: ARROW_INSET.toPx().coerceAtMost(length / 3).let { it to it }
+            val arrowTail = tail + direction * fromInset
+            val arrowTip = tip - direction * toInset
             val head = ARROW_HEAD.toPx()
-            drawLine(color, tail, tip - direction * (head / 2f), ARROW_WIDTH.toPx(), StrokeCap.Round)
+            drawLine(color, arrowTail, arrowTip - direction * (head / 2f), ARROW_WIDTH.toPx(), StrokeCap.Round)
             drawPath(
                 Path().apply {
-                    moveTo(tip.x, tip.y)
-                    (tip - direction * head + normal * (head / 2f)).also { lineTo(it.x, it.y) }
-                    (tip - direction * head - normal * (head / 2f)).also { lineTo(it.x, it.y) }
+                    moveTo(arrowTip.x, arrowTip.y)
+                    (arrowTip - direction * head + normal * (head / 2f)).also { lineTo(it.x, it.y) }
+                    (arrowTip - direction * head - normal * (head / 2f)).also { lineTo(it.x, it.y) }
                     close()
                 },
                 color,
@@ -229,6 +247,19 @@ private val ARROW_WIDTH = 3.dp
 private val ARROW_HEAD = 14.dp
 private val ARROW_INSET = 28.dp
 private val ARROW_SPACING = 6.dp
+/** Between an arrow's ends and the outlines it leaves and reaches */
+private val ARROW_GAP = 4.dp
+
+/** How far from [point], inside this rectangle, its edge is in that [direction] */
+private fun Rect.exitDistance(point: Offset, direction: Offset): Float = listOfNotNull(
+    direction.x.takeIf { it > 0f }?.let { (right - point.x) / it },
+    direction.x.takeIf { it < 0f }?.let { (left - point.x) / it },
+    direction.y.takeIf { it > 0f }?.let { (bottom - point.y) / it },
+    direction.y.takeIf { it < 0f }?.let { (top - point.y) / it },
+)
+    .minOrNull()
+    ?.coerceAtLeast(0f)
+    ?: 0f
 
 /** Sending [from]'s sensor to [to], which has one: just swap them, or move more sensors around */
 @Composable

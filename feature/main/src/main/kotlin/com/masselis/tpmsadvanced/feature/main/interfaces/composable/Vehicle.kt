@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.layout
@@ -107,17 +108,16 @@ private val PressureUnit.widestReadout: String
 /** Widest plausible detail lines of a readout, see [TyreStat] */
 private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
 
-/** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
+/** Height of a tyre as a fraction of the image height, its width follows TYRE_ASPECT_RATIO */
 private const val TYRE_HEIGHT = .165f
 
 /** Half the height of a spare's tyre drawn across, as a fraction of the image height */
-private const val SPARE_HALF_HEIGHT = TYRE_HEIGHT * 15f / 40f / 2f
+private const val SPARE_HALF_HEIGHT = TYRE_HEIGHT * TYRE_ASPECT_RATIO / 2f
 
-/** The spare's readings are under the image: room is kept for this many lines of a readout */
-private const val SPARE_READOUT_LINES = 5
 
-/** The pressure, temperature and time since update, see rememberBasicReadoutHeight */
-private const val BASIC_READOUT_LINES = 3
+/** A mono-wheel's tyre is drawn much taller and narrower than the others, its width following [MONOWHEEL_TYRE_RATIO] */
+private const val MONOWHEEL_TYRE_HEIGHT = .29f
+private const val MONOWHEEL_TYRE_RATIO = 8f / 40f
 
 /**
  * The current vehicle. Tapping a location without a sensor assigns it one by [scanQrCode],
@@ -162,7 +162,10 @@ public fun Vehicle(
     val basicReadoutHeight = rememberBasicReadoutHeight()
     // The spare's readout is under the image, not next to it
     val readoutSides = component.vehicle.kind.locations.minus(Location.Spare).map { it.readoutSide }.toSet()
-    val spareRoom = (basicReadoutHeight / BASIC_READOUT_LINES * SPARE_READOUT_LINES)
+    // As tall as its usual pressure, temperature and time since update, and its outline's edge.
+    // Extra lines turned on in the settings go past the bottom, there's room for them while the
+    // screen is taller than wide, where the width decides of the image's height.
+    val spareRoom = (basicReadoutHeight + OUTLINE_OUTSET * 2)
         .takeIf { Location.Spare in component.vehicle.kind.locations }
         ?: 0.dp
     BoxWithConstraints(modifier) {
@@ -173,8 +176,8 @@ public fun Vehicle(
             // (imageHeight * maxHeight)² * IMAGE_RATIO <= MAX_IMAGE_AREA * maxWidth * maxHeight
             .coerceAtMost(sqrt(MAX_IMAGE_AREA * maxWidth.value / (IMAGE_RATIO * maxHeight.value)))
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
-            // Centered, the image leaves as much room above as below for the spare's readout
-            .coerceAtMost((maxHeight - spareRoom * 2) / maxHeight)
+            // Room under the image for the spare's readout, see the offset below
+            .coerceAtMost((maxHeight - spareRoom) / maxHeight)
         // Centers the image and its readouts together when readouts are only on one side
         val fill = Modifier
             .fillMaxSize()
@@ -182,7 +185,9 @@ public fun Vehicle(
                 x = listOfNotNull(
                     readoutWidth.takeIf { LEFT in readoutSides },
                     readoutWidth.takeIf { RIGHT in readoutSides }?.unaryMinus(),
-                ).fold(0.dp, Dp::plus) / 2
+                ).fold(0.dp, Dp::plus) / 2,
+                // Up by half of the spare's readout, it's centered with the image
+                y = -spareRoom / 2,
             )
         when (component.vehicle.kind) {
             Kind.CAR ->
@@ -219,6 +224,8 @@ public class TyreTaps internal constructor(
     internal val canMove: Boolean = true,
     /** Where each location's tyre is centered in the window, to draw over the vehicle */
     internal val onTyrePositioned: ((Location, Offset) -> Unit)? = null,
+    /** Where each location's outline is in the window, for what's drawn over the vehicle to avoid it */
+    internal val onOutlinePositioned: ((Location, Rect) -> Unit)? = null,
 )
 
 private fun Modifier.reportCenter(location: Location, taps: TyreTaps) = taps
@@ -262,8 +269,12 @@ private fun ConstrainScope.around(
  * [verticallyCenteredOn] places the readout: centered on [y], pushed back inside the image when it
  * would overflow, so it stays around the readout wherever it's moved
  */
-private fun Modifier.outlineCenteredOn(y: Float, minHeight: Dp) = layout { measurable, constraints ->
-    val height = (constraints.maxHeight * TYRE_HEIGHT)
+private fun Modifier.outlineCenteredOn(
+    y: Float,
+    minHeight: Dp,
+    tyreHeight: Float = TYRE_HEIGHT,
+) = layout { measurable, constraints ->
+    val height = (constraints.maxHeight * tyreHeight)
         .roundToInt()
         .coerceAtLeast(minHeight.roundToPx())
         .coerceAtMost(constraints.maxHeight)
@@ -393,9 +404,13 @@ private fun Modifier.windowCenteredVertically(): Modifier {
         .offset { IntOffset(0, shift) }
 }
 
-private fun ConstrainScope.tyreSize(imageHeight: Float) {
-    height = Dimension.percent(imageHeight * TYRE_HEIGHT)
-    width = Dimension.ratio("15:40")
+private fun ConstrainScope.tyreSize(
+    imageHeight: Float,
+    tyreHeight: Float = TYRE_HEIGHT,
+    aspectRatio: Float = TYRE_ASPECT_RATIO,
+) {
+    height = Dimension.percent(imageHeight * tyreHeight)
+    width = Dimension.ratio("$aspectRatio:1")
 }
 
 @Composable
@@ -461,6 +476,7 @@ private fun Car(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -496,6 +512,7 @@ private fun Car(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -531,6 +548,7 @@ private fun Car(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -566,6 +584,7 @@ private fun Car(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -647,6 +666,7 @@ private fun CarWithSpare(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -682,6 +702,7 @@ private fun CarWithSpare(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -717,6 +738,7 @@ private fun CarWithSpare(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -752,6 +774,7 @@ private fun CarWithSpare(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -776,7 +799,7 @@ private fun CarWithSpare(
                     tyreSize(imageHeight)
                 }.rotate(90f).reportCenter(this, taps)
             )
-            // Under the spare, past the bottom of the image, see SPARE_READOUT_LINES
+            // Under the spare, past the bottom of the image, see spareRoom
             TyreReadout(
                 location = this,
                 isBasic = taps.isManaging,
@@ -794,6 +817,7 @@ private fun CarWithSpare(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 // Around the spare as drawn across, rather than its tyre's upright layout, and
                 // its readings under it
                 modifier = Modifier.constrainAs(spareTap) {
@@ -832,17 +856,18 @@ private fun Monowheel(
     ConstraintLayout(modifier = modifier) {
         val (vehicleImage, tyre, stats, tap) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_monowheel_top_view, "Image of your mono-wheel", imageHeight)
-        val wheelY = .5f
+        val wheelY = .505f
         val axle = imageGuideline(wheelY, imageHeight)
         with(Location.Single) {
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
                 blinks = taps.isManaging.not(),
+                aspectRatio = MONOWHEEL_TYRE_RATIO,
                 modifier = Modifier.constrainAs(tyre) {
                     centerHorizontallyTo(vehicleImage)
                     centerAround(axle)
-                    tyreSize(imageHeight)
+                    tyreSize(imageHeight, MONOWHEEL_TYRE_HEIGHT, MONOWHEEL_TYRE_RATIO)
                 }.reportCenter(this, taps)
             )
             // Past the foot rests
@@ -865,9 +890,10 @@ private fun Monowheel(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(tap) { around(tyre, stats, this@with) }
-                    .outlineCenteredOn(wheelY, basicReadoutHeight),
+                    .outlineCenteredOn(wheelY, basicReadoutHeight, MONOWHEEL_TYRE_HEIGHT),
             )
         }
         // Last, over everything else, above the wheel rather than over it
@@ -943,6 +969,7 @@ private fun SingleAxleTrailer(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(leftTap) { around(tyreLeft, leftStats, this@with) }
                     .outlineCenteredOn(axleY, basicReadoutHeight),
@@ -978,6 +1005,7 @@ private fun SingleAxleTrailer(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rightTap) { around(tyreRight, rightStats, this@with) }
                     .outlineCenteredOn(axleY, basicReadoutHeight),
@@ -1057,6 +1085,7 @@ private fun Motorcycle(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -1092,6 +1121,7 @@ private fun Motorcycle(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -1178,6 +1208,7 @@ private fun TadpoleThreadWheeler(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -1213,6 +1244,7 @@ private fun TadpoleThreadWheeler(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -1248,6 +1280,7 @@ private fun TadpoleThreadWheeler(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -1334,6 +1367,7 @@ private fun DeltaThreeWheeler(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -1369,6 +1403,7 @@ private fun DeltaThreeWheeler(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -1404,6 +1439,7 @@ private fun DeltaThreeWheeler(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
+                onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),

@@ -1,6 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.usecase
 
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.demo.DemoLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
@@ -52,9 +53,15 @@ internal class LocatedTyreScannerUseCase(
     // Filtered here, before ListenTyreWithDatabaseUseCase stores the records: a record of another
     // sensor stored for this location would be replayed at the next start, then dropped by
     // ListenBoundTyreUseCase, leaving the location empty.
+    @Suppress("CyclomaticComplexMethod")
     private fun Flow<Tyre.SensorInput>.mapWithLocation() = this
         .mapNotNull { tyre ->
             when (val sensor = sensorBindingUseCase.boundSensor().value) {
+                // Nothing advertises a spare, the demo has a sensor of its own for it
+                null if showsUnbound && currentLocation == Location.Spare -> tyre
+                    .takeIf { it.sensorId == DemoLeScanner.SPARE_SENSOR_ID }
+                    ?.let { Tyre.Located(it, currentLocation) }
+
                 null -> (tyre as? Tyre.SensorLocated)
                     // A sensor advertising its location (Sysgration) is detected there, unless
                     // it's bound: its binding says where it belongs, maybe to another vehicle

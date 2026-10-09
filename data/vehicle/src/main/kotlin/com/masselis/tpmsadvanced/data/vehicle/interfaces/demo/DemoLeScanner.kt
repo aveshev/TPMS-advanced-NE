@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flowOf
  * Real advertisements, decoded like a scan's, so the demo's readings are like any other: the
  * instrumented tests run this scanner with the demo mode off, storing them. For each wheel, a
  * Sysgration sensor advertising it then a Pecham one, from flat and cold at the front left to hot
- * at the rear right.
+ * at the rear right, and a Pecham one for a spare, see [SPARE_SENSOR_ID].
  */
 @Suppress("MagicNumber")
 public class DemoLeScanner : BluetoothLeScanner {
@@ -30,6 +30,7 @@ public class DemoLeScanner : BluetoothLeScanner {
             6 to "0303a5270308425208ff101d2301b30a51",
             7 to "0201060303b0fb13ff010083eaca070000c04504001c2500005a00",
             8 to "0303a5270308425208ff101e5f02275c67",
+            SPARE_SENSOR_ID to "0303a5270308425208ff101e1201c2f50d",
         ).forEach { (sensorId, advertisement) ->
             AdvertisingPacket(advertisement.hexToByteArray())
                 .decode()
@@ -55,4 +56,12 @@ public class DemoLeScanner : BluetoothLeScanner {
     override fun missingPermission(): List<String> = emptyList()
 
     override val isBluetoothRequired: Boolean = false
+
+    public companion object {
+        /**
+         * No sensor advertises a spare, the demo shows this one's readings there (210 kPa, 18°C)
+         * while it's unbound
+         */
+        public const val SPARE_SENSOR_ID: Int = 9
+    }
 }

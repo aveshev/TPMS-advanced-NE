@@ -3,6 +3,7 @@ package com.masselis.tpmsadvanced.feature.main.usecase
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.PECHAM
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.SYSGRATION
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.BluetoothLeScanner
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.demo.DemoLeScanner
 import com.masselis.tpmsadvanced.data.vehicle.model.Pressure.CREATOR.bar
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
@@ -31,7 +32,7 @@ internal class LocatedTyreScannerUseCaseTest {
     private lateinit var sensorBindingUseCase: SensorBindingUseCase
     private var showsUnbound = false
 
-    private val location = Location.Wheel(FRONT_LEFT)
+    private lateinit var location: Location
 
     @Before
     fun setup() {
@@ -39,6 +40,7 @@ internal class LocatedTyreScannerUseCaseTest {
         boundSensor = MutableStateFlow(null)
         boundElsewhere = emptySet()
         showsUnbound = false
+        location = Location.Wheel(FRONT_LEFT)
         sensorBindingUseCase = mockk {
             every { boundSensor() } returns this@LocatedTyreScannerUseCaseTest.boundSensor
             every { isBound(any()) } answers {
@@ -116,5 +118,21 @@ internal class LocatedTyreScannerUseCaseTest {
     @Test
     fun `a free location drops a sensor which doesn't advertise its location`() = runTest {
         assertEquals(emptyList(), keeps(pecham(2)))
+    }
+
+    @Test
+    fun `the demo shows its spare sensor at a free spare, and nothing else there`() = runTest {
+        showsUnbound = true
+        location = Location.Spare
+        assertEquals(
+            listOf(DemoLeScanner.SPARE_SENSOR_ID),
+            keeps(sysgration(3), pecham(2), pecham(DemoLeScanner.SPARE_SENSOR_ID)).map { it.sensorId },
+        )
+    }
+
+    @Test
+    fun `out of the demo, the demo's spare sensor isn't shown at a free spare`() = runTest {
+        location = Location.Spare
+        assertEquals(emptyList(), keeps(pecham(DemoLeScanner.SPARE_SENSOR_ID)))
     }
 }

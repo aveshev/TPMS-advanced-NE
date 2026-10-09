@@ -57,6 +57,9 @@ private val evaluator = ArgbEvaluator()
 
 private val logger = Logger.withTag("Tyre")
 
+/** A tyre's width over its height, seen from above */
+internal const val TYRE_ASPECT_RATIO = 15f / 40f
+
 @Suppress("LongMethod")
 @Composable
 internal fun Tyre(
@@ -65,13 +68,15 @@ internal fun Tyre(
     modifier: Modifier = Modifier,
     /** An alerting tyre blinks, but on the sensors' page */
     blinks: Boolean = true,
+    /** Its width over its height, a mono-wheel's is narrower */
+    aspectRatio: Float = TYRE_ASPECT_RATIO,
     vehicleComponent: Lazy<VehicleComponent> = lazyOf(LocalVehicleComponent.current),
     viewModel: TyreIconViewModel = vehicleComponent.value
         .TyreComponent(location)
         .let { viewModel(it.keyed()) { it.TyreIconViewModel() } },
 ) {
     val state by viewModel.stateFlow.collectAsState()
-    Tyre(state, snackbarHostState, modifier, logName = "$location", blinks = blinks)
+    Tyre(state, snackbarHostState, modifier, logName = "$location", blinks = blinks, aspectRatio = aspectRatio)
 }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "MaxLineLength")
@@ -83,6 +88,7 @@ internal fun Tyre(
     // Names the tyre in the logs, null for the demo tyres which aren't logged
     logName: String? = null,
     blinks: Boolean = true,
+    aspectRatio: Float = TYRE_ASPECT_RATIO,
 ) {
     // Under 3 flashes a second either way, see docs/alerts.md
     val isHidden = (state as? State.Alerting)
@@ -104,7 +110,7 @@ internal fun Tyre(
         modifier
             .alpha(if (isHidden) 0f else 1f)
             .clip(RoundedCornerShape(percent = 20))
-            .aspectRatio(15f / 40f)
+            .aspectRatio(aspectRatio)
             .run {
                 when (val state = state) {
                     State.NotDetected -> this
