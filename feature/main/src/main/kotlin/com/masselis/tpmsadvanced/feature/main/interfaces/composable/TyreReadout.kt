@@ -53,7 +53,7 @@ internal fun TyreReadout(
 }
 
 /** Space between the outer edge of a location's outline and what's centered in it */
-internal val OUTLINE_PADDING = 8.dp
+internal val OUTLINE_PADDING = 4.dp
 
 @Composable
 private fun TapToAssign(

@@ -144,7 +144,8 @@ public fun Vehicle(
         .collectAsState()
     // Every readout as wide, so the outlines around them are too
     val readoutSlotWidth = rememberWidestReadoutWidth(pressureUnit) + OUTLINE_PADDING
-    val readoutWidth = readoutSlotWidth + READOUT_GAP
+    // The outline reaches past the readout, it must stay off the screen's edge too
+    val readoutWidth = readoutSlotWidth + READOUT_GAP + OUTLINE_OUTSET
     val basicReadoutHeight = rememberBasicReadoutHeight()
     val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
     BoxWithConstraints(modifier) {

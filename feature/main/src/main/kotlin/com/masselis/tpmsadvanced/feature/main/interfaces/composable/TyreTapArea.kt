@@ -38,7 +38,8 @@ import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.T
 import com.masselis.tpmsadvanced.feature.main.ioc.tyre.TyreComponent.Companion.keyed
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 
-private val OUTSET = 6.dp
+/** How far a location's outline reaches past its tyre and readout */
+internal val OUTLINE_OUTSET = 6.dp
 private val SHAPE = RoundedCornerShape(12.dp)
 
 /**
@@ -70,7 +71,7 @@ internal fun TyreTapArea(
     }
     Box(
         modifier
-            .outset(OUTSET)
+            .outset(OUTLINE_OUTSET)
             .run { if (isManaging || isUnassigned) border(2.dp, MaterialTheme.colorScheme.primary, SHAPE) else this }
             .clip(SHAPE)
             .run { if (isTappable) clickable { isOpen = true } else this }
