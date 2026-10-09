@@ -28,7 +28,7 @@ public class AssignSensorDialog private constructor(
         return exitToken
     }
 
-    /** Leaves for the scan of the sensors around, see `UnlocatedSensorsList` */
+    /** Leaves for the scan of the sensors around, see `BluetoothAssign` */
     public fun scanBluetooth(): ExitToken<AssignSensorDialog> {
         onNodeWithTag(AssignSensorDialogTags.bluetooth).performClick()
         return exitToken

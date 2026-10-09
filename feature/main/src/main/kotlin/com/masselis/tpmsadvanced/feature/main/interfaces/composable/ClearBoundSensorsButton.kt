@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.ui.text.buildAnnotatedString
+import com.masselis.tpmsadvanced.core.ui.appendBold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,6 +36,7 @@ internal fun ClearBoundSensorsButton(
     }
 ) {
     val state by viewModel.stateFlow.collectAsState()
+    val vehicle by component.vehicleStateFlow.collectAsState()
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     TextSettingsItem(
         headline = "Delete all sensors",
@@ -48,7 +51,15 @@ internal fun ClearBoundSensorsButton(
     )
     if (confirmClear) AlertDialog(
         onDismissRequest = { confirmClear = false },
-        text = { Text("Delete every sensor assigned to this vehicle?\nThis cannot be undone.") },
+        text = {
+            Text(
+                buildAnnotatedString {
+                    append("Delete every sensor assigned to ")
+                    appendBold(vehicle.name)
+                    append("?\nThis cannot be undone.")
+                }
+            )
+        },
         dismissButton = {
             TextButton(
                 onClick = { confirmClear = false },

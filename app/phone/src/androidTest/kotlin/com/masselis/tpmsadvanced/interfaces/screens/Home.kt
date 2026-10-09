@@ -14,7 +14,7 @@ import com.masselis.tpmsadvanced.core.androidtest.process
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DropdownMenu
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreTapArea
-import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.UnlocatedSensorsList
+import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.BluetoothAssign
 import com.masselis.tpmsadvanced.interfaces.composable.HomeTags
 
 
@@ -31,7 +31,7 @@ internal class Home private constructor(
 
     private val dropdownMenuTest = DropdownMenu(HomeTags.carListDropdownMenu)
     private val overflowMenuTest = OverflowMenu()
-    private val unlocatedSensorsListTest = UnlocatedSensorsList()
+    private val bluetoothAssignTest = BluetoothAssign(HomeTags.backButton)
 
     fun dropdownMenu(instructions: Instructions<DropdownMenu>) {
         carListDropdownMenu.performClick()
@@ -46,9 +46,9 @@ internal class Home private constructor(
         TyreTapArea(location).process(instructions)
     }
 
-    /** The sensors around, reached by assigning a wheel by Bluetooth */
-    fun unlocatedSensorsList(instructions: Instructions<UnlocatedSensorsList>) {
-        unlocatedSensorsListTest.process(instructions)
+    /** Reached by assigning a wheel by Bluetooth */
+    fun bluetoothAssign(instructions: Instructions<BluetoothAssign>) {
+        bluetoothAssignTest.process(instructions)
     }
 
     fun actionOverflow(block: Instructions<OverflowMenu>) {

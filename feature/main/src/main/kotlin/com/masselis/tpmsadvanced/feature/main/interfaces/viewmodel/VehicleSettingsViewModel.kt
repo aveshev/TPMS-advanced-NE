@@ -32,6 +32,9 @@ internal interface VehicleSettingsViewModel {
     val lowBatteryVoltage: MutableStateFlow<Voltage>
     val lowBatteryPercent: MutableStateFlow<Int>
 
+    /** Every location of the vehicle has a sensor: none is outlined to be tapped, see TyreTapArea */
+    val isFullyAssigned: StateFlow<Boolean>
+
     /** What the vehicle's sensors report their battery as */
     val batteryKinds: StateFlow<BatteryKinds>
 

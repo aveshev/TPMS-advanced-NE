@@ -8,7 +8,6 @@ import java.util.UUID
 
 internal interface BindSensorToVehicleUseCase {
     suspend fun bind(vehicleUuid: UUID, sensor: Sensor, tyre: Tyre)
-    suspend fun clearBindings(vehicleUuid: UUID)
 
     class Impl(
         private val sensorDatabase: SensorDatabase,
@@ -19,9 +18,6 @@ internal interface BindSensorToVehicleUseCase {
             sensorDatabase.upsert(sensor, vehicleUuid)
             readingDatabase.insert(Tyre.Located(tyre, sensor.location), vehicleUuid)
         }
-
-        override suspend fun clearBindings(vehicleUuid: UUID) =
-            sensorDatabase.deleteFromVehicle(vehicleUuid)
     }
 
     object NoOp : BindSensorToVehicleUseCase {
@@ -31,7 +27,5 @@ internal interface BindSensorToVehicleUseCase {
             tyre: Tyre
         ) {
         }
-
-        override suspend fun clearBindings(vehicleUuid: UUID) {}
     }
 }

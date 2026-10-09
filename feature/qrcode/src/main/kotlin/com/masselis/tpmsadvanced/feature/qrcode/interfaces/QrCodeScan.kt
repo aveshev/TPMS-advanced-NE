@@ -9,15 +9,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,17 +34,17 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.MissingPermission
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.appendLoc
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel.Event
-import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel.State
+import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeResult
 import com.masselis.tpmsadvanced.feature.qrcode.ioc.Bindings.Companion.QrCodeViewModel
 
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
+/** Scans a QR code, then [onFound] with what it holds, see [QrCodeResultDialog] */
 public fun QrCodeScan(
     snackbarHostState: SnackbarHostState,
-    openUnlocatedSensorBinding: () -> Unit,
+    onFound: (QrCodeResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val permissionState = rememberMultiplePermissionsState(listOf(CAMERA))
@@ -63,17 +59,16 @@ public fun QrCodeScan(
 
         else -> Preview(
             snackbarHostState = snackbarHostState,
-            openUnlocatedSensorBinding = openUnlocatedSensorBinding,
+            onFound = onFound,
             modifier = modifier,
         )
     }
 }
 
-@Suppress("NAME_SHADOWING")
 @Composable
 private fun Preview(
     snackbarHostState: SnackbarHostState,
-    openUnlocatedSensorBinding: () -> Unit,
+    onFound: (QrCodeResult) -> Unit,
     modifier: Modifier = Modifier,
     cameraSelector: CameraSelector = DEFAULT_BACK_CAMERA,
 ) {
@@ -102,27 +97,10 @@ private fun Preview(
 
     val viewModel = remember(controller) { QrCodeViewModel(controller) }
     val navController = LocalHomeNavController.current
-    val state by viewModel.stateFlow.collectAsState()
-    when (val state = state) {
-        State.Scanning -> {}
-
-        is State.AskForBinding -> BindingAlert(
-            state = state,
-            onDismissRequest = viewModel::scanAgain,
-            onBind = viewModel::bindSensors
-        )
-
-        is State.Error -> ErrorAlert(
-            state = state,
-            onDismissRequest = viewModel::scanAgain,
-            openUnlocatedSensorBinding = openUnlocatedSensorBinding,
-        )
-    }
-
     LaunchedEffect(viewModel) {
         for (event in viewModel.eventChannel) {
             when (event) {
-                Event.Leave -> navController.popBackStack()
+                is Event.Found -> onFound(event.result)
 
                 Event.LeaveBecauseCameraUnavailable -> {
                     snackbarHostState.showSnackbar("Your device should to have a camera to continue")
@@ -132,109 +110,6 @@ private fun Preview(
         }
     }
 }
-
-@Suppress("CyclomaticComplexMethod", "LongMethod")
-@Composable
-private fun BindingAlert(
-    state: State.AskForBinding,
-    onDismissRequest: () -> Unit,
-    onBind: () -> Unit,
-) {
-    AlertDialog(
-        text = {
-            Text(
-                text = StringBuilder("Would you add theses sensors as your favourite sensors ?")
-                    .apply {
-                        when (state) {
-
-                            is State.AskForBinding.Compatible -> {}
-
-                            is State.AskForBinding.Missing -> {
-                                append("\n\n⚠️ Filled QR Code doesn't contains sensors dedicated to ")
-                                state.locations.forEachIndexed { index, location ->
-                                    append("the ")
-                                    appendLoc(location)
-                                    append(
-                                        when (index) {
-                                            state.locations.size - 1 -> "."
-                                            state.locations.size - 2 -> " and "
-                                            else -> ", "
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .toString()
-            )
-        },
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(onClick = onBind) {
-                Text(text = "Yes")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = "Cancel")
-            }
-        }
-    )
-}
-
-@Suppress("MaxLineLength")
-@Composable
-private fun ErrorAlert(
-    state: State.Error,
-    onDismissRequest: () -> Unit,
-    openUnlocatedSensorBinding: () -> Unit,
-) {
-    AlertDialog(
-        text = {
-            Text(
-                text = StringBuilder("Detected inconsistency with the QR Code")
-                    .apply {
-                        when (state) {
-
-                            is State.Error.DuplicateWheelLocation -> {
-                                append("\n\n⚠️ Filled QR Code contains different sensors associated to the same wheel, ")
-                                if (state.wheels.size == 1) append("duplication:")
-                                else append("duplications:")
-                                state.wheels.forEach { location ->
-                                    append("\n   · ")
-                                    appendLoc(location)
-                                }
-                            }
-
-                            is State.Error.DuplicateId -> {
-                                append("\n\n⚠️ Filled QR Code contains the same sensor id multiple time")
-                            }
-
-                            State.Error.UnsupportedWircarlinkQrCode -> {
-                                append("\n\n⚠️ QR Codes manufactured by Wicarlink are not handled by this app\nYou have to bind manually each of them")
-                            }
-                        }
-                    }
-                    .toString()
-            )
-        },
-        onDismissRequest = onDismissRequest,
-        dismissButton =
-            if (state is State.Error.UnsupportedWircarlinkQrCode) {
-                {
-                    TextButton(onClick = openUnlocatedSensorBinding) {
-                        Text(text = "Bind manually")
-                    }
-                }
-            } else null,
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = "OK")
-            }
-        },
-    )
-}
-
 
 @Composable
 private fun QrCodeOverlay(

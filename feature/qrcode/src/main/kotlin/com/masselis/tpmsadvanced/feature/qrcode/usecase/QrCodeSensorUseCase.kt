@@ -5,15 +5,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_RIGHT
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR_WITH_SPARE
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.DELTA_THREE_WHEELER
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MONOWHEEL
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MOTORCYCLE
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.SINGLE_AXLE_TRAILER
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.TADPOLE_THREE_WHEELER
-import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.CameraAnalyser
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeSensor
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeSensors
@@ -21,8 +13,6 @@ import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeSensors.FourWheel
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeSensors.TwoWheel
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -31,14 +21,13 @@ import java.nio.ByteOrder
 
 internal class QrCodeSensorUseCase(
     private val cameraAnalyser: CameraAnalyser,
-    private val currentVehicleUseCase: CurrentVehicleUseCase
 ) {
 
     @OptIn(ExperimentalStdlibApi::class)
     @Suppress("MagicNumber", "CyclomaticComplexMethod", "LongMethod", "MaxLineLength")
     fun analyse(
         controller: CameraController
-    ): Flow<Pair<QrCodeSensors, Set<Location>>> = cameraAnalyser
+    ): Flow<QrCodeSensors> = cameraAnalyser
         .findQrCode(controller)
         .mapNotNull {
             fourSensorRegex.find(it)?.groupValues?.subList(1, 5)
@@ -92,45 +81,6 @@ internal class QrCodeSensorUseCase(
                         else -> error("Unreachable state, previous regex should only contains 2 or 4 sensors, current sensors: $it")
                     }
                 }
-        }
-        .combine(
-            currentVehicleUseCase
-                .map { it.vehicle.kind }
-                .distinctUntilChanged()
-        ) { qrCodeSensors, vehicleKind ->
-            Pair(
-                qrCodeSensors,
-                vehicleKind
-                    .locations
-                    .subtract(
-                        when (vehicleKind) {
-                            CAR, CAR_WITH_SPARE -> qrCodeSensors.map { it.wheel }
-
-                            // Its first sensor, see BoundSensorMapUseCase
-                            MONOWHEEL -> listOf(Location.Single)
-
-                            SINGLE_AXLE_TRAILER -> qrCodeSensors.map { it.wheel.toSide() }
-
-                            MOTORCYCLE -> qrCodeSensors.map { it.wheel.toAxle() }
-
-                            TADPOLE_THREE_WHEELER -> qrCodeSensors
-                                .map {
-                                    when (it.wheel.location) {
-                                        FRONT_LEFT, FRONT_RIGHT -> it.wheel
-                                        REAR_LEFT, REAR_RIGHT -> it.wheel.toAxle()
-                                    }
-                                }
-
-                            DELTA_THREE_WHEELER -> qrCodeSensors
-                                .map {
-                                    when (it.wheel.location) {
-                                        FRONT_LEFT, FRONT_RIGHT -> it.wheel.toAxle()
-                                        REAR_LEFT, REAR_RIGHT -> it.wheel
-                                    }
-                                }
-                        }.toSet()
-                    )
-            )
         }
         .flowOn(Default)
 
