@@ -67,7 +67,7 @@ import com.masselis.tpmsadvanced.feature.background.interfaces.ui.MonitoringButt
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.PersistentScanningHost
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.QuietScanStatusAnnouncementsEffect
 import com.masselis.tpmsadvanced.feature.background.interfaces.ui.SilenceAlertsButton
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ConfigurableCurrentVehicle
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehicleDropdown
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.SimulateReadingDialog
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.isReadingSimulationAvailable
@@ -114,14 +114,12 @@ internal fun VehicleHome(
         var showManualMonitoringSpotlight by remember { mutableStateOf(false) }
         var showAndroidAutoSupportAlert by remember { mutableStateOf(false) }
         var showWicarlinkSupportAlert by remember { mutableStateOf(false) }
-        // Kept while switching vehicles: the configuration is part of the main screen
-        var configuring by rememberSaveable { mutableStateOf(false) }
+        // Kept while switching vehicles, Done or back ends it
+        var managingSensors by rememberSaveable { mutableStateOf(false) }
         val snackbarHostState = remember { SnackbarHostState() }
         Scaffold(
             topBar = {
                 TopAppBar(
-                    // A vehicle just added becomes the current one, its sensors come first
-                    onVehicleAdded = { configuring = true },
                     manualBackgroundButtonModifier = Modifier.onGloballyPositioned { coordinates ->
                         if (offsetToFocus != null) return@onGloballyPositioned
                         coordinates.positionInRoot()
@@ -147,16 +145,18 @@ internal fun VehicleHome(
                     composable(route = "${Path.Home(vehicleComponent.vehicle.uuid)}") {
                         // The bell tells the status here, nothing to hear
                         QuietScanStatusAnnouncementsEffect()
-                        ConfigurableCurrentVehicle(
-                            isConfiguring = configuring,
-                            onConfiguringChange = { configuring = it },
-                            // Until the configuration has its own assign flow
-                            assign = {
-                                navController.navigate("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}")
-                            },
+                        CurrentVehicle(
                             snackbarHostState = snackbarHostState,
                             modifier = modifier,
                             center = { SilenceAlertsButton(it) },
+                            isManaging = managingSensors,
+                            onManagingDone = { managingSensors = false },
+                            scanQrCode = {
+                                navController.navigate("${Path.QrCode(vehicleComponent.vehicle.uuid)}")
+                            },
+                            scanBluetooth = {
+                                navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
+                            },
                         )
                     }
                     composable("${Path.Settings(vehicleComponent.vehicle.uuid)}") {
@@ -170,8 +170,8 @@ internal fun VehicleHome(
                             openBattery = {
                                 navController.navigate("${Path.BatterySettings(vehicleComponent.vehicle.uuid)}")
                             },
-                            openSensorConfiguration = {
-                                configuring = true
+                            openManageSensors = {
+                                managingSensors = true
                                 navController.popBackStack("${Path.Home(vehicleComponent.vehicle.uuid)}", false)
                             },
                             openCalibration = {
@@ -301,17 +301,6 @@ internal fun VehicleHome(
                             modifier = modifier
                         )
                     }
-                    composable("${Path.BindingMethod(vehicleComponent.vehicle.uuid)}") {
-                        ChooseBindingMethod(
-                            scanQrCode = {
-                                navController.navigate("${Path.QrCode(vehicleComponent.vehicle.uuid)}")
-                            },
-                            searchUnlocatedSensors = {
-                                navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
-                            },
-                            modifier = modifier
-                        )
-                    }
                     composable("${Path.QrCode(vehicleComponent.vehicle.uuid)}") {
                         QrCodeScan(
                             snackbarHostState = snackbarHostState,
@@ -389,7 +378,6 @@ internal fun VehicleHome(
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun TopAppBar(
-    onVehicleAdded: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     manualBackgroundButtonModifier: Modifier = Modifier
 ) {
@@ -404,7 +392,6 @@ private fun TopAppBar(
             when (currentPath) {
                 is Path.Home -> CurrentVehicleDropdown(
                     modifier = Modifier.testTag(carListDropdownMenu),
-                    onVehicleAdded = onVehicleAdded,
                 )
 
                 is Path.Settings -> Text(
@@ -430,7 +417,6 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices -> Text(text = "Bluetooth devices")
                 is Path.Beacons -> Text(text = "Bluetooth beacons")
                 is Path.BeaconScan -> Text(text = "Add a beacon")
-                is Path.BindingMethod -> Text(text = "Binding method")
                 is Path.Unlocated -> Text(text = "Binding")
                 is Path.QrCode, null -> {}
             }
@@ -455,7 +441,6 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices,
                 is Path.Beacons,
                 is Path.BeaconScan,
-                is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated -> {
                     IconButton(
@@ -545,7 +530,6 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices,
                 is Path.Beacons,
                 is Path.BeaconScan,
-                is Path.BindingMethod,
                 is Path.QrCode,
                 is Path.Unlocated,
                 null -> {}

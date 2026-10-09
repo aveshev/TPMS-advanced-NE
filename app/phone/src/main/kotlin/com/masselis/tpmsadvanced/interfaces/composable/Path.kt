@@ -88,11 +88,6 @@ internal sealed interface Path {
     }
 
     @JvmInline
-    value class BindingMethod(val vehicleUUID: UUID) : Path {
-        override fun toString(): String = "vehicle/$vehicleUUID/binding_method"
-    }
-
-    @JvmInline
     value class QrCode(val vehicleUUID: UUID) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/qrcode"
     }
@@ -135,7 +130,6 @@ internal sealed interface Path {
                         "settings_temperature" -> TemperatureSettings(uuid)
                         "settings_calibration" -> CalibrationSettings(uuid)
                         "settings_battery" -> BatterySettings(uuid)
-                        "binding_method" -> BindingMethod(uuid)
                         "qrcode" -> QrCode(uuid)
                         "unlocated" -> Unlocated(uuid)
                         else -> error("Unrecognized route: \"$route\"")

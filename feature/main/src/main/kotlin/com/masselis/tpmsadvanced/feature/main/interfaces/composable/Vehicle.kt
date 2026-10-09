@@ -4,20 +4,29 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
@@ -26,9 +35,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -106,17 +117,29 @@ private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
 private const val TYRE_HEIGHT = .165f
 
+/**
+ * The current vehicle. Tapping a location without a sensor assigns it one by [scanQrCode],
+ * [scanBluetooth] or the sensor detected there. While [isManaging], every location is outlined and
+ * tapping one manages its sensor, until [onManagingDone] (Done, or back).
+ */
 @Composable
 public fun CurrentVehicle(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     center: @Composable (Modifier) -> Unit = {},
+    isManaging: Boolean = false,
+    onManagingDone: () -> Unit = {},
+    scanQrCode: () -> Unit = {},
+    scanBluetooth: () -> Unit = {},
 ) {
+    BackHandler(enabled = isManaging, onBack = onManagingDone)
     Vehicle(
         component = LocalVehicleComponent.current,
         snackbarHostState = snackbarHostState,
         modifier = modifier,
-        center = center,
+        // The prompt takes the place of what's usually there, the silence button
+        center = if (isManaging) { centerModifier -> ManagePrompt(onManagingDone, centerModifier) } else center,
+        taps = TyreTaps(isManaging, scanQrCode, scanBluetooth),
     )
 }
 
@@ -127,8 +150,7 @@ public fun Vehicle(
     modifier: Modifier = Modifier,
     /** Placed over the vehicle, between its axles or in the middle of a single axle one */
     center: @Composable (Modifier) -> Unit = {},
-    /** Shown in place of each location's readout when set, see [ConfigurableCurrentVehicle] */
-    tyreActions: TyreActions? = null,
+    taps: TyreTaps = TyreTaps(),
 ) {
     KeepScreenOn()
     val pressureUnit by component
@@ -155,22 +177,72 @@ public fun Vehicle(
                 ).fold(0.dp, Dp::plus) / 2
             )
         when (component.vehicle.kind) {
-            Kind.CAR -> Car(imageHeight, snackbarHostState, center, tyreActions, fill)
-            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, center, tyreActions, fill)
-            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, center, tyreActions, fill)
-            Kind.TADPOLE_THREE_WHEELER ->
-                TadpoleThreadWheeler(imageHeight, snackbarHostState, center, tyreActions, fill)
-            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, center, tyreActions, fill)
+            Kind.CAR -> Car(imageHeight, snackbarHostState, center, taps, fill)
+            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, center, taps, fill)
+            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, center, taps, fill)
+            Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, center, taps, fill)
+            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, center, taps, fill)
         }
     }
 }
 
-/** What replaces a location's readout, placed by [modifier] like the readout would be */
-internal typealias TyreActions = @Composable (location: Location, modifier: Modifier) -> Unit
+/** What tapping the vehicle's locations does, see [CurrentVehicle] */
+public class TyreTaps(
+    internal val isManaging: Boolean = false,
+    internal val scanQrCode: () -> Unit = {},
+    internal val scanBluetooth: () -> Unit = {},
+)
 
 @Composable
-private fun Readout(location: Location, actions: TyreActions?, modifier: Modifier) =
-    actions?.invoke(location, modifier) ?: TyreStat(location = location, modifier = modifier)
+private fun ManagePrompt(onDone: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
+        modifier = modifier
+            .widthIn(max = 180.dp)
+            .testTag(VehicleTags.managePrompt),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+        ) {
+            Text("Tap the wheel/sensor to manage", textAlign = TextAlign.Center)
+            TextButton(onClick = onDone, modifier = Modifier.testTag(VehicleTags.manageDone)) {
+                Text("Done")
+            }
+        }
+    }
+}
+
+/** Spans [tyre] and its [readout], whichever side of the tyre the readout of [location] is on */
+private fun ConstrainScope.around(
+    tyre: ConstrainedLayoutReference,
+    readout: ConstrainedLayoutReference,
+    location: Location,
+) {
+    top.linkTo(tyre.top)
+    bottom.linkTo(tyre.bottom)
+    when (location.readoutSide) {
+        LEFT -> {
+            start.linkTo(readout.start)
+            end.linkTo(tyre.end)
+        }
+
+        RIGHT -> {
+            start.linkTo(tyre.start)
+            end.linkTo(readout.end)
+        }
+    }
+    width = Dimension.fillToConstraints
+    height = Dimension.fillToConstraints
+}
+
+@Suppress("ConstPropertyName")
+internal object VehicleTags {
+    const val managePrompt = "VehicleTags_managePrompt"
+    const val manageDone = "VehicleTags_manageDone"
+}
 
 /** Side of the image the readout of this location sits on, see the layouts below */
 internal val Location.readoutSide: SensorLocation.Side
@@ -281,7 +353,7 @@ private fun Car(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
-    tyreActions: TyreActions?,
+    taps: TyreTaps,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -290,16 +362,16 @@ private fun Car(
             track,
             frontLeft,
             frontLeftStats,
-            frontLeftBinding,
+            frontLeftTap,
             frontRight,
             frontRightStats,
-            frontRightBinding,
+            frontRightTap,
             rearLeft,
             rearLeftStats,
-            rearLeftBinding,
+            rearLeftTap,
             rearRight,
             rearRightStats,
-            rearRightBinding
+            rearRightTap
         ) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_car_top_view, "Image of your car", imageHeight)
         ImageSpan(track, .74f, imageHeight)
@@ -317,9 +389,8 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -329,13 +400,12 @@ private fun Car(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(frontLeftBinding) {
-                    top.linkTo(frontLeft.top)
-                    start.linkTo(frontLeft.end)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
             )
         }
         with(Location.Wheel(FRONT_RIGHT)) {
@@ -348,9 +418,8 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -358,13 +427,12 @@ private fun Car(
                     start.linkTo(frontRight.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(frontRightBinding) {
-                    top.linkTo(frontRight.top)
-                    end.linkTo(frontRight.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
             )
         }
         with(Location.Wheel(REAR_LEFT)) {
@@ -377,9 +445,8 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -388,13 +455,12 @@ private fun Car(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rearLeftBinding) {
-                    bottom.linkTo(rearLeft.bottom)
-                    start.linkTo(rearLeft.end)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -407,9 +473,8 @@ private fun Car(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -417,13 +482,12 @@ private fun Car(
                     start.linkTo(rearRight.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rearRightBinding) {
-                    bottom.linkTo(rearRight.bottom)
-                    end.linkTo(rearRight.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
             )
         }
         // Last, over everything else
@@ -444,7 +508,7 @@ private fun SingleAxleTrailer(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
-    tyreActions: TyreActions?,
+    taps: TyreTaps,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -453,10 +517,10 @@ private fun SingleAxleTrailer(
             track,
             tyreLeft,
             leftStats,
-            leftBinding,
+            leftTap,
             tyreRight,
             rightStats,
-            rightBinding,
+            rightTap,
         ) = createRefs()
         VehicleImage(
             vehicleImage,
@@ -477,9 +541,8 @@ private fun SingleAxleTrailer(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(leftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -488,14 +551,12 @@ private fun SingleAxleTrailer(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(axleY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(leftBinding) {
-                    top.linkTo(tyreLeft.top)
-                    bottom.linkTo(tyreLeft.bottom)
-                    start.linkTo(tyreLeft.end)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(leftTap) { around(tyreLeft, leftStats, this@with) }
             )
         }
         with(Location.Side(RIGHT)) {
@@ -508,9 +569,8 @@ private fun SingleAxleTrailer(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -518,14 +578,12 @@ private fun SingleAxleTrailer(
                     start.linkTo(tyreRight.end, 8.dp)
                 }.verticallyCenteredOn(axleY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rightBinding) {
-                    top.linkTo(tyreRight.top)
-                    bottom.linkTo(tyreRight.bottom)
-                    end.linkTo(tyreRight.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rightTap) { around(tyreRight, rightStats, this@with) }
             )
         }
         // Last, over everything else
@@ -547,7 +605,7 @@ private fun Motorcycle(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
-    tyreActions: TyreActions?,
+    taps: TyreTaps,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -555,10 +613,10 @@ private fun Motorcycle(
             vehicleImage,
             tyreFront,
             frontStats,
-            frontBinding,
+            frontTap,
             tyreRear,
             rearStats,
-            rearBinding,
+            rearTap,
         ) = createRefs()
         VehicleImage(
             vehicleImage,
@@ -580,9 +638,8 @@ private fun Motorcycle(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -590,14 +647,12 @@ private fun Motorcycle(
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(frontBinding) {
-                    top.linkTo(tyreFront.top)
-                    bottom.linkTo(tyreFront.bottom)
-                    end.linkTo(tyreFront.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
             )
         }
         with(Location.Axle(REAR)) {
@@ -610,9 +665,8 @@ private fun Motorcycle(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -620,14 +674,12 @@ private fun Motorcycle(
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rearBinding) {
-                    top.linkTo(tyreRear.top)
-                    bottom.linkTo(tyreRear.bottom)
-                    end.linkTo(tyreRear.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
             )
         }
         // Last, over everything else
@@ -648,7 +700,7 @@ private fun TadpoleThreadWheeler(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
-    tyreActions: TyreActions?,
+    taps: TyreTaps,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -658,13 +710,13 @@ private fun TadpoleThreadWheeler(
             rearOutline,
             frontLeft,
             frontLeftStats,
-            frontLeftBinding,
+            frontLeftTap,
             frontRight,
             frontRightStats,
-            frontRightBinding,
+            frontRightTap,
             tyreRear,
             rearStats,
-            rearBinding,
+            rearTap,
         ) = createRefs()
         VehicleImage(
             vehicleImage,
@@ -689,9 +741,8 @@ private fun TadpoleThreadWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -701,13 +752,12 @@ private fun TadpoleThreadWheeler(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(frontLeftBinding) {
-                    top.linkTo(frontLeft.bottom)
-                    centerHorizontallyTo(frontLeft)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
             )
         }
         with(Location.Wheel(FRONT_RIGHT)) {
@@ -720,9 +770,8 @@ private fun TadpoleThreadWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -730,13 +779,12 @@ private fun TadpoleThreadWheeler(
                     start.linkTo(frontRight.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(frontRightBinding) {
-                    top.linkTo(frontRight.bottom)
-                    centerHorizontallyTo(frontRight)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
             )
         }
         with(Location.Axle(REAR)) {
@@ -749,9 +797,8 @@ private fun TadpoleThreadWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -759,14 +806,12 @@ private fun TadpoleThreadWheeler(
                     start.linkTo(rearOutline.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rearBinding) {
-                    top.linkTo(tyreRear.top)
-                    bottom.linkTo(tyreRear.bottom)
-                    end.linkTo(tyreRear.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
             )
         }
         // Last, over everything else
@@ -787,7 +832,7 @@ private fun DeltaThreeWheeler(
     imageHeight: Float,
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
-    tyreActions: TyreActions?,
+    taps: TyreTaps,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -797,13 +842,13 @@ private fun DeltaThreeWheeler(
             frontOutline,
             tyreFront,
             frontStats,
-            frontBinding,
+            frontTap,
             rearLeft,
             rearLeftStats,
-            rearLeftBinding,
+            rearLeftTap,
             rearRight,
             rearRightStats,
-            rearRightBinding
+            rearRightTap
         ) = createRefs()
         VehicleImage(
             vehicleImage,
@@ -828,9 +873,8 @@ private fun DeltaThreeWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(frontStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -838,14 +882,12 @@ private fun DeltaThreeWheeler(
                     start.linkTo(frontOutline.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(frontBinding) {
-                    top.linkTo(tyreFront.top)
-                    bottom.linkTo(tyreFront.bottom)
-                    end.linkTo(tyreFront.start)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
             )
         }
         with(Location.Wheel(REAR_LEFT)) {
@@ -858,9 +900,8 @@ private fun DeltaThreeWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -869,13 +910,12 @@ private fun DeltaThreeWheeler(
                     width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rearLeftBinding) {
-                    bottom.linkTo(rearLeft.top)
-                    centerHorizontallyTo(rearLeft)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -888,9 +928,8 @@ private fun DeltaThreeWheeler(
                     tyreSize(imageHeight)
                 }
             )
-            Readout(
+            TyreReadout(
                 location = this,
-                actions = tyreActions,
                 modifier = Modifier.constrainAs(rearRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -898,13 +937,12 @@ private fun DeltaThreeWheeler(
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
-            // The configuration's actions take over binding
-            if (tyreActions == null) BindSensorButton(
+            TyreTapArea(
                 location = this,
-                modifier = Modifier.constrainAs(rearRightBinding) {
-                    bottom.linkTo(rearRight.top)
-                    centerHorizontallyTo(rearRight)
-                }
+                isManaging = taps.isManaging,
+                scanQrCode = taps.scanQrCode,
+                scanBluetooth = taps.scanBluetooth,
+                modifier = Modifier.constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
             )
         }
         // Last, over everything else

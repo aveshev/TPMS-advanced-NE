@@ -15,7 +15,7 @@ internal fun Settings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
     openBattery: () -> Unit,
-    openSensorConfiguration: () -> Unit,
+    openManageSensors: () -> Unit,
     openCalibration: () -> Unit,
     modifier: Modifier = Modifier
 ) = SettingsPage(modifier) {
@@ -23,7 +23,7 @@ internal fun Settings(
         openPressure = openPressure,
         openTemperature = openTemperature,
         openBattery = openBattery,
-        openSensorConfiguration = openSensorConfiguration,
+        openManageSensors = openManageSensors,
         openCalibration = openCalibration,
         // backgroundSettings = { AutomaticBackgroundSettings(it) }
         modifier = Modifier.testTag(vehicle),

@@ -55,14 +55,14 @@ internal interface ListenTyreWithDatabaseUseCase : ListenTyreUseCase {
             .shareIn(scope, WhileSubscribed())
             .dematerializeCompletion()
             .onStart {
-                // With a bound sensor, its own latest record: records of other sensors stored
-                // before it was bound would be dropped by ListenBoundTyreUseCase
+                // The bound sensor's own latest record: records of other sensors stored before it
+                // was bound would be dropped by ListenBoundTyreUseCase. A location without a bound
+                // sensor shows nothing until one is, see LocatedTyreScannerUseCase.
                 sensorBindingUseCase
                     .boundSensor()
                     .value
                     ?.let { readingDatabase.latestBySensorByLocation(it.id, location, vehicle.uuid) }
-                    .let { it ?: readingDatabase.latestByLocation(location, vehicle.uuid) }
-                    .execute()
+                    ?.execute()
                     ?.also { emit(it) }
             }
             .flowOn(Dispatchers.IO)

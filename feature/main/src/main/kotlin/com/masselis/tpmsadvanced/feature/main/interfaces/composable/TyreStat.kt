@@ -57,6 +57,12 @@ import kotlinx.coroutines.delay
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+/** A sensor id the way the readout shows it: its 3 bytes in order when it fits, in hex otherwise */
+@Suppress("MagicNumber")
+internal fun Int.asSensorId(): String =
+    if ((this ushr 24) == 0) "%02X%02X%02X".format(this and 0xFF, (this shr 8) and 0xFF, (this shr 16) and 0xFF)
+    else "0x%08X".format(this)
+
 @Composable
 internal fun TyreStat(
     location: Location,
@@ -147,18 +153,8 @@ private fun TyreStat(
             ?.also { Reading(it, levels[BATTERY], Modifier.align(alignment), fontSize = 16.sp) }
 
         if (sensorId != null && showSensorId) {
-            val displaySensorId = if ((sensorId ushr 24) == 0) {
-                "%02X%02X%02X".format(
-                    sensorId and 0xFF,
-                    (sensorId shr 8) and 0xFF,
-                    (sensorId shr 16) and 0xFF,
-                )
-            } else {
-                "0x%08X".format(sensorId)
-            }
-
             Text(
-                text = displaySensorId,
+                text = sensorId.asSensorId(),
                 fontSize = 9.sp,
                 maxLines = 1,
                 color = onSurfaceColor,

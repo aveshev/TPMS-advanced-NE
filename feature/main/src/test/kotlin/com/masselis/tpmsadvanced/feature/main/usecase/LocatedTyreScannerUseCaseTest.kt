@@ -14,6 +14,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -27,6 +28,7 @@ internal class LocatedTyreScannerUseCaseTest {
     private lateinit var boundSensor: MutableStateFlow<Sensor?>
     private lateinit var boundElsewhere: Set<Int>
     private lateinit var sensorBindingUseCase: SensorBindingUseCase
+    private var showsUnbound = false
 
     private val location = Location.Wheel(FRONT_LEFT)
 
@@ -35,6 +37,7 @@ internal class LocatedTyreScannerUseCaseTest {
         source = mockk()
         boundSensor = MutableStateFlow(null)
         boundElsewhere = emptySet()
+        showsUnbound = false
         sensorBindingUseCase = mockk {
             every { boundSensor() } returns this@LocatedTyreScannerUseCaseTest.boundSensor
             every { isBound(any()) } answers {
@@ -43,7 +46,7 @@ internal class LocatedTyreScannerUseCaseTest {
         }
     }
 
-    private fun test() = LocatedTyreScannerUseCase(source, location, sensorBindingUseCase)
+    private fun test() = LocatedTyreScannerUseCase(source, location, sensorBindingUseCase, showsUnbound)
 
     private fun sysgration(id: Int, at: SensorLocation = FRONT_LEFT) =
         Tyre.SensorLocated(0.0, -60, id, 2f.bar, 20f.celsius, SYSGRATION, false, at)
@@ -51,9 +54,13 @@ internal class LocatedTyreScannerUseCaseTest {
     private fun pecham(id: Int) = Tyre.Unlocated(0.0, -60, id, 2f.bar, 20f.celsius, PECHAM, false)
 
     /** The records this location keeps out of [tyres], in order */
-    private suspend fun keeps(vararg tyres: Tyre.SensorInput): List<Tyre.Located> = tyres
+    private suspend fun keeps(vararg tyres: Tyre.SensorInput): List<Tyre.Located> = detects(*tyres).first
+
+    /** The records this location keeps out of [tyres], and the sensor it detected once scanned */
+    private suspend fun detects(vararg tyres: Tyre.SensorInput): Pair<List<Tyre.Located>, Sensor?> = tyres
         .also { every { source.normalScan() } returns flowOf(*it) }
-        .let { test().normalScan().toList() }
+        .let { test() }
+        .let { it.normalScan().toList() to it.detectedSensor().first() }
 
     @Test
     fun `a bound sensor is kept, at its bound location`() = runTest {
@@ -68,19 +75,31 @@ internal class LocatedTyreScannerUseCaseTest {
     }
 
     @Test
-    fun `a free location keeps a sensor advertising it`() = runTest {
-        assertEquals(listOf(Tyre.Located(sysgration(3), location)), keeps(sysgration(3)))
+    fun `a free location detects a sensor advertising it, without showing its readings`() = runTest {
+        assertEquals(emptyList<Tyre.Located>() to Sensor(3, location, SYSGRATION), detects(sysgration(3)))
+    }
+
+    @Test
+    fun `the demo shows a sensor advertising a free location, without detecting it`() = runTest {
+        showsUnbound = true
+        assertEquals(listOf(Tyre.Located(sysgration(3), location)) to null, detects(sysgration(3)))
+    }
+
+    @Test
+    fun `a location with a bound sensor detects nothing`() = runTest {
+        boundSensor.value = Sensor(1, location, PECHAM)
+        assertEquals(null, detects(sysgration(3)).second)
     }
 
     @Test
     fun `a free location drops a sensor advertising another location`() = runTest {
-        assertEquals(emptyList(), keeps(sysgration(3, at = FRONT_RIGHT)))
+        assertEquals(emptyList<Tyre.Located>() to null, detects(sysgration(3, at = FRONT_RIGHT)))
     }
 
     @Test
     fun `a free location drops a sensor advertising it but bound elsewhere`() = runTest {
         boundElsewhere = setOf(3)
-        assertEquals(emptyList(), keeps(sysgration(3)))
+        assertEquals(emptyList<Tyre.Located>() to null, detects(sysgration(3)))
     }
 
     @Test

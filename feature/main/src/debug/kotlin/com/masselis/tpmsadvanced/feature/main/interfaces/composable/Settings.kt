@@ -38,7 +38,7 @@ public class Settings(
         get() = onNodeWithTag(ClearBoundSensorsButtonTags.root)
 
     private val bindSensorsButton
-        get() = onNodeWithTag(VehicleSettingsTags.configureSensors)
+        get() = onNodeWithTag(VehicleSettingsTags.manageSensors)
 
     private val deleteVehicleDialogTest = DeleteVehicleDialog()
 
