@@ -111,7 +111,10 @@ internal fun TyreTapArea(
             )
         },
         dismissButton = {
-            TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+            TextButton(
+                onClick = { confirmDelete = false },
+                modifier = Modifier.testTag(TyreTapAreaTags.cancelDelete),
+            ) { Text("Cancel") }
         },
         confirmButton = {
             TextButton(
@@ -119,6 +122,7 @@ internal fun TyreTapArea(
                 modifier = Modifier.testTag(TyreTapAreaTags.confirmDelete),
             ) { Text("Remove") }
         },
+        modifier = Modifier.testTag(TyreTapAreaTags.deleteDialog),
     )
 }
 
@@ -190,7 +194,10 @@ private fun ManageSensorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+            TextButton(
+                onClick = onDismissRequest,
+                modifier = Modifier.testTag(TyreTapAreaTags.manageCancel),
+            ) { Text("Cancel") }
         },
         modifier = modifier.testTag(TyreTapAreaTags.manageDialog),
     )
@@ -207,5 +214,8 @@ internal object TyreTapAreaTags {
     fun root(location: Location) = "TyreTapAreaTags_root_$location"
     const val manageDialog = "TyreTapAreaTags_manageDialog"
     const val delete = "TyreTapAreaTags_delete"
+    const val manageCancel = "TyreTapAreaTags_manageCancel"
+    const val deleteDialog = "TyreTapAreaTags_deleteDialog"
     const val confirmDelete = "TyreTapAreaTags_confirmDelete"
+    const val cancelDelete = "TyreTapAreaTags_cancelDelete"
 }

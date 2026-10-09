@@ -50,7 +50,10 @@ internal fun ClearBoundSensorsButton(
         onDismissRequest = { confirmClear = false },
         text = { Text("Delete every sensor assigned to this vehicle?\nThis cannot be undone.") },
         dismissButton = {
-            TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
+            TextButton(
+                onClick = { confirmClear = false },
+                modifier = Modifier.testTag(ClearBoundSensorsButtonTags.cancel),
+            ) { Text("Cancel") }
         },
         confirmButton = {
             TextButton(
@@ -65,4 +68,5 @@ internal fun ClearBoundSensorsButton(
 internal object ClearBoundSensorsButtonTags {
     const val root = "ClearBoundSensorsButtonTags_root"
     const val confirm = "ClearBoundSensorsButtonTags_confirm"
+    const val cancel = "ClearBoundSensorsButtonTags_cancel"
 }

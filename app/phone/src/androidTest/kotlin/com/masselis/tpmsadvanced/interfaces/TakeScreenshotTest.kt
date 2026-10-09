@@ -9,6 +9,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.graphics.writeToTestStorage
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Axle.FRONT
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MOTORCYCLE
 import com.masselis.tpmsadvanced.interfaces.screens.Home
 import com.masselis.tpmsadvanced.interfaces.screens.Home.Companion.home
@@ -25,7 +28,7 @@ internal class TakeScreenshotTest {
     @Test
     fun lightModeScreenshots() {
         androidComposeTestRule.home {
-            takeScreenshots(AppCompatDelegate.MODE_NIGHT_NO)
+            takeScreenshots(AppCompatDelegate.MODE_NIGHT_NO, Location.Wheel(FRONT_LEFT))
         }
     }
 
@@ -39,14 +42,11 @@ internal class TakeScreenshotTest {
                     add()
                 }
             }
-            vehicleSettings {
-                leave()
-            }
-            takeScreenshots(AppCompatDelegate.MODE_NIGHT_YES)
+            takeScreenshots(AppCompatDelegate.MODE_NIGHT_YES, Location.Axle(FRONT))
         }
     }
 
-    private fun Home.takeScreenshots(@AppCompatDelegate.NightMode mode: Int) {
+    private fun Home.takeScreenshots(@AppCompatDelegate.NightMode mode: Int, location: Location) {
         androidComposeTestRule.activityRule.scenario.onActivity {
             AppCompatDelegate.setDefaultNightMode(mode)
         }
@@ -64,10 +64,19 @@ internal class TakeScreenshotTest {
             }
         }
         actionOverflow {
-            bindingMethod {
-                tapBindManually()
-                capture("${prefix}binding_method")
-                goBack()
+            settings {
+                manageSensors {
+                    capture("${prefix}manage_sensors")
+                    leave()
+                }
+                leave()
+            }
+        }
+        // The demo scanner's Sysgration sensors are detected there, at the front
+        wheel(location) {
+            assign {
+                capture("${prefix}assign_sensor")
+                cancel()
             }
         }
     }

@@ -80,7 +80,10 @@ internal fun AssignSensorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+            TextButton(
+                onClick = onDismissRequest,
+                modifier = Modifier.testTag(AssignSensorDialogTags.cancel),
+            ) { Text("Cancel") }
         },
         modifier = modifier.testTag(AssignSensorDialogTags.root),
     )
@@ -126,4 +129,5 @@ internal object AssignSensorDialogTags {
     const val detected = "AssignSensorDialogTags_detected"
     const val qrCode = "AssignSensorDialogTags_qrCode"
     const val bluetooth = "AssignSensorDialogTags_bluetooth"
+    const val cancel = "AssignSensorDialogTags_cancel"
 }

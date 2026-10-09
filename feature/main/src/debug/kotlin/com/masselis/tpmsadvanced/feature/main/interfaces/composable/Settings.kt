@@ -34,11 +34,13 @@ public class Settings(
     private val deleteVehicleButton
         get() = onNodeWithTag(DeleteVehicleButtonTags.Button.tag)
 
-    private val clearFavouritesButton
+    private val deleteAllSensorsButton
         get() = onNodeWithTag(ClearBoundSensorsButtonTags.root)
 
-    private val bindSensorsButton
+    private val manageSensorsButton
         get() = onNodeWithTag(VehicleSettingsTags.manageSensors)
+
+    private val manageSensorsTest = ManageSensors(backButtonTag)
 
     private val deleteVehicleDialogTest = DeleteVehicleDialog()
 
@@ -57,23 +59,26 @@ public class Settings(
         deleteVehicleButton.assertIsNotEnabled()
     }
 
-    public fun clearFavourites() {
-        clearFavouritesButton.performScrollTo()
-        clearFavouritesButton.performClick()
+    /** Taps it, then confirms it, or cancels it when not [confirm] */
+    public fun deleteAllSensors(confirm: Boolean = true) {
+        deleteAllSensorsButton.performScrollTo()
+        deleteAllSensorsButton.performClick()
+        onNodeWithTag(if (confirm) ClearBoundSensorsButtonTags.confirm else ClearBoundSensorsButtonTags.cancel)
+            .performClick()
     }
 
-    public fun waitClearFavouritesEnabled(): Unit =
-        waitUntil { clearFavouritesButton.check(isEnabled()) }
+    public fun waitDeleteAllSensorsEnabled(): Unit =
+        waitUntil { deleteAllSensorsButton.check(isEnabled()) }
 
-    public fun waitClearFavouritesDisabled() {
-        waitUntil { clearFavouritesButton.check(isNotEnabled()) }
+    public fun waitDeleteAllSensorsDisabled() {
+        waitUntil { deleteAllSensorsButton.check(isNotEnabled()) }
     }
 
-    /** Opens the binding method page, leaving these settings */
-    public fun bindSensors(): ExitToken<Settings> {
-        bindSensorsButton.performScrollTo()
-        bindSensorsButton.performClick()
-        return exitToken
+    /** Opens the sensors' page, back on these settings once it's left */
+    public fun manageSensors(instructions: Instructions<ManageSensors>) {
+        manageSensorsButton.performScrollTo()
+        manageSensorsButton.performClick()
+        manageSensorsTest.process(instructions)
     }
 
     public fun leave(): ExitToken<Settings> {

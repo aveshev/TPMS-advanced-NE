@@ -41,7 +41,8 @@ internal class SimulateReadingViewModel(
 
     /**
      * From the sensor bound to that tyre, as if it was received, or from a Sysgration sensor
-     * advertising its location for a tyre without one. [battery] is in volts, or a percentage for
+     * advertising its location for a tyre without one, detected there until it's assigned like any
+     * unbound sensor, see LocatedTyreScannerUseCase. [battery] is in volts, or a percentage for
      * Sysgration. Values a sensor can't send are dropped, see [SimulatedReadings.send].
      */
     @Suppress("MaxLineLength")
