@@ -1,7 +1,5 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.annotation.DrawableRes
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -361,14 +358,13 @@ private fun SwapOrChainDialog(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AlertDialog(
+    OptionsDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Text(buildString { appendLoc(to, withType = false, capitalized = true); append(" already has a sensor") })
         },
         text = {
-            // Scrolls when it doesn't fit, a phone in landscape
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column {
                 DialogOption(
                     icon = { Icon(ImageVector.vectorResource(swapIcon(from, to)), null) },
                     title = "Just swap them",
@@ -440,7 +436,7 @@ private fun MoveConfirmation(
     modifier: Modifier = Modifier,
 ) {
     val moves = chain.moves(occupied)
-    AlertDialog(
+    OptionsDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Text(
@@ -452,8 +448,7 @@ private fun MoveConfirmation(
             )
         },
         text = {
-            // Scrolls when it doesn't fit, a phone in landscape
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column {
                 // A swap of two locations reads better as a single line
                 if (isTwoLocations && moves.size == 2) Text(
                     buildString {
