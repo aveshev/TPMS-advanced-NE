@@ -1,27 +1,64 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.annotation.DrawableRes
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_RIGHT
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_LEFT
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_RIGHT
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.feature.main.R
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ManageSensorsViewModel
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.ManageSensorsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
+import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
+import com.masselis.tpmsadvanced.feature.main.model.MoveChain
+import com.masselis.tpmsadvanced.feature.main.model.MoveChain.Step
 
 /**
  * The vehicle's sensors, laid out like the main screen: every location is outlined, tapping one
  * manages its sensor, or assigns it one by [scanQrCode], [scanBluetooth] or the sensor detected
- * there
+ * there. Moving a sensor picks where it goes on the vehicle, see [MoveChain].
  */
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 public fun ManageSensors(
     snackbarHostState: SnackbarHostState,
@@ -30,7 +67,24 @@ public fun ManageSensors(
     modifier: Modifier = Modifier,
     component: VehicleComponent = LocalVehicleComponent.current,
 ) {
+    val viewModel: ManageSensorsViewModel = component.viewModel(component.key()) { it.ManageSensorsViewModel() }
     val vehicle by component.vehicleStateFlow.collectAsState()
+    val occupied by viewModel.occupied.collectAsState()
+    val all = vehicle.kind.locations
+    // Waiting for the user to pick where the last sensor of the chain goes
+    var moving by rememberSaveable { mutableStateOf<MoveChain?>(null) }
+    // Its last location has a sensor too: just swap them, or continue the chain
+    var asking by rememberSaveable { mutableStateOf<MoveChain?>(null) }
+    // Ready, waiting for the user to confirm it
+    var confirming by rememberSaveable { mutableStateOf<MoveChain?>(null) }
+    // Where each tyre is in the window, for the arrows of the moves
+    val tyreCenters = remember { mutableStateMapOf<Location, Offset>() }
+    fun stop() {
+        moving = null
+        asking = null
+        confirming = null
+    }
+    BackHandler(enabled = moving != null, onBack = ::stop)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.testTag(ManageSensorsTags.root),
@@ -42,25 +96,285 @@ public fun ManageSensors(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
         )
-        Text(
-            text = "Tap the wheel/sensor to manage",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-        )
+                .padding(horizontal = 16.dp)
+                // As tall as the Cancel button shown while moving, with its touch target, so
+                // nothing shifts when it shows
+                .height(PROMPT_HEIGHT),
+        ) {
+            Text(
+                text = if (moving != null) "Tap the wheel to move to"
+                else "Tap the wheel/sensor to manage",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(vertical = 4.dp),
+            )
+            if (moving != null) TextButton(
+                onClick = ::stop,
+                modifier = Modifier.testTag(ManageSensorsTags.cancelMove),
+            ) { Text("Cancel") }
+        }
+        Box(Modifier.weight(1f)) {
         Vehicle(
             component = component,
             snackbarHostState = snackbarHostState,
-            taps = TyreTaps(isManaging = true, scanQrCode = scanQrCode, scanBluetooth = scanBluetooth),
-            modifier = Modifier.weight(1f),
+            taps = TyreTaps(
+                isManaging = true,
+                scanQrCode = scanQrCode,
+                scanBluetooth = scanBluetooth,
+                move = moving?.let { chain ->
+                    TyreMove(chain, all) { target ->
+                        when (val step = chain.tap(target, occupied, all)) {
+                            is Step.Done -> confirming = step.chain
+                            is Step.AskSwapOrChain -> asking = step.chain
+                            is Step.Continue -> moving = step.chain
+                        }
+                    }
+                },
+                startMove = { location ->
+                    if (all.size <= 2)
+                    // Nowhere to pick, straight to the confirmation
+                        all.first { it != location }.let { confirming = MoveChain.from(location).plus(it) }
+                    else
+                        moving = MoveChain.from(location)
+                },
+                onTyrePositioned = { location, center -> tyreCenters[location] = center },
+            ),
+            modifier = Modifier.fillMaxSize(),
+        )
+        MoveArrows(
+            // Each move picked so far, all of them once the chain is complete
+            moves = confirming?.moves(occupied)
+                ?: (asking ?: moving)?.locations?.zipWithNext()
+                ?: emptyList(),
+            tyreCenters = tyreCenters,
+            modifier = Modifier.fillMaxSize(),
+        )
+        }
+    }
+    asking?.also { chain ->
+        SwapOrChainDialog(
+            from = chain.start,
+            to = chain.last,
+            swap = { asking = null; confirming = chain },
+            chain = {
+                asking = null
+                when (val step = chain.continuing(all)) {
+                    is Step.Done -> confirming = step.chain
+                    is Step.Continue -> moving = step.chain
+                    is Step.AskSwapOrChain -> error("Continuing never asks")
+                }
+            },
+            onDismissRequest = { asking = null },
+        )
+    }
+    confirming?.also { chain ->
+        MoveConfirmation(
+            chain = chain,
+            occupied = occupied,
+            isTwoLocations = all.size <= 2,
+            onConfirm = { viewModel.apply(chain); stop() },
+            onDismissRequest = ::stop,
         )
     }
 }
 
+/**
+ * An arrow from each move's location to the next over the vehicle, [tyreCenters] being in the
+ * window. A swap's two arrows are drawn side by side.
+ */
+@Composable
+private fun MoveArrows(
+    moves: List<Pair<Location, Location>>,
+    tyreCenters: Map<Location, Offset>,
+    modifier: Modifier = Modifier,
+) {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val color = MaterialTheme.colorScheme.primary
+    Canvas(modifier.onGloballyPositioned { origin = it.positionInWindow() }) {
+        moves.forEach { (from, to) ->
+            val start = tyreCenters[from]?.minus(origin) ?: return@forEach
+            val end = tyreCenters[to]?.minus(origin) ?: return@forEach
+            val length = (end - start).getDistance().takeIf { it > 0f } ?: return@forEach
+            val direction = (end - start) / length
+            val normal = Offset(-direction.y, direction.x)
+            // Side by side with the swap's other arrow, rather than over it
+            val shift = if ((to to from) in moves) normal * ARROW_SPACING.toPx() else Offset.Zero
+            // Off the tyres at both ends
+            val inset = direction * ARROW_INSET.toPx().coerceAtMost(length / 3)
+            val tail = start + inset + shift
+            val tip = end - inset + shift
+            val head = ARROW_HEAD.toPx()
+            drawLine(color, tail, tip - direction * (head / 2f), ARROW_WIDTH.toPx(), StrokeCap.Round)
+            drawPath(
+                Path().apply {
+                    moveTo(tip.x, tip.y)
+                    (tip - direction * head + normal * (head / 2f)).also { lineTo(it.x, it.y) }
+                    (tip - direction * head - normal * (head / 2f)).also { lineTo(it.x, it.y) }
+                    close()
+                },
+                color,
+            )
+        }
+    }
+}
+
+private val ARROW_WIDTH = 3.dp
+private val ARROW_HEAD = 14.dp
+private val ARROW_INSET = 28.dp
+private val ARROW_SPACING = 6.dp
+
+/** Sending [from]'s sensor to [to], which has one: just swap them, or move more sensors around */
+@Composable
+private fun SwapOrChainDialog(
+    from: Location,
+    to: Location,
+    swap: () -> Unit,
+    chain: () -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(buildString { appendLoc(to, withType = false, capitalized = true); append(" already has a sensor") })
+        },
+        text = {
+            Column {
+                DialogOption(
+                    icon = { Icon(ImageVector.vectorResource(swapIcon(from, to)), null) },
+                    title = "Just swap them",
+                    subtitle = buildString {
+                        appendLoc(from, withType = false, capitalized = true)
+                        append(" ⇄ ")
+                        appendLoc(to, withType = false, capitalized = true)
+                    },
+                    onClick = swap,
+                    modifier = Modifier.testTag(ManageSensorsTags.justSwap),
+                )
+                DialogOption(
+                    icon = { Icon(ImageVector.vectorResource(R.drawable.rotate_wheels_24px), null) },
+                    title = "Multi-wheel change",
+                    subtitle = "Tyre rotation, etc",
+                    onClick = chain,
+                    modifier = Modifier.testTag(ManageSensorsTags.multiWheel),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+        },
+        modifier = modifier.testTag(ManageSensorsTags.askDialog),
+    )
+}
+
+/**
+ * The arrows between two locations seen from above, the front at the top: left-right on the same
+ * axle, up-down on the same side, the matching diagonal otherwise
+ */
+@DrawableRes
+private fun swapIcon(from: Location, to: Location): Int {
+    val (fromX, fromY) = from.position
+    val (toX, toY) = to.position
+    return when {
+        fromY == toY -> R.drawable.swap_horizontal_24px
+        fromX == toX -> R.drawable.swap_vertical_24px
+        (toX - fromX) * (toY - fromY) > 0 -> R.drawable.swap_diagonal_down_24px
+        else -> R.drawable.swap_diagonal_up_24px
+    }
+}
+
+/** Where a location sits seen from above: left -1 to right 1, front -1 to rear 1 */
+private val Location.position: Pair<Int, Int>
+    get() = when (this) {
+        is Location.Wheel -> location.side.x to location.axle.y
+        is Location.Axle -> 0 to axle.y
+        is Location.Side -> side.x to 0
+    }
+
+private val SensorLocation.Side.x get() = if (this == SensorLocation.Side.LEFT) -1 else 1
+private val SensorLocation.Axle.y get() = if (this == SensorLocation.Axle.FRONT) -1 else 1
+
+/**
+ * Asks to apply [chain]: a vehicle with two locations only says whether it's a swap or a move,
+ * the others list each sensor's move
+ */
+@Composable
+private fun MoveConfirmation(
+    chain: MoveChain,
+    occupied: Set<Location>,
+    isTwoLocations: Boolean,
+    onConfirm: () -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val moves = chain.moves(occupied)
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                when {
+                    isTwoLocations.not() -> "Move the sensors?"
+                    moves.size > 1 -> "Swap the sensors?"
+                    else -> "Move the sensor to the other wheel?"
+                }
+            )
+        },
+        text = {
+            Column {
+                // A swap of two locations reads better as a single line
+                if (isTwoLocations && moves.size == 2) Text(
+                    buildString {
+                        appendLoc(moves.first().first, withType = false, capitalized = true)
+                        append(" ⇄ ")
+                        appendLoc(moves.first().second, withType = false, capitalized = true)
+                    }
+                )
+                else moves.forEach { (from, to) ->
+                    Text(
+                        buildString {
+                            appendLoc(from, withType = false, capitalized = true)
+                            append(" → ")
+                            appendLoc(to, withType = false, capitalized = true)
+                        }
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag(ManageSensorsTags.confirmMove),
+            ) { Text(if (isTwoLocations) "Yes" else "OK") }
+        },
+        modifier = modifier.testTag(ManageSensorsTags.confirmDialog),
+    )
+}
+
+@Preview
+@Composable
+internal fun MoveConfirmationPreview() {
+    val car = listOf(FRONT_LEFT, FRONT_RIGHT, REAR_RIGHT, REAR_LEFT).map { Location.Wheel(it) }
+    MoveConfirmation(MoveChain(car), car.toSet(), isTwoLocations = false, {}, {})
+}
+
+private val PROMPT_HEIGHT = 48.dp
+
 @Suppress("ConstPropertyName")
 internal object ManageSensorsTags {
     const val root = "ManageSensorsTags_root"
+    const val cancelMove = "ManageSensorsTags_cancelMove"
+    const val askDialog = "ManageSensorsTags_askDialog"
+    const val justSwap = "ManageSensorsTags_justSwap"
+    const val multiWheel = "ManageSensorsTags_multiWheel"
+    const val confirmDialog = "ManageSensorsTags_confirmDialog"
+    const val confirmMove = "ManageSensorsTags_confirmMove"
 }

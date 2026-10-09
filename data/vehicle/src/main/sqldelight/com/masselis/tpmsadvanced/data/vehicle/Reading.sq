@@ -25,6 +25,11 @@ CREATE TABLE Reading(
 insert:
 INSERT OR IGNORE INTO Reading (vehicleId, location, timestamp, sensorId, rssi, raw) VALUES (?, ?, ?, ?, ?, ?);
 
+-- A sensor's readings follow it to its new location, the other sensors' stay. A reading at the
+-- same time already there is the same reading.
+moveSensor:
+UPDATE OR IGNORE Reading SET location = :to WHERE vehicleId = :vehicleId AND location = :from AND sensorId = :sensorId;
+
 latestByLocation:
 SELECT * FROM Reading
 WHERE vehicleId = ? AND location = ?

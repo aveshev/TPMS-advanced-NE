@@ -154,11 +154,13 @@ public interface TyreBindings {
         alertsUseCase: TyreAlertsUseCase,
         calibrationUseCase: VehicleCalibrationUseCase,
         unitPreferences: UnitPreferences,
+        sensorBindingUseCase: SensorBindingUseCase,
         @VehicleLifecycle scope: CoroutineScope,
     ): TyreStatsStateFlow = TyreStatsStateFlow(
         alertsUseCase,
         calibrationUseCase,
         unitPreferences,
+        sensorBindingUseCase,
         scope
     )
 
@@ -168,11 +170,13 @@ public interface TyreBindings {
         alertsUseCase: TyreAlertsUseCase,
         rangeUseCase: VehicleRangesUseCase,
         location: Location,
+        sensorBindingUseCase: SensorBindingUseCase,
         @VehicleLifecycle scope: CoroutineScope,
     ): TyreIconStateFlow = TyreIconStateFlow(
         alertsUseCase,
         rangeUseCase,
         location,
+        sensorBindingUseCase,
         scope
     )
 

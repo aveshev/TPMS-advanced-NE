@@ -28,6 +28,12 @@ public class ManageSensorDialog private constructor(
         return exitToken
     }
 
+    /** Starts moving the sensor, see `ManageSensors` */
+    public fun move(): ExitToken<ManageSensorDialog> {
+        onNodeWithTag(TyreTapAreaTags.move).performClick()
+        return exitToken
+    }
+
     public fun cancel(): ExitToken<ManageSensorDialog> {
         onNodeWithTag(TyreTapAreaTags.manageCancel).performClick()
         return exitToken

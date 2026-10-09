@@ -11,7 +11,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.Eagerly
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.plus
+
+/** The id of the sensor bound, once per sensor: a binding change, not a database refresh */
+internal fun Flow<Sensor?>.boundIds(): Flow<Int?> = map { it?.id }.distinctUntilChanged()
 
 internal interface SensorBindingUseCase {
 

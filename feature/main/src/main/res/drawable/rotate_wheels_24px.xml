@@ -1,0 +1,18 @@
+<!-- A tyre rotation seen from above: four wheels, the rear ones moving up, the front ones crossing back -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:height="24dp"
+    android:width="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#000"
+        android:pathData="M3,2h4v6h-4zM17,2h4v6h-4zM3,16h4v6h-4zM17,16h4v6h-4z" />
+    <path
+        android:strokeColor="#000"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M5,15V11.5M19,15V11.5M9,7.5L14.2,12.7M15,7.5L9.8,12.7" />
+    <path
+        android:fillColor="#000"
+        android:pathData="M5,9L3.2,12L6.8,12ZM19,9L17.2,12L20.8,12ZM16,14.5L12.6,13.8L15.3,11.1ZM8,14.5L8.7,11.1L11.4,13.8Z" />
+</vector>

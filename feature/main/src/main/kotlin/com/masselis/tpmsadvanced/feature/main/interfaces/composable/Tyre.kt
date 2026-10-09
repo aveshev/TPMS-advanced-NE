@@ -63,13 +63,15 @@ internal fun Tyre(
     location: Location,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    /** An alerting tyre blinks, but on the sensors' page */
+    blinks: Boolean = true,
     vehicleComponent: Lazy<VehicleComponent> = lazyOf(LocalVehicleComponent.current),
     viewModel: TyreIconViewModel = vehicleComponent.value
         .TyreComponent(location)
         .let { viewModel(it.keyed()) { it.TyreIconViewModel() } },
 ) {
     val state by viewModel.stateFlow.collectAsState()
-    Tyre(state, snackbarHostState, modifier, logName = "$location")
+    Tyre(state, snackbarHostState, modifier, logName = "$location", blinks = blinks)
 }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "MaxLineLength")
@@ -80,9 +82,11 @@ internal fun Tyre(
     modifier: Modifier = Modifier,
     // Names the tyre in the logs, null for the demo tyres which aren't logged
     logName: String? = null,
+    blinks: Boolean = true,
 ) {
     // Under 3 flashes a second either way, see docs/alerts.md
     val isHidden = (state as? State.Alerting)
+        ?.takeIf { blinks }
         ?.let { isFirstBlinkPhase(if (it.isCritical) CRITICAL_BLINK else BLINK).not() }
         ?: false
     // Traces #35, a tyre not drawn at all, whose cause is unknown. The drawn state, to compare with

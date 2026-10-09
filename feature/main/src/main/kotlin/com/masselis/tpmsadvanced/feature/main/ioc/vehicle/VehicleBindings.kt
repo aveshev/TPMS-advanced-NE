@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ManageSensorsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.ClearBoundSensorsViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.DeleteVehicleViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.VehicleSettingsViewModelImpl
@@ -114,6 +115,10 @@ public interface VehicleBindings {
         sensorDatabase: SensorDatabase,
     ): ClearBoundSensorsUseCase = ClearBoundSensorsUseCase(vehicle, sensorDatabase)
 
+    @Provides
+    private fun manageSensorsViewModel(vehicle: Vehicle, sensorDatabase: SensorDatabase): ManageSensorsViewModel =
+        ManageSensorsViewModel(vehicle, sensorDatabase)
+
     public val internal: Internal
 
     @Inject
@@ -121,6 +126,7 @@ public interface VehicleBindings {
         internal val clearBoundSensorsViewModel: ClearBoundSensorsViewModelImpl.Factory,
         internal val vehicleSettingsViewModel: () -> VehicleSettingsViewModelImpl,
         internal val deleteVehicleViewModel: () -> DeleteVehicleViewModelImpl,
+        internal val manageSensorsViewModel: () -> ManageSensorsViewModel,
     )
 
     public companion object {
@@ -134,5 +140,7 @@ public interface VehicleBindings {
             internal.vehicleSettingsViewModel()
 
         internal fun VehicleComponent.DeleteVehicleViewModel() = internal.deleteVehicleViewModel()
+
+        internal fun VehicleComponent.ManageSensorsViewModel() = internal.manageSensorsViewModel()
     }
 }
