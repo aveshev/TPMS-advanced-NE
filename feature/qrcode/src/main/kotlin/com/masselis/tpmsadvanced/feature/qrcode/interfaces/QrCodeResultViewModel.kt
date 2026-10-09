@@ -3,9 +3,9 @@ package com.masselis.tpmsadvanced.feature.qrcode.interfaces
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
+import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
-import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeResult
 import com.masselis.tpmsadvanced.feature.qrcode.model.sensorsFor
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.BoundSensorMapUseCase
@@ -18,19 +18,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
-/** What a scanned QR code leads to on the current vehicle, see [QrCodeResult] */
+/** What a scanned QR code leads to on the vehicle [vehicleUuid] it was scanned for, see [QrCodeResult] */
 @AssistedInject
 internal class QrCodeResultViewModel(
-    currentVehicleUseCase: CurrentVehicleUseCase,
+    vehicleDatabase: VehicleDatabase,
     sensorDatabase: SensorDatabase,
     private val boundSensorMapUseCase: BoundSensorMapUseCase,
+    @Assisted vehicleUuid: UUID,
     @Assisted result: QrCodeResult,
 ) : ViewModel() {
 
     @AssistedFactory
     interface Factory {
-        operator fun invoke(result: QrCodeResult): QrCodeResultViewModel
+        operator fun invoke(vehicleUuid: UUID, result: QrCodeResult): QrCodeResultViewModel
     }
 
     sealed interface State {
@@ -55,7 +57,7 @@ internal class QrCodeResultViewModel(
 
     init {
         viewModelScope.launch {
-            val vehicle = currentVehicleUseCase.value.vehicle
+            val vehicle = withContext(IO) { vehicleDatabase.selectByUuid(vehicleUuid).execute() }
             mutableStateFlow.value = (result as? QrCodeResult.Sensors)
                 ?.let { found ->
                     found

@@ -116,8 +116,8 @@ private const val SPARE_HALF_HEIGHT = TYRE_HEIGHT * TYRE_ASPECT_RATIO / 2f
 
 
 /** A mono-wheel's tyre is drawn much taller and narrower than the others, its width following [MONOWHEEL_TYRE_RATIO] */
-private const val MONOWHEEL_TYRE_HEIGHT = .29f
-private const val MONOWHEEL_TYRE_RATIO = 8f / 40f
+private const val MONOWHEEL_TYRE_HEIGHT = .377f
+private const val MONOWHEEL_TYRE_RATIO = 16f / 52f
 
 /**
  * The current vehicle. Tapping a location without a sensor assigns it one by [scanQrCode],
@@ -654,10 +654,10 @@ private fun CarWithSpare(
             rearRightTap
         ) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_car_with_spare_top_view, "Image of your car", imageHeight)
-        ImageSpan(track, .84f, imageHeight)
-        val frontY = .2f
+        ImageSpan(track, .748f, imageHeight)
+        val frontY = .241f
         val frontAxle = imageGuideline(frontY, imageHeight)
-        val rearY = .72f
+        val rearY = .761f
         val rearAxle = imageGuideline(rearY, imageHeight)
         // The rear outlines grow up from their tyres' bottom rather than both ways, they'd reach
         // the spare's otherwise

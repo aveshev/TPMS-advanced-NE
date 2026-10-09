@@ -125,6 +125,7 @@ internal fun VehicleHome(
         // A QR code scanned for this location, shown once its camera is closed, see QrCodeResultDialog
         var qrCodeResult by rememberSaveable { mutableStateOf<QrCodeResult?>(null) }
         var qrCodeLocation by rememberSaveable { mutableIntStateOf(0) }
+        var qrCodeScan by rememberSaveable { mutableIntStateOf(0) }
         val currentPath = navController.currentBackStackEntryAsState()
             .value
             ?.destination
@@ -346,6 +347,7 @@ internal fun VehicleHome(
                             onFound = {
                                 qrCodeResult = it
                                 qrCodeLocation = location
+                                qrCodeScan++
                                 navController.popBackStack()
                             },
                             modifier = modifier
@@ -372,7 +374,9 @@ internal fun VehicleHome(
         )
         qrCodeResult?.also { result ->
             QrCodeResultDialog(
+                vehicleUuid = vehicleComponent.vehicle.uuid,
                 result = result,
+                scan = qrCodeScan,
                 scanBluetooth = {
                     navController.navigate("${Path.BluetoothAssign(vehicleComponent.vehicle.uuid, qrCodeLocation)}")
                 },

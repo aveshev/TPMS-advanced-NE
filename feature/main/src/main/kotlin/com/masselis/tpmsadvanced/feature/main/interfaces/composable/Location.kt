@@ -4,6 +4,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import java.util.Locale
 
+/** Every location is named as a wheel, whether it's one of an axle's two, an axle's only one or a side's */
 public fun StringBuilder.appendLoc(
     location: Vehicle.Kind.Location,
     withType: Boolean = true,
@@ -28,7 +29,7 @@ public fun StringBuilder.appendLoc(
                 SensorLocation.Axle.REAR -> "rear".capitalizeIf(capitalized)
             }
         )
-        appendIf(withType, " axle")
+        appendIf(withType, " wheel")
     }
 
     is Vehicle.Kind.Location.Side -> {
@@ -38,7 +39,7 @@ public fun StringBuilder.appendLoc(
                 SensorLocation.Side.RIGHT -> "right".capitalizeIf(capitalized)
             }
         )
-        appendIf(withType, " side")
+        appendIf(withType, " wheel")
     }
 
     Vehicle.Kind.Location.Spare -> {

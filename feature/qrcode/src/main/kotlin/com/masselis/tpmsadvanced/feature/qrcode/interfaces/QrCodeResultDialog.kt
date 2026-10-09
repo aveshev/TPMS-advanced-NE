@@ -13,20 +13,26 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.composable.appendLoc
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeResultViewModel.State
 import com.masselis.tpmsadvanced.feature.qrcode.ioc.Bindings.Companion.QrCodeResultViewModel
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeResult
+import java.util.UUID
 
 /**
- * What [result], a scanned QR code, leads to on the current vehicle, shown on the screen the scan
- * started from once the camera is closed. [onDismiss] once answered, [scanBluetooth] for a code the
- * app can't use.
+ * What [result], a scanned QR code, leads to on the vehicle [vehicleUuid] it was scanned for, shown
+ * on the screen the scan started from once the camera is closed. [scan] tells one scan from the
+ * next, so a code scanned again is worked out again. [onDismiss] once answered, [scanBluetooth] for
+ * a code the app can't use.
  */
 @Suppress("MaxLineLength")
 @Composable
 public fun QrCodeResultDialog(
+    vehicleUuid: UUID,
     result: QrCodeResult,
+    scan: Int,
     scanBluetooth: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val viewModel: QrCodeResultViewModel = viewModel(key = "QrCodeResult_$result") { QrCodeResultViewModel(result) }
+    val viewModel: QrCodeResultViewModel = viewModel(key = "QrCodeResult_$scan") {
+        QrCodeResultViewModel(vehicleUuid, result)
+    }
     val state by viewModel.stateFlow.collectAsState()
     when (val state = state) {
         State.Loading -> {}
