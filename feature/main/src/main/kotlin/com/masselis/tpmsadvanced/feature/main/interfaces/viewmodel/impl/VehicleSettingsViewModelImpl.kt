@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.masselis.tpmsadvanced.data.unit.interfaces.UnitPreferences
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.PressureCalibration
+import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.BatteryKinds
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.VehicleSettingsViewModel
@@ -47,6 +48,20 @@ internal class VehicleSettingsViewModelImpl(
 
     override val lowBatteryVoltage = vehicleRangesUseCase.lowBatteryVoltage
     override val lowBatteryPercent = vehicleRangesUseCase.lowBatteryPercent
+
+    override val isFullyAssigned = sensorDatabase
+        .selectListByVehicleId(vehicle.value.uuid)
+        // Read now rather than after the first frame, the vehicle's size depends on it
+        .asStateFlow(viewModelScope, WhileSubscribed())
+        .let { sensors ->
+            sensors
+                .map { vehicle.value.isFullyAssigned(it) }
+                .stateIn(viewModelScope, WhileSubscribed(), vehicle.value.isFullyAssigned(sensors.value))
+        }
+
+    private fun Vehicle.isFullyAssigned(sensors: List<Sensor>) = sensors
+        .map { it.location }
+        .containsAll(kind.locations)
 
     override val batteryKinds = sensorDatabase
         .brandsByVehicleId(vehicle.value.uuid)

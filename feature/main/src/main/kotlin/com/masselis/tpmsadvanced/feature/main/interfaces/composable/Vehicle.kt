@@ -117,7 +117,30 @@ private const val SPARE_HALF_HEIGHT = TYRE_HEIGHT * TYRE_ASPECT_RATIO / 2f
 
 /** A mono-wheel's tyre is drawn much taller and narrower than the others, its width following [MONOWHEEL_TYRE_RATIO] */
 private const val MONOWHEEL_TYRE_HEIGHT = .377f
-private const val MONOWHEEL_TYRE_RATIO = 16f / 52f
+private const val MONOWHEEL_TYRE_RATIO = 11.2f / 52f
+
+/** Distance between the centers of a vehicle's outermost tyres, as a fraction of the image width */
+private const val CAR_TRACK = .74f
+private const val CAR_WITH_SPARE_TRACK = .748f
+private const val TRAILER_TRACK = .86f
+private const val TADPOLE_FRONT_TRACK = .58f
+
+/**
+ * How far inside the image's edge the readouts' tyres reach, as a fraction of the image width. The
+ * readouts sit against their tyre, not against the image's edge: the image grows by as much, so the
+ * outlines reach [SCREEN_MARGIN] from the screen edges. The others' readouts sit against the image.
+ */
+private val Kind.readoutInset: Float
+    get() = when (this) {
+        Kind.CAR -> CAR_TRACK
+        Kind.CAR_WITH_SPARE -> CAR_WITH_SPARE_TRACK
+        Kind.SINGLE_AXLE_TRAILER -> TRAILER_TRACK
+        Kind.TADPOLE_THREE_WHEELER -> TADPOLE_FRONT_TRACK
+        Kind.MOTORCYCLE, Kind.DELTA_THREE_WHEELER, Kind.MONOWHEEL -> null
+    }
+        ?.let { track -> (1 - track) / 2 - TYRE_HEIGHT * TYRE_ASPECT_RATIO / 2 / IMAGE_RATIO }
+        ?.coerceAtLeast(0f)
+        ?: 0f
 
 /**
  * The current vehicle. Tapping a location without a sensor assigns it one by [scanQrCode],
@@ -151,14 +174,16 @@ public fun Vehicle(
     taps: TyreTaps = TyreTaps(),
 ) {
     KeepScreenOn()
-    val pressureUnit by component
-        .viewModel(component.key()) { it.VehicleSettingsViewModel() }
-        .pressureUnit
-        .collectAsState()
+    val settings = component.viewModel(component.key()) { it.VehicleSettingsViewModel() }
+    val pressureUnit by settings.pressureUnit.collectAsState()
+    // Outlines only show around locations to tap, see TyreTapArea: without any, the readouts
+    // need no room for them and the image grows by as much
+    val isOutlined = taps.isManaging || settings.isFullyAssigned.collectAsState().value.not()
     // Every readout as wide, so the outlines around them are too
-    val readoutSlotWidth = rememberWidestReadoutWidth(pressureUnit) + OUTLINE_PADDING
+    val readoutSlotWidth = rememberWidestReadoutWidth(pressureUnit, isOutlined)
+        .plus(OUTLINE_PADDING.takeIf { isOutlined } ?: 0.dp)
     // The outline reaches past the readout, it must stay off the screen's edge too
-    val readoutWidth = readoutSlotWidth + READOUT_GAP + OUTLINE_OUTSET
+    val readoutWidth = readoutSlotWidth + READOUT_GAP + (OUTLINE_OUTSET.takeIf { isOutlined } ?: 0.dp)
     val basicReadoutHeight = rememberBasicReadoutHeight()
     // The spare's readout is under the image, not next to it
     val readoutSides = component.vehicle.kind.locations.minus(Location.Spare).map { it.readoutSide }.toSet()
@@ -172,6 +197,7 @@ public fun Vehicle(
         val imageHeight = maxWidth
             .minus(readoutWidth * readoutSides.size)
             .minus(SCREEN_MARGIN * 2)
+            .div(1 - component.vehicle.kind.readoutInset * readoutSides.size)
             .div(maxHeight * IMAGE_RATIO)
             // (imageHeight * maxHeight)² * IMAGE_RATIO <= MAX_IMAGE_AREA * maxWidth * maxHeight
             .coerceAtMost(sqrt(MAX_IMAGE_AREA * maxWidth.value / (IMAGE_RATIO * maxHeight.value)))
@@ -320,18 +346,28 @@ private fun rememberBasicReadoutHeight(): Dp {
     }
 }
 
-/** Width of the widest line a [TyreReadout] can show, with the current font and font scale */
+/**
+ * Width of the widest line a [TyreReadout] can show, with the current font and font scale. Only a
+ * location without a sensor, outlined, shows what it shows instead ([isOutlined]).
+ */
 @Composable
-private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit): Dp {
+private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit, isOutlined: Boolean): Dp {
     val measurer = rememberTextMeasurer()
     val pressureStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
     val density = LocalDensity.current
-    return remember(measurer, pressureStyle, density, pressureUnit) {
+    return remember(measurer, pressureStyle, density, pressureUnit, isOutlined) {
         listOf(measurer.measure(pressureUnit.widestReadout, pressureStyle))
             .plus(WIDEST_DETAILS.map { measurer.measure(it, pressureStyle.copy(fontSize = 16.sp)) })
             // What a location without a sensor shows instead, see TyreReadout
-            .plus(measurer.measure("Tap to", pressureStyle.copy(fontSize = 20.sp)))
-            .plus(measurer.measure("(detected)", pressureStyle.copy(fontSize = 16.sp, fontWeight = FontWeight.Normal)))
+            .plus(
+                listOf(
+                    measurer.measure("Tap to", pressureStyle.copy(fontSize = 20.sp)),
+                    measurer.measure(
+                        "(detected)",
+                        pressureStyle.copy(fontSize = 16.sp, fontWeight = FontWeight.Normal),
+                    ),
+                ).takeIf { isOutlined }.orEmpty()
+            )
             .maxOf { it.size.width }
             .let { with(density) { it.toDp() } }
     }
@@ -464,7 +500,7 @@ private fun Car(
             rearRightTap
         ) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_car_top_view, "Image of your car", imageHeight)
-        ImageSpan(track, .74f, imageHeight)
+        ImageSpan(track, CAR_TRACK, imageHeight)
         val frontY = .217f
         val frontAxle = imageGuideline(frontY, imageHeight)
         val rearY = .783f
@@ -654,7 +690,7 @@ private fun CarWithSpare(
             rearRightTap
         ) = createRefs()
         VehicleImage(vehicleImage, R.drawable.schema_car_with_spare_top_view, "Image of your car", imageHeight)
-        ImageSpan(track, .748f, imageHeight)
+        ImageSpan(track, CAR_WITH_SPARE_TRACK, imageHeight)
         val frontY = .241f
         val frontAxle = imageGuideline(frontY, imageHeight)
         val rearY = .761f
@@ -962,7 +998,7 @@ private fun SingleAxleTrailer(
             "Image of your trailer",
             imageHeight
         )
-        ImageSpan(track, .86f, imageHeight)
+        ImageSpan(track, TRAILER_TRACK, imageHeight)
         val axleY = .686f
         val axle = imageGuideline(axleY, imageHeight)
         with(Location.Side(LEFT)) {
@@ -1197,7 +1233,7 @@ private fun TadpoleThreadWheeler(
             "Image of your three-wheeler",
             imageHeight
         )
-        ImageSpan(frontTrack, .58f, imageHeight)
+        ImageSpan(frontTrack, TADPOLE_FRONT_TRACK, imageHeight)
         // Outline around the rear wheel (the exhaust on the right), the rear readout sits next to it
         ImageSpan(rearOutline, .65f, imageHeight)
         val frontY = .1005f
