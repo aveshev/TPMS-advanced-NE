@@ -143,7 +143,7 @@ public fun Vehicle(
         .pressureUnit
         .collectAsState()
     // Every readout as wide, so the outlines around them are too
-    val readoutSlotWidth = rememberWidestReadoutWidth(pressureUnit)
+    val readoutSlotWidth = rememberWidestReadoutWidth(pressureUnit) + OUTLINE_PADDING
     val readoutWidth = readoutSlotWidth + READOUT_GAP
     val basicReadoutHeight = rememberBasicReadoutHeight()
     val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
