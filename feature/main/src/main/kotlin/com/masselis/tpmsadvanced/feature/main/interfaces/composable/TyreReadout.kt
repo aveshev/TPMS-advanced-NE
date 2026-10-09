@@ -29,6 +29,8 @@ import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 internal fun TyreReadout(
     location: Location,
     modifier: Modifier = Modifier,
+    /** See [TyreStat] */
+    isBasic: Boolean = false,
     vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
     viewModel: TyreActionsViewModel = vehicleComponent
         .TyreComponent(location)
@@ -37,7 +39,7 @@ internal fun TyreReadout(
     val state by viewModel.stateFlow.collectAsState()
     when (val state = state) {
         is State.Unassigned -> TapToAssign(location, state.detected != null, modifier)
-        State.Demo, is State.Assigned -> TyreStat(location = location, modifier = modifier)
+        State.Demo, is State.Assigned -> TyreStat(location = location, modifier = modifier, isBasic = isBasic)
     }
 }
 

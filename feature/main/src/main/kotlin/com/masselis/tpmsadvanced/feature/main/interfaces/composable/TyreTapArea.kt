@@ -4,10 +4,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,9 +42,10 @@ private val OUTSET = 6.dp
 private val SHAPE = RoundedCornerShape(12.dp)
 
 /**
- * Covers a location's tyre and readout. Tapping it assigns a sensor while there's none, and
- * manages the assigned one while [isManaging], when it's outlined to show it can be tapped.
+ * Covers a location's tyre and readout. Tapping it assigns a sensor while there's none, and opens
+ * a menu managing the assigned one while [isManaging], when it's outlined to show it can be tapped.
  */
+@Suppress("LongMethod")
 @Composable
 internal fun TyreTapArea(
     location: Location,
@@ -56,7 +59,9 @@ internal fun TyreTapArea(
         .let { viewModel(it.keyed()) { it.TyreActionsViewModel() } },
 ) {
     val state by viewModel.stateFlow.collectAsState()
-    var showDialog by rememberSaveable { mutableStateOf(false) }
+    // A dialog to assign a sensor, a menu to manage the assigned one
+    var isOpen by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val isTappable = when (state) {
         State.Demo -> false
         is State.Unassigned -> true
@@ -67,29 +72,52 @@ internal fun TyreTapArea(
             .outset(OUTSET)
             .run { if (isManaging) border(2.dp, MaterialTheme.colorScheme.primary, SHAPE) else this }
             .clip(SHAPE)
-            .run { if (isTappable) clickable { showDialog = true } else this }
+            .run { if (isTappable) clickable { isOpen = true } else this }
             .testTag(TyreTapAreaTags.root(location))
-    )
-    if (showDialog) when (val state = state) {
-        is State.Unassigned -> AssignSensorDialog(
-            location = location,
-            detected = state.detected,
-            scanQrCode = { showDialog = false; scanQrCode() },
-            scanBluetooth = { showDialog = false; scanBluetooth() },
-            assignDetected = { viewModel.assign(it); showDialog = false },
-            onDismissRequest = { showDialog = false },
-        )
-
-        is State.Assigned -> ManageSensorDialog(
-            location = location,
-            sensor = state.sensor,
-            delete = { viewModel.delete(); showDialog = false },
-            onDismissRequest = { showDialog = false },
-        )
-
-        // Never tappable
-        State.Demo -> {}
+    ) {
+        (state as? State.Assigned)?.also { assigned ->
+            ManageSensorMenu(
+                expanded = isOpen,
+                location = location,
+                sensor = assigned.sensor,
+                delete = { isOpen = false; confirmDelete = true },
+                onDismissRequest = { isOpen = false },
+            )
+        }
     }
+    (state as? State.Unassigned)
+        ?.takeIf { isOpen }
+        ?.also { unassigned ->
+            AssignSensorDialog(
+                location = location,
+                detected = unassigned.detected,
+                scanQrCode = { isOpen = false; scanQrCode() },
+                scanBluetooth = { isOpen = false; scanBluetooth() },
+                assignDetected = { viewModel.assign(it); isOpen = false },
+                onDismissRequest = { isOpen = false },
+            )
+        }
+    if (confirmDelete) AlertDialog(
+        onDismissRequest = { confirmDelete = false },
+        text = {
+            Text(
+                buildString {
+                    append("Remove the sensor from the ")
+                    appendLoc(location)
+                    append("?\nThis cannot be undone.")
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { viewModel.delete(); confirmDelete = false },
+                modifier = Modifier.testTag(TyreTapAreaTags.confirmDelete),
+            ) { Text("Remove") }
+        },
+    )
 }
 
 /** Grows by [outset] on every side, around what it's laid out on */
@@ -108,70 +136,59 @@ private fun Modifier.outset(outset: Dp) = layout { measurable, constraints ->
     }
 }
 
-/** What can be done with the [sensor] assigned to [location] */
+/** What can be done with the [sensor] assigned to [location], under its position and id */
 @Composable
-private fun ManageSensorDialog(
+private fun ManageSensorMenu(
+    expanded: Boolean,
     location: Location,
     sensor: Sensor,
     delete: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    if (confirmDelete) AlertDialog(
-        onDismissRequest = { confirmDelete = false },
-        text = {
-            Text(
-                buildString {
-                    append("Remove the sensor from the ")
-                    appendLoc(location)
-                    append("?\nThis cannot be undone.")
-                }
-            )
-        },
-        dismissButton = {
-            TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = delete,
-                modifier = Modifier.testTag(TyreTapAreaTags.confirmDelete),
-            ) { Text("Remove") }
-        },
-        modifier = modifier,
-    )
-    else AlertDialog(
+    DropdownMenu(
+        expanded = expanded,
         onDismissRequest = onDismissRequest,
-        title = { Text(buildString { appendLoc(location, withType = false, capitalized = true) }) },
-        text = {
-            Column {
-                Text("Sensor ${sensor.id.asSensorId()}", style = MaterialTheme.typography.bodySmall)
-                TextButton(
-                    onClick = { confirmDelete = true },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(TyreTapAreaTags.delete),
-                ) { Text("Delete", modifier = Modifier.fillMaxWidth()) }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) { Text("Cancel") }
-        },
-        modifier = modifier.testTag(TyreTapAreaTags.manageDialog),
-    )
+        modifier = modifier.testTag(TyreTapAreaTags.manageMenu),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                buildString { appendLoc(location, withType = false, capitalized = true) },
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                "Sensor ${sensor.id.asSensorId()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        HorizontalDivider()
+        DropdownMenuItem(
+            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+            onClick = delete,
+            modifier = Modifier.testTag(TyreTapAreaTags.delete),
+        )
+    }
 }
 
 @Preview
 @Composable
-internal fun ManageSensorDialogPreview() {
-    ManageSensorDialog(Location.Wheel(FRONT_RIGHT), Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM), {}, {})
+internal fun ManageSensorMenuPreview() {
+    Box {
+        ManageSensorMenu(
+            true,
+            Location.Wheel(FRONT_RIGHT),
+            Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM),
+            {},
+            {},
+        )
+    }
 }
 
 @Suppress("ConstPropertyName")
 internal object TyreTapAreaTags {
     fun root(location: Location) = "TyreTapAreaTags_root_$location"
-    const val manageDialog = "TyreTapAreaTags_manageDialog"
+    const val manageMenu = "TyreTapAreaTags_manageMenu"
     const val delete = "TyreTapAreaTags_delete"
     const val confirmDelete = "TyreTapAreaTags_confirmDelete"
 }

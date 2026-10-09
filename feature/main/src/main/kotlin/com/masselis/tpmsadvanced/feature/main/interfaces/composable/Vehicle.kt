@@ -4,29 +4,20 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
@@ -35,11 +26,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -119,27 +108,22 @@ private const val TYRE_HEIGHT = .165f
 
 /**
  * The current vehicle. Tapping a location without a sensor assigns it one by [scanQrCode],
- * [scanBluetooth] or the sensor detected there. While [isManaging], every location is outlined and
- * tapping one manages its sensor, until [onManagingDone] (Done, or back).
+ * [scanBluetooth] or the sensor detected there.
  */
 @Composable
 public fun CurrentVehicle(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     center: @Composable (Modifier) -> Unit = {},
-    isManaging: Boolean = false,
-    onManagingDone: () -> Unit = {},
     scanQrCode: () -> Unit = {},
     scanBluetooth: () -> Unit = {},
 ) {
-    BackHandler(enabled = isManaging, onBack = onManagingDone)
     Vehicle(
         component = LocalVehicleComponent.current,
         snackbarHostState = snackbarHostState,
         modifier = modifier,
-        // The prompt takes the place of what's usually there, the silence button
-        center = if (isManaging) { centerModifier -> ManagePrompt(onManagingDone, centerModifier) } else center,
-        taps = TyreTaps(isManaging, scanQrCode, scanBluetooth),
+        center = center,
+        taps = TyreTaps(isManaging = false, scanQrCode = scanQrCode, scanBluetooth = scanBluetooth),
     )
 }
 
@@ -158,6 +142,7 @@ public fun Vehicle(
         .pressureUnit
         .collectAsState()
     val readoutWidth = rememberWidestReadoutWidth(pressureUnit) + READOUT_GAP
+    val basicReadoutHeight = rememberBasicReadoutHeight()
     val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
     BoxWithConstraints(modifier) {
         val imageHeight = maxWidth
@@ -177,43 +162,29 @@ public fun Vehicle(
                 ).fold(0.dp, Dp::plus) / 2
             )
         when (component.vehicle.kind) {
-            Kind.CAR -> Car(imageHeight, snackbarHostState, center, taps, fill)
-            Kind.SINGLE_AXLE_TRAILER -> SingleAxleTrailer(imageHeight, snackbarHostState, center, taps, fill)
-            Kind.MOTORCYCLE -> Motorcycle(imageHeight, snackbarHostState, center, taps, fill)
-            Kind.TADPOLE_THREE_WHEELER -> TadpoleThreadWheeler(imageHeight, snackbarHostState, center, taps, fill)
-            Kind.DELTA_THREE_WHEELER -> DeltaThreeWheeler(imageHeight, snackbarHostState, center, taps, fill)
+            Kind.CAR -> 
+                Car(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+            Kind.SINGLE_AXLE_TRAILER -> 
+                SingleAxleTrailer(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+            Kind.MOTORCYCLE -> 
+                Motorcycle(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+            Kind.TADPOLE_THREE_WHEELER -> 
+                TadpoleThreadWheeler(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+            Kind.DELTA_THREE_WHEELER -> 
+                DeltaThreeWheeler(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
         }
     }
 }
 
-/** What tapping the vehicle's locations does, see [CurrentVehicle] */
+/**
+ * What tapping the vehicle's locations does. While [isManaging], see [ManageSensors], every
+ * location is outlined and its readout keeps to its pressure, temperature and time since update.
+ */
 public class TyreTaps(
     internal val isManaging: Boolean = false,
     internal val scanQrCode: () -> Unit = {},
     internal val scanBluetooth: () -> Unit = {},
 )
-
-@Composable
-private fun ManagePrompt(onDone: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 3.dp,
-        shadowElevation = 3.dp,
-        modifier = modifier
-            .widthIn(max = 180.dp)
-            .testTag(VehicleTags.managePrompt),
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
-        ) {
-            Text("Tap the wheel/sensor to manage", textAlign = TextAlign.Center)
-            TextButton(onClick = onDone, modifier = Modifier.testTag(VehicleTags.manageDone)) {
-                Text("Done")
-            }
-        }
-    }
-}
 
 /** Spans [tyre] and its [readout], whichever side of the tyre the readout of [location] is on */
 private fun ConstrainScope.around(
@@ -238,10 +209,13 @@ private fun ConstrainScope.around(
     height = Dimension.fillToConstraints
 }
 
-@Suppress("ConstPropertyName")
-internal object VehicleTags {
-    const val managePrompt = "VehicleTags_managePrompt"
-    const val manageDone = "VehicleTags_manageDone"
+/** At least [minHeight] tall, growing evenly above and below, to hold a basic readout */
+private fun Modifier.centeredMinHeight(minHeight: Dp) = layout { measurable, constraints ->
+    val height = constraints.maxHeight.coerceAtLeast(minHeight.roundToPx())
+    val placeable = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+    layout(placeable.width, constraints.maxHeight) {
+        placeable.place(0, (constraints.maxHeight - height) / 2)
+    }
 }
 
 /** Side of the image the readout of this location sits on, see the layouts below */
@@ -251,6 +225,19 @@ internal val Location.readoutSide: SensorLocation.Side
         is Location.Wheel -> location.side
         is Location.Side -> side
     }
+
+/** Height of a [TyreStat] showing only its pressure, temperature and time since update */
+@Composable
+private fun rememberBasicReadoutHeight(): Dp {
+    val measurer = rememberTextMeasurer()
+    val pressureStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
+    val density = LocalDensity.current
+    return remember(measurer, pressureStyle, density) {
+        measurer.measure("0", pressureStyle).size.height
+            .plus(measurer.measure("0", pressureStyle.copy(fontSize = 16.sp)).size.height * 2)
+            .let { with(density) { it.toDp() } }
+    }
+}
 
 /** Width of the widest line a [TyreStat] can show, with the current font and font scale */
 @Composable
@@ -354,6 +341,7 @@ private fun Car(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -391,6 +379,7 @@ private fun Car(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -405,7 +394,9 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Wheel(FRONT_RIGHT)) {
@@ -420,6 +411,7 @@ private fun Car(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -432,7 +424,9 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_LEFT)) {
@@ -447,6 +441,7 @@ private fun Car(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -460,7 +455,9 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -475,6 +472,7 @@ private fun Car(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rearRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -487,7 +485,9 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -509,6 +509,7 @@ private fun SingleAxleTrailer(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -543,6 +544,7 @@ private fun SingleAxleTrailer(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(leftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -556,7 +558,9 @@ private fun SingleAxleTrailer(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(leftTap) { around(tyreLeft, leftStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(leftTap) { around(tyreLeft, leftStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Side(RIGHT)) {
@@ -571,6 +575,7 @@ private fun SingleAxleTrailer(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -583,7 +588,9 @@ private fun SingleAxleTrailer(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rightTap) { around(tyreRight, rightStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rightTap) { around(tyreRight, rightStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -606,6 +613,7 @@ private fun Motorcycle(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -640,6 +648,7 @@ private fun Motorcycle(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(frontStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -652,7 +661,9 @@ private fun Motorcycle(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Axle(REAR)) {
@@ -667,6 +678,7 @@ private fun Motorcycle(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rearStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -679,7 +691,9 @@ private fun Motorcycle(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -701,6 +715,7 @@ private fun TadpoleThreadWheeler(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -743,6 +758,7 @@ private fun TadpoleThreadWheeler(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(frontLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -757,7 +773,9 @@ private fun TadpoleThreadWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Wheel(FRONT_RIGHT)) {
@@ -772,6 +790,7 @@ private fun TadpoleThreadWheeler(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(frontRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -784,7 +803,9 @@ private fun TadpoleThreadWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Axle(REAR)) {
@@ -799,6 +820,7 @@ private fun TadpoleThreadWheeler(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rearStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -811,7 +833,9 @@ private fun TadpoleThreadWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -833,6 +857,7 @@ private fun DeltaThreeWheeler(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     ConstraintLayout(modifier = modifier) {
@@ -875,6 +900,7 @@ private fun DeltaThreeWheeler(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(frontStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -887,7 +913,9 @@ private fun DeltaThreeWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_LEFT)) {
@@ -902,6 +930,7 @@ private fun DeltaThreeWheeler(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rearLeftStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -915,7 +944,9 @@ private fun DeltaThreeWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -930,6 +961,7 @@ private fun DeltaThreeWheeler(
             )
             TyreReadout(
                 location = this,
+                isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(rearRightStats) {
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
@@ -942,7 +974,9 @@ private fun DeltaThreeWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
-                modifier = Modifier.constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
+                modifier = Modifier
+                    .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
+                    .centeredMinHeight(basicReadoutHeight),
             )
         }
         // Last, over everything else

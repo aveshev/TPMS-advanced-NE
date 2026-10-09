@@ -67,6 +67,8 @@ internal fun Int.asSensorId(): String =
 internal fun TyreStat(
     location: Location,
     modifier: Modifier = Modifier,
+    /** Only the pressure, temperature and time since update, whatever the settings and alerts */
+    isBasic: Boolean = false,
     vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
     viewModel: TyreStatsViewModel = vehicleComponent
         .TyreComponent(location)
@@ -77,7 +79,11 @@ internal fun TyreStat(
     val showSensorFlags by viewModel.showSensorFlags.collectAsState()
     val showTimeSinceUpdate by viewModel.showTimeSinceUpdate.collectAsState()
     val showBatteryVoltage by viewModel.showBatteryVoltage.collectAsState()
-    TyreStat(location, state, showSensorId, showTimeSinceUpdate, showBatteryVoltage, showSensorFlags, modifier)
+    if (isBasic) TyreStat(location, state, isBasic = true, modifier = modifier)
+    else TyreStat(
+        location, state, showSensorId, showTimeSinceUpdate, showBatteryVoltage, showSensorFlags,
+        modifier = modifier,
+    )
 }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -89,6 +95,7 @@ private fun TyreStat(
     showTimeSinceUpdate: Boolean = true,
     showBatteryVoltage: Boolean = false,
     showSensorFlags: Boolean = false,
+    isBasic: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val detected = state as? State.Detected
@@ -142,14 +149,14 @@ private fun TyreStat(
         // The sensor's own alarm, its meaning isn't documented but a leak is the likely one. The
         // pressure and temperature above stay as the sensor read them. The same goes for the
         // pressure falling while riding.
-        if (PRESSURE_LOSS in levels || SENSOR_ALARM in levels) {
+        if (isBasic.not() && (PRESSURE_LOSS in levels || SENSOR_ALARM in levels)) {
             Reading("Leaking?", AMBER, Modifier.align(alignment), fontSize = 16.sp)
         }
 
         // A battery getting low shows whatever the setting
         detected
             ?.let { it.batteryVoltage?.string() ?: it.batteryPercent?.let { percent -> "$percent %" } }
-            ?.takeIf { showBatteryVoltage || BATTERY in levels }
+            ?.takeIf { showBatteryVoltage || (isBasic.not() && BATTERY in levels) }
             ?.also { Reading(it, levels[BATTERY], Modifier.align(alignment), fontSize = 16.sp) }
 
         if (sensorId != null && showSensorId) {

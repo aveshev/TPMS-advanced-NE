@@ -72,6 +72,7 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.composable.CurrentVehic
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.SimulateReadingDialog
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.isReadingSimulationAvailable
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicleComponent
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ManageSensors
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeScan
 import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.UnlocatedSensorList
@@ -114,8 +115,6 @@ internal fun VehicleHome(
         var showManualMonitoringSpotlight by remember { mutableStateOf(false) }
         var showAndroidAutoSupportAlert by remember { mutableStateOf(false) }
         var showWicarlinkSupportAlert by remember { mutableStateOf(false) }
-        // Kept while switching vehicles, Done or back ends it
-        var managingSensors by rememberSaveable { mutableStateOf(false) }
         val snackbarHostState = remember { SnackbarHostState() }
         Scaffold(
             topBar = {
@@ -149,8 +148,6 @@ internal fun VehicleHome(
                             snackbarHostState = snackbarHostState,
                             modifier = modifier,
                             center = { SilenceAlertsButton(it) },
-                            isManaging = managingSensors,
-                            onManagingDone = { managingSensors = false },
                             scanQrCode = {
                                 navController.navigate("${Path.QrCode(vehicleComponent.vehicle.uuid)}")
                             },
@@ -171,11 +168,22 @@ internal fun VehicleHome(
                                 navController.navigate("${Path.BatterySettings(vehicleComponent.vehicle.uuid)}")
                             },
                             openManageSensors = {
-                                managingSensors = true
-                                navController.popBackStack("${Path.Home(vehicleComponent.vehicle.uuid)}", false)
+                                navController.navigate("${Path.ManageSensors(vehicleComponent.vehicle.uuid)}")
                             },
                             openCalibration = {
                                 navController.navigate("${Path.CalibrationSettings(vehicleComponent.vehicle.uuid)}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.ManageSensors(vehicleComponent.vehicle.uuid)}") {
+                        ManageSensors(
+                            snackbarHostState = snackbarHostState,
+                            scanQrCode = {
+                                navController.navigate("${Path.QrCode(vehicleComponent.vehicle.uuid)}")
+                            },
+                            scanBluetooth = {
+                                navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
                             },
                             modifier = modifier
                         )
@@ -313,11 +321,10 @@ internal fun VehicleHome(
                     composable("${Path.Unlocated(vehicleComponent.vehicle.uuid)}") {
                         UnlocatedSensorList(
                             vehicleUuid = vehicleComponent.vehicle.uuid,
+                            // Back to the screen the assignment started from, home or the sensors
                             bindingFinished = {
-                                navController.popBackStack(
-                                    "${Path.Home(vehicleComponent.vehicle.uuid)}",
-                                    false
-                                )
+                                navController.popBackStack("${Path.Unlocated(vehicleComponent.vehicle.uuid)}", true)
+                                navController.popBackStack("${Path.QrCode(vehicleComponent.vehicle.uuid)}", true)
                             },
                             modifier = modifier
                         )
@@ -400,6 +407,7 @@ private fun TopAppBar(
                     overflow = TextOverflow.Ellipsis,
                 )
 
+                is Path.ManageSensors -> Text(text = "Manage sensors")
                 is Path.PressureSettings -> Text(text = "Pressure")
                 is Path.TemperatureSettings -> Text(text = "Temperature")
                 is Path.CalibrationSettings -> Text(text = "Pressure calibration")
@@ -424,6 +432,7 @@ private fun TopAppBar(
         navigationIcon = {
             when (currentPath) {
                 is Path.Settings,
+                is Path.ManageSensors,
                 is Path.PressureSettings,
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
@@ -513,6 +522,7 @@ private fun TopAppBar(
                 }
 
                 is Path.Settings,
+                is Path.ManageSensors,
                 is Path.PressureSettings,
                 is Path.TemperatureSettings,
                 is Path.CalibrationSettings,
