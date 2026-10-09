@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Themed (monochrome) layer of the adaptive launcher icon, Android 13+ tints it with the wallpaper
-  colours. It's ic_launcher_foreground's glyph and dot in a single colour, on the same 432px grid so
-  both line up exactly.
+  Foreground layer of the adaptive launcher icon: the stock tyre pressure warning glyph, lit green
+  like a dashboard indicator, with a dot at its bottom right telling the monitor is always on.
+  Drawn on a 432px grid (108dp at xxxhdpi), the launcher shows its middle 288px, so everything stays
+  inside the 264px safe zone. ic_launcher_monochrome draws the same shapes for themed icons.
+  The colours come from app/phone/build.gradle.kts, per app.brand: a TPMS Advanced build draws
+  the glyph black on green, and its dot transparent.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -13,16 +16,16 @@
     <group>
         <clip-path android:pathData="M0,0 H169.5 V150 H262.5 V0 H432 V290 H0 Z" />
         <path
-            android:fillColor="#FF000000"
+            android:fillColor="@color/ic_launcher_glyph"
             android:fillType="evenOdd"
             android:pathData="M123,207 A93,93 0 1,0 309,207 A93,93 0 1,0 123,207 Z M141,207 A75,75 0 1,1 291,207 A75,75 0 1,1 141,207 Z" />
     </group>
     <!-- Stems, exclamation mark, tread and its four blocks -->
     <path
-        android:fillColor="#FF000000"
+        android:fillColor="@color/ic_launcher_glyph"
         android:pathData="M151,123 H169.5 V150 H151 Z M262.5,123 H281 V150 H262.5 Z M206.75,151 H225.25 V207 H206.75 Z M206.75,226 H225.25 V244 H206.75 Z M151,272 H281 V290 H151 Z M151,290 H169.5 V309.5 H151 Z M188,290 H206.5 V309.5 H188 Z M225.5,290 H244 V309.5 H225.5 Z M262.5,290 H281 V309.5 H262.5 Z" />
     <!-- The "always on" dot -->
     <path
-        android:fillColor="#FF000000"
+        android:fillColor="@color/ic_launcher_dot"
         android:pathData="M291,292 A15,15 0 1,0 321,292 A15,15 0 1,0 291,292 Z" />
 </vector>

@@ -92,6 +92,10 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings/activate_scan_conditions/beacons/scan"
     }
 
+    data object Licenses : Path {
+        override fun toString(): String = "app_settings/licenses"
+    }
+
     /** Scans a QR code for the location at [location] in the vehicle kind's locations */
     data class QrCode(val vehicleUUID: UUID, val location: Int) : Path {
         override fun toString(): String = "vehicle/$vehicleUUID/qrcode/$location"
@@ -131,6 +135,7 @@ internal sealed interface Path {
                 SuspendBluetoothDevices,
                 Beacons,
                 BeaconScan,
+                Licenses,
             )
 
         @Suppress("CyclomaticComplexMethod", "MagicNumber")

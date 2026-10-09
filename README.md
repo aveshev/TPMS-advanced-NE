@@ -1,14 +1,14 @@
 [![Develop](https://github.com/VincentMasselis/TPMS-advanced/actions/workflows/develop.yml/badge.svg)](https://github.com/VincentMasselis/TPMS-advanced/actions/workflows/develop.yml)
 
-# TPMS-advanced-NE
+# Persistent TPMS
 
-> **NE = Nerd Edition.** A fork of [VincentMasselis/TPMS-advanced](https://github.com/VincentMasselis/TPMS-advanced). Playing around with Claude Code, adding features that won't necessarily make it into the main TPMS Advanced.
+> A fork of [TPMS Advanced](https://github.com/VincentMasselis/TPMS-advanced) by Vincent Masselis, released under the [Apache License 2.0](LICENSE), with features that won't necessarily make it into the main TPMS Advanced. Formerly TPMS-advanced-NE (Nerd Edition). [Privacy policy](https://aveshev.com/persistent-tpms/privacy/)
 
 Android app for Bluetooth Low Energy TPMS sensors made by the manufacturers Sysgration and Pecham 
 
 <img src="https://user-images.githubusercontent.com/6769250/192485450-354d941b-47e7-4078-bede-5c28ace85b30.png" width="200"> <img src="https://user-images.githubusercontent.com/6769250/192485472-8c2c60fd-da54-4703-99db-3113e1339676.png" width="200"> <img src="https://user-images.githubusercontent.com/6769250/192485477-24ef7b35-8b37-4c40-b98e-e7025980d3f6.png" width="200"> <img src="https://user-images.githubusercontent.com/6769250/192485485-493ee137-6d88-43fc-b6fa-e50a31c96696.png" width="200">
 
-Regular (non-NE) edition available on the [Play Store](https://play.google.com/store/apps/details?id=com.masselis.tpmsadvanced)
+The original TPMS Advanced is available on the [Play Store](https://play.google.com/store/apps/details?id=com.masselis.tpmsadvanced)
 
 I will put a compiled release of the NE edition here once it's deemed polished enough.
 

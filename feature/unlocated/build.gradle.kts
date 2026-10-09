@@ -2,7 +2,6 @@ plugins {
     `android-lib`
     compose
     alias(libs.plugins.metro)
-    alias(libs.plugins.paparazzi)
 }
 
 android {
