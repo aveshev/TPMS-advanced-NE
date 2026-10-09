@@ -166,5 +166,27 @@ internal class MainFeatureTest {
         listOf(FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT).forEach {
             wheel(Location.Wheel(it)) { waitUntilAssigned() }
         }
+        actionOverflow {
+            settings {
+                manageSensors {
+                    // Front left and right swap their sensors
+                    wheel(Location.Wheel(FRONT_LEFT)) { manage { move() } }
+                    wheel(Location.Wheel(FRONT_RIGHT)) { tapWhileMoving() }
+                    justSwap()
+                    confirmMove()
+                    // Then all four rotate, the rear left's sensor coming back to the front left
+                    wheel(Location.Wheel(FRONT_LEFT)) { manage { move() } }
+                    wheel(Location.Wheel(FRONT_RIGHT)) { tapWhileMoving() }
+                    multiWheelChange()
+                    wheel(Location.Wheel(REAR_RIGHT)) { tapWhileMoving() }
+                    confirmMove()
+                    listOf(FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT).forEach {
+                        wheel(Location.Wheel(it)) { waitUntilAssigned() }
+                    }
+                    leave()
+                }
+                leave()
+            }
+        }
     }
 }

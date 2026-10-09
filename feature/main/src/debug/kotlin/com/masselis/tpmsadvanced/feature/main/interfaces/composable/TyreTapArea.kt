@@ -42,6 +42,12 @@ public class TyreTapArea private constructor(
         waitForIdle()
     }
 
+    /** Sends the moving sensor here, see `ManageSensors` */
+    public fun tapWhileMoving() {
+        area.performClick()
+        waitForIdle()
+    }
+
     /** Only on the sensors' page, see `ManageSensors` */
     public fun manage(instructions: Instructions<ManageSensorDialog>) {
         area.performClick()

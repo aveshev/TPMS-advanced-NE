@@ -27,6 +27,24 @@ public class ManageSensors private constructor(
         TyreTapArea(location).process(instructions)
     }
 
+    /** Answers the question asked when the sensor is sent to a location with a sensor */
+    public fun justSwap() {
+        waitUntilExactlyOneExists(hasTestTag(ManageSensorsTags.askDialog))
+        onNodeWithTag(ManageSensorsTags.justSwap).performClick()
+    }
+
+    public fun multiWheelChange() {
+        waitUntilExactlyOneExists(hasTestTag(ManageSensorsTags.askDialog))
+        onNodeWithTag(ManageSensorsTags.multiWheel).performClick()
+    }
+
+    /** Applies the moves listed once the move is complete */
+    public fun confirmMove() {
+        waitUntilExactlyOneExists(hasTestTag(ManageSensorsTags.confirmDialog))
+        onNodeWithTag(ManageSensorsTags.confirmMove).performClick()
+        waitUntilDoesNotExist(hasTestTag(ManageSensorsTags.confirmDialog))
+    }
+
     public fun leave(): ExitToken<ManageSensors> {
         onNodeWithTag(backButtonTag).performClick()
         return exitToken
