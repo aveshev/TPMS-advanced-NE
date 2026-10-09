@@ -179,6 +179,14 @@ internal class MainFeatureTest {
                     wheel(Location.Wheel(FRONT_RIGHT)) { tapWhileMoving() }
                     multiWheelChange()
                     wheel(Location.Wheel(REAR_RIGHT)) { tapWhileMoving() }
+                    wheel(Location.Wheel(REAR_LEFT)) { tapWhileMoving() }
+                    confirmMove()
+                    // And three of them, the rear right's sensor going to the front left
+                    wheel(Location.Wheel(FRONT_LEFT)) { manage { move() } }
+                    wheel(Location.Wheel(FRONT_RIGHT)) { tapWhileMoving() }
+                    multiWheelChange()
+                    wheel(Location.Wheel(REAR_RIGHT)) { tapWhileMoving() }
+                    wheel(Location.Wheel(FRONT_LEFT)) { tapWhileMoving() }
                     confirmMove()
                     listOf(FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT).forEach {
                         wheel(Location.Wheel(it)) { waitUntilAssigned() }

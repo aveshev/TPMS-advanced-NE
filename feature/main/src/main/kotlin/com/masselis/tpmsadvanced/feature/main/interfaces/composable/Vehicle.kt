@@ -194,8 +194,10 @@ public class TyreTaps internal constructor(
     internal val startMove: (Location) -> Unit = {},
 )
 
-/** A sensor moving along [chain], [onTap] picking the next location */
-internal class TyreMove(val chain: MoveChain, val onTap: (Location) -> Unit)
+/** A sensor moving along [chain] on a vehicle with [all] these locations, [onTap] picking the next one */
+internal class TyreMove(val chain: MoveChain, private val all: Collection<Location>, val onTap: (Location) -> Unit) {
+    fun canTap(location: Location): Boolean = chain.canTap(location, all)
+}
 
 /**
  * Spans [tyre] and its [readout], whichever side of the tyre the readout of [location] is on, and
@@ -401,6 +403,7 @@ private fun Car(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(frontLeft) {
                     centerAround(track.start)
                     centerAround(frontAxle)
@@ -434,6 +437,7 @@ private fun Car(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(frontRight) {
                     centerAround(track.end)
                     centerAround(frontAxle)
@@ -467,6 +471,7 @@ private fun Car(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(rearLeft) {
                     centerAround(track.start)
                     centerAround(rearAxle)
@@ -500,6 +505,7 @@ private fun Car(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(rearRight) {
                     centerAround(track.end)
                     centerAround(rearAxle)
@@ -576,6 +582,7 @@ private fun SingleAxleTrailer(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(tyreLeft) {
                     centerAround(track.start)
                     centerAround(axle)
@@ -609,6 +616,7 @@ private fun SingleAxleTrailer(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(tyreRight) {
                     centerAround(track.end)
                     centerAround(axle)
@@ -686,6 +694,7 @@ private fun Motorcycle(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(tyreFront) {
                     centerHorizontallyTo(vehicleImage)
                     centerAround(frontAxle)
@@ -719,6 +728,7 @@ private fun Motorcycle(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(tyreRear) {
                     centerHorizontallyTo(vehicleImage)
                     centerAround(rearAxle)
@@ -803,6 +813,7 @@ private fun TadpoleThreadWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(frontLeft) {
                     centerAround(frontTrack.start)
                     centerAround(frontAxle)
@@ -836,6 +847,7 @@ private fun TadpoleThreadWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(frontRight) {
                     centerAround(frontTrack.end)
                     centerAround(frontAxle)
@@ -869,6 +881,7 @@ private fun TadpoleThreadWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(tyreRear) {
                     centerHorizontallyTo(vehicleImage)
                     centerAround(rearAxle)
@@ -953,6 +966,7 @@ private fun DeltaThreeWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(tyreFront) {
                     centerHorizontallyTo(vehicleImage)
                     centerAround(frontAxle)
@@ -986,6 +1000,7 @@ private fun DeltaThreeWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(rearLeft) {
                     centerAround(rearTrack.start)
                     centerAround(rearAxle)
@@ -1019,6 +1034,7 @@ private fun DeltaThreeWheeler(
             Tyre(
                 location = this,
                 snackbarHostState = snackbarHostState,
+                blinks = taps.isManaging.not(),
                 modifier = Modifier.constrainAs(rearRight) {
                     centerAround(rearTrack.end)
                     centerAround(rearAxle)

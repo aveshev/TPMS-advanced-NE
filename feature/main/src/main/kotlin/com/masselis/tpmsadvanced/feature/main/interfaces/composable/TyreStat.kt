@@ -128,6 +128,8 @@ private fun TyreStat(
                 ?: "-.--",
             levels[PRESSURE],
             Modifier.align(alignment),
+            // Still on the sensors' page, where they're only checked
+            blinks = isBasic.not(),
         )
 
         Reading(
@@ -135,6 +137,7 @@ private fun TyreStat(
             levels[TEMPERATURE],
             Modifier.align(alignment),
             fontSize = 16.sp,
+            blinks = isBasic.not(),
         )
 
         if (showTimeSinceUpdate && detected != null) {
@@ -196,7 +199,7 @@ private fun TyreStat(
 
 /**
  * A value in the colour of its alert [level]: blinking while red, alternating with "CRITICAL"
- * while crimson, in sync with the tyres
+ * while crimson, in sync with the tyres, when it [blinks]
  */
 @Composable
 private fun Reading(
@@ -204,8 +207,9 @@ private fun Reading(
     level: AlertLevel?,
     modifier: Modifier = Modifier,
     fontSize: TextUnit = TextUnit.Unspecified,
+    blinks: Boolean = true,
 ) = Text(
-    if (level == CRIMSON && isFirstBlinkPhase(CRITICAL_LABEL_BLINK).not()) "CRITICAL" else text,
+    if (blinks && level == CRIMSON && isFirstBlinkPhase(CRITICAL_LABEL_BLINK).not()) "CRITICAL" else text,
     fontWeight = FontWeight.SemiBold,
     maxLines = 1,
     fontSize = fontSize,
@@ -214,7 +218,7 @@ private fun Reading(
         AMBER -> Orange
         RED, CRIMSON -> MaterialTheme.colorScheme.error
     },
-    modifier = modifier.alpha(if (level == RED && isFirstBlinkPhase(BLINK).not()) 0f else 1f),
+    modifier = modifier.alpha(if (blinks && level == RED && isFirstBlinkPhase(BLINK).not()) 0f else 1f),
 )
 
 private const val UNSET_FLAG_ALPHA = 0.3f

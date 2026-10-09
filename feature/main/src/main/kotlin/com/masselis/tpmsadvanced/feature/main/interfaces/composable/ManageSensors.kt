@@ -82,7 +82,7 @@ public fun ManageSensors(
             modifier = Modifier.padding(horizontal = 16.dp),
         ) {
             Text(
-                text = if (moving != null) "Tap the wheel you want this sensor assigned to"
+                text = if (moving != null) "Tap the wheel to move to"
                 else "Tap the wheel/sensor to manage",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -104,7 +104,7 @@ public fun ManageSensors(
                 scanQrCode = scanQrCode,
                 scanBluetooth = scanBluetooth,
                 move = moving?.let { chain ->
-                    TyreMove(chain) { target ->
+                    TyreMove(chain, all) { target ->
                         when (val step = chain.tap(target, occupied, all)) {
                             is Step.Done -> confirming = step.chain
                             is Step.AskSwapOrChain -> asking = step.chain

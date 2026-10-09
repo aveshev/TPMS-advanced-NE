@@ -62,12 +62,30 @@ internal class MoveChainTest {
     }
 
     @Test
-    fun `a car's full rotation sends the last sensor to the start`() {
+    fun `a car's full rotation sends the last sensor to the start by itself`() {
         val occupied = car.toSet()
         val asked = assertIs<Step.AskSwapOrChain>(MoveChain.from(fl).tap(fr, occupied, car))
         val waiting = assertIs<Step.Continue>(asked.chain.continuing(car))
-        val done = assertIs<Step.Done>(waiting.chain.tap(rr, occupied, car))
+        // The rear right's sensor can still go to the start or the rear left
+        val third = assertIs<Step.Continue>(waiting.chain.tap(rr, occupied, car))
+        assertEquals(setOf(fl, rl), third.chain.options(car).toSet())
+        val done = assertIs<Step.Done>(third.chain.tap(rl, occupied, car))
         assertEquals(listOf(fl to fr, fr to rr, rr to rl, rl to fl), done.chain.moves(occupied))
+    }
+
+    @Test
+    fun `three of a car's four sensors rotate when the third goes back to the start`() {
+        val occupied = car.toSet()
+        val asked = assertIs<Step.AskSwapOrChain>(MoveChain.from(fl).tap(fr, occupied, car))
+        val waiting = assertIs<Step.Continue>(asked.chain.continuing(car))
+        val third = assertIs<Step.Continue>(waiting.chain.tap(rr, occupied, car))
+        val done = assertIs<Step.Done>(third.chain.tap(fl, occupied, car))
+        assertEquals(listOf(fl to fr, fr to rr, rr to fl), done.chain.moves(occupied))
+    }
+
+    @Test
+    fun `the start can't take the second location's sensor, that's a swap`() {
+        assertEquals(setOf(rl, rr), MoveChain(listOf(fl, fr)).options(car).toSet())
     }
 
     @Test

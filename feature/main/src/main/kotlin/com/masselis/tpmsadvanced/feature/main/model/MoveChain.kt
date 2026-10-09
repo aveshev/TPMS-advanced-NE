@@ -20,8 +20,15 @@ internal data class MoveChain(val locations: List<Location>) : Parcelable {
     /** Where the sensor that moved last was sent to, the one now asking for a location */
     val last: Location get() = locations.last()
 
-    /** The locations the next sensor can be sent to, among the vehicle's [all] */
-    fun remaining(all: Collection<Location>): List<Location> = all.filter { it !in locations }
+    /**
+     * The locations the last sensor can be sent to, among the vehicle's [all]: those not in the
+     * chain yet, and the start once the chain goes through three locations or more, closing it.
+     * Sent back to the start from the second location would be a swap.
+     */
+    fun options(all: Collection<Location>): List<Location> = all
+        .filter { it !in locations || (it == start && locations.size >= CLOSING_SIZE) }
+
+    fun canTap(location: Location, all: Collection<Location>): Boolean = location in options(all)
 
     fun plus(location: Location): MoveChain = MoveChain(locations + location)
 
@@ -35,12 +42,14 @@ internal data class MoveChain(val locations: List<Location>) : Parcelable {
 
     /**
      * What tapping [target] does, [occupied] being the vehicle's locations with a sensor among
-     * [all] of them: an empty location ends the move there. An occupied one asks, for the first
-     * one, whether to just swap the sensors on a vehicle with more than two locations, and
-     * continues the chain otherwise, see [continuing].
+     * [all] of them: the start or an empty location ends the move there. An occupied one asks,
+     * for the first one, whether to just swap the sensors on a vehicle with more than two
+     * locations, and continues the chain otherwise, see [continuing].
      */
     fun tap(target: Location, occupied: Set<Location>, all: Collection<Location>): Step {
-        require(target !in locations) { "$target is already in the chain $locations" }
+        require(canTap(target, all)) { "$target can't be tapped in the chain $locations" }
+        // Closed, the last sensor goes to the start, see moves
+        if (target == start) return Step.Done(this)
         val chain = plus(target)
         return when {
             target !in occupied -> Step.Done(chain)
@@ -50,12 +59,16 @@ internal data class MoveChain(val locations: List<Location>) : Parcelable {
         }
     }
 
-    /** Asks for the next location, or ends the move once there's a single one left to pick */
-    fun continuing(all: Collection<Location>): Step = remaining(all).let { remaining ->
-        when (remaining.size) {
-            0 -> Step.Done(this)
-            1 -> Step.Done(plus(remaining.single()))
-            else -> Step.Continue(this)
+    /**
+     * Asks for the next location, or ends the move once there's a single one left to pick: the
+     * start closes the chain, another location gets the last sensor, and its own goes to the
+     * start if it has one
+     */
+    fun continuing(all: Collection<Location>): Step = options(all).let { options ->
+        when {
+            options.size > 1 -> Step.Continue(this)
+            options.singleOrNull()?.let { it != start } == true -> Step.Done(plus(options.single()))
+            else -> Step.Done(this)
         }
     }
 
@@ -71,6 +84,9 @@ internal data class MoveChain(val locations: List<Location>) : Parcelable {
     }
 
     companion object {
+        /** The chain's length from which its last sensor can go back to the start */
+        private const val CLOSING_SIZE = 3
+
         fun from(start: Location): MoveChain = MoveChain(listOf(start))
     }
 }

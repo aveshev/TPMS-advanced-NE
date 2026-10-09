@@ -72,11 +72,11 @@ internal fun TyreTapArea(
     var isOpen by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val isUnassigned = state is State.Unassigned
-    val isInChain = move?.chain?.locations?.contains(location) == true
     val isWaiting = move?.chain?.last == location
+    // Gone through by the chain, unless it can close on it
+    val isInChain = move?.let { location in it.chain.locations && it.canTap(location).not() } == true
     val onTap: (() -> Unit)? = when {
-        // A sensor can't go back to where it, or another one of the chain, was
-        move != null -> if (isInChain) null else ({ move.onTap(location) })
+        move != null -> if (move.canTap(location)) ({ move.onTap(location) }) else null
         state is State.Unassigned || (state is State.Assigned && isManaging) -> ({ isOpen = true })
         else -> null
     }
