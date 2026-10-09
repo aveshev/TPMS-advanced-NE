@@ -110,6 +110,15 @@ private val WIDEST_DETAILS = listOf("188°F", "188°C", "88 hours", "99+ days")
 /** Height of a tyre as a fraction of the image height, its width follows the tyre 15:40 ratio */
 private const val TYRE_HEIGHT = .165f
 
+/** Half the height of a spare's tyre drawn across, as a fraction of the image height */
+private const val SPARE_HALF_HEIGHT = TYRE_HEIGHT * 15f / 40f / 2f
+
+/** The spare's readings are under the image: room is kept for this many lines of a readout */
+private const val SPARE_READOUT_LINES = 5
+
+/** The pressure, temperature and time since update, see rememberBasicReadoutHeight */
+private const val BASIC_READOUT_LINES = 3
+
 /**
  * The current vehicle. Tapping a location without a sensor assigns it one by [scanQrCode],
  * [scanBluetooth] or the sensor detected there.
@@ -151,7 +160,11 @@ public fun Vehicle(
     // The outline reaches past the readout, it must stay off the screen's edge too
     val readoutWidth = readoutSlotWidth + READOUT_GAP + OUTLINE_OUTSET
     val basicReadoutHeight = rememberBasicReadoutHeight()
-    val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
+    // The spare's readout is under the image, not next to it
+    val readoutSides = component.vehicle.kind.locations.minus(Location.Spare).map { it.readoutSide }.toSet()
+    val spareRoom = (basicReadoutHeight / BASIC_READOUT_LINES * SPARE_READOUT_LINES)
+        .takeIf { Location.Spare in component.vehicle.kind.locations }
+        ?: 0.dp
     BoxWithConstraints(modifier) {
         val imageHeight = maxWidth
             .minus(readoutWidth * readoutSides.size)
@@ -160,6 +173,8 @@ public fun Vehicle(
             // (imageHeight * maxHeight)² * IMAGE_RATIO <= MAX_IMAGE_AREA * maxWidth * maxHeight
             .coerceAtMost(sqrt(MAX_IMAGE_AREA * maxWidth.value / (IMAGE_RATIO * maxHeight.value)))
             .coerceIn(MIN_IMAGE_HEIGHT, MAX_IMAGE_HEIGHT)
+            // Centered, the image leaves as much room above as below for the spare's readout
+            .coerceAtMost((maxHeight - spareRoom * 2) / maxHeight)
         // Centers the image and its readouts together when readouts are only on one side
         val fill = Modifier
             .fillMaxSize()
@@ -747,6 +762,9 @@ private fun CarWithSpare(
         ImageSpan(spareSpan, .34f, imageHeight)
         val spareY = .905f
         val spareAxle = imageGuideline(spareY, imageHeight)
+        // Drawn across, the spare's tyre is as tall as a tyre is wide
+        val spareTop = imageGuideline(spareY - SPARE_HALF_HEIGHT, imageHeight)
+        val spareBottom = imageGuideline(spareY + SPARE_HALF_HEIGHT, imageHeight)
         with(Location.Spare) {
             Tyre(
                 location = this,
@@ -758,16 +776,15 @@ private fun CarWithSpare(
                     tyreSize(imageHeight)
                 }.rotate(90f).reportCenter(this, taps)
             )
+            // Under the spare, past the bottom of the image, see SPARE_READOUT_LINES
             TyreReadout(
                 location = this,
                 isBasic = taps.isManaging,
                 modifier = Modifier.constrainAs(spareStats) {
-                    top.linkTo(vehicleImage.top)
-                    bottom.linkTo(vehicleImage.bottom)
-                    height = Dimension.fillToConstraints
+                    top.linkTo(spareBottom, 4.dp)
+                    centerHorizontallyTo(vehicleImage)
                     width = Dimension.value(readoutSlotWidth)
-                    start.linkTo(spareSpan.end, 8.dp)
-                }.verticallyCenteredOn(spareY)
+                }
             )
             TyreTapArea(
                 location = this,
@@ -777,10 +794,16 @@ private fun CarWithSpare(
                 move = taps.move,
                 startMove = taps.startMove,
                 canMove = taps.canMove,
-                // Around the spare as drawn across, rather than its tyre's upright layout
-                modifier = Modifier
-                    .constrainAs(spareTap) { around(spareSpan, spareStats, this@with) }
-                    .outlineCenteredOn(spareY, basicReadoutHeight),
+                // Around the spare as drawn across, rather than its tyre's upright layout, and
+                // its readings under it
+                modifier = Modifier.constrainAs(spareTap) {
+                    top.linkTo(spareTop)
+                    bottom.linkTo(spareStats.bottom)
+                    start.linkTo(spareStats.start)
+                    end.linkTo(spareStats.end)
+                    width = Dimension.fillToConstraints
+                    height = Dimension.fillToConstraints
+                },
             )
         }
         // Last, over everything else
