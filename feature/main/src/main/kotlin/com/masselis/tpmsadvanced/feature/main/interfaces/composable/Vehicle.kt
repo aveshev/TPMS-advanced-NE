@@ -273,6 +273,7 @@ private fun Modifier.outlineCenteredOn(
     y: Float,
     minHeight: Dp,
     tyreHeight: Float = TYRE_HEIGHT,
+    bottomAt: Float? = null,
 ) = layout { measurable, constraints ->
     val height = (constraints.maxHeight * tyreHeight)
         .roundToInt()
@@ -282,12 +283,21 @@ private fun Modifier.outlineCenteredOn(
     layout(placeable.width, constraints.maxHeight) {
         placeable.place(
             x = 0,
-            y = (constraints.maxHeight * y - height / 2f)
+            y = (outlineCenter(constraints.maxHeight, y, height, bottomAt) - height / 2f)
                 .roundToInt()
                 .coerceIn(0, constraints.maxHeight - height)
         )
     }
 }
+
+/**
+ * Where an outline [height] tall is centered in an image [imageHeight] tall: on [y], or higher if
+ * its bottom would go past [bottomAt], both fractions of the image height
+ */
+private fun outlineCenter(imageHeight: Int, y: Float, height: Int, bottomAt: Float?): Float =
+    (imageHeight * y).let { center ->
+        bottomAt?.let { center.coerceAtMost(imageHeight * it - height / 2f) } ?: center
+    }
 
 /** Side of the image the readout of this location sits on, see the layouts below */
 internal val Location.readoutSide: SensorLocation.Side
@@ -376,12 +386,25 @@ private fun ConstraintLayoutScope.imageGuideline(y: Float, imageHeight: Float): 
  * pushed back inside when it would overflow. Given the image's height, it keeps a readout next to
  * its tyre without ever going above or below the image.
  */
-private fun Modifier.verticallyCenteredOn(y: Float) = layout { measurable, constraints ->
+private fun Modifier.verticallyCenteredOn(
+    y: Float,
+    /** The outline's around it, see [outlineCenteredOn]: centered with it, wherever it's raised to */
+    outline: Pair<Dp, Float>? = null,
+) = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints.copy(minHeight = 0))
+    val center = outline
+        ?.let { (minHeight, bottomAt) ->
+            (constraints.maxHeight * TYRE_HEIGHT)
+                .roundToInt()
+                .coerceAtLeast(minHeight.roundToPx())
+                .coerceAtMost(constraints.maxHeight)
+                .let { outlineCenter(constraints.maxHeight, y, it, bottomAt) }
+        }
+        ?: (constraints.maxHeight * y)
     layout(placeable.width, constraints.maxHeight) {
         placeable.place(
             x = 0,
-            y = (constraints.maxHeight * y - placeable.height / 2f)
+            y = (center - placeable.height / 2f)
                 .roundToInt()
                 .coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0))
         )
@@ -636,6 +659,9 @@ private fun CarWithSpare(
         val frontAxle = imageGuideline(frontY, imageHeight)
         val rearY = .72f
         val rearAxle = imageGuideline(rearY, imageHeight)
+        // The rear outlines grow up from their tyres' bottom rather than both ways, they'd reach
+        // the spare's otherwise
+        val rearBottom = rearY + TYRE_HEIGHT / 2
         with(Location.Wheel(FRONT_LEFT)) {
             Tyre(
                 location = this,
@@ -728,7 +754,7 @@ private fun CarWithSpare(
                     height = Dimension.fillToConstraints
                     width = Dimension.value(readoutSlotWidth)
                     end.linkTo(rearLeft.start, 8.dp)
-                }.verticallyCenteredOn(rearY)
+                }.verticallyCenteredOn(rearY, basicReadoutHeight to rearBottom)
             )
             TyreTapArea(
                 location = this,
@@ -741,7 +767,7 @@ private fun CarWithSpare(
                 onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
-                    .outlineCenteredOn(rearY, basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight, bottomAt = rearBottom),
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -764,7 +790,7 @@ private fun CarWithSpare(
                     height = Dimension.fillToConstraints
                     width = Dimension.value(readoutSlotWidth)
                     start.linkTo(rearRight.end, 8.dp)
-                }.verticallyCenteredOn(rearY)
+                }.verticallyCenteredOn(rearY, basicReadoutHeight to rearBottom)
             )
             TyreTapArea(
                 location = this,
@@ -777,7 +803,7 @@ private fun CarWithSpare(
                 onOutlinePositioned = taps.onOutlinePositioned,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
-                    .outlineCenteredOn(rearY, basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight, bottomAt = rearBottom),
             )
         }
         // Lying flat behind the car, its tyre is drawn across

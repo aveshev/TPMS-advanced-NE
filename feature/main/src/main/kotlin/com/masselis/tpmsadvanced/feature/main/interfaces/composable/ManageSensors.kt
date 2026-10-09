@@ -2,8 +2,8 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,12 +37,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.masselis.tpmsadvanced.core.ui.isWideWindow
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
@@ -69,6 +72,8 @@ public fun ManageSensors(
     scanQrCode: () -> Unit,
     scanBluetooth: () -> Unit,
     modifier: Modifier = Modifier,
+    /** In a wide window, see [isWideWindow], the top bar makes way: the page shows its own */
+    navigationIcon: @Composable () -> Unit = {},
     component: VehicleComponent = LocalVehicleComponent.current,
 ) {
     val viewModel: ManageSensorsViewModel = component.viewModel(component.key()) { it.ManageSensorsViewModel() }
@@ -156,24 +161,43 @@ public fun ManageSensors(
             )
         }
     }
-    BoxWithConstraints(modifier.testTag(ManageSensorsTags.root)) {
-        // Wider than tall, the vehicle needs all the height: the name and the prompt go to its side
-        if (maxWidth > maxHeight) Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .width(SIDE_WIDTH)
-                    .padding(start = 16.dp),
-            ) {
-                name()
-                prompt(Modifier)
-                // Its room kept while hidden, so nothing shifts when it shows
-                Box(Modifier.height(PROMPT_HEIGHT)) { if (moving != null) cancel() }
+    Box(modifier.testTag(ManageSensorsTags.root)) {
+        // Wider than tall, the vehicle needs all the height: the top bar, the name and the prompt
+        // go to its side
+        if (isWideWindow()) Box(Modifier.fillMaxSize()) {
+            // Centered on the screen, the vehicle leaves the room left of its leftmost outline
+            var originX by remember { mutableFloatStateOf(0f) }
+            val density = LocalDensity.current
+            val sideWidth = outlines.values
+                .minOfOrNull { it.left }
+                ?.let { with(density) { (it - originX).toDp() } - SIDE_GAP }
+                ?.coerceAtLeast(0.dp)
+                ?: SIDE_WIDTH
+            vehicleWithArrows(Modifier.fillMaxSize().onGloballyPositioned { originX = it.positionInWindow().x })
+            Column(modifier = Modifier.fillMaxHeight().width(sideWidth)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(TOP_BAR_HEIGHT)) {
+                    Box(Modifier.padding(start = 4.dp)) { navigationIcon() }
+                    Text(
+                        text = "Manage sensors",
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                ) {
+                    name()
+                    prompt(Modifier)
+                    // Its room kept while hidden, so nothing shifts when it shows
+                    Box(Modifier.height(PROMPT_HEIGHT)) { if (moving != null) cancel() }
+                }
             }
-            vehicleWithArrows(Modifier.weight(1f).fillMaxHeight())
         } else Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize(),
@@ -434,8 +458,15 @@ internal fun MoveConfirmationPreview() {
 
 private val PROMPT_HEIGHT = 48.dp
 
-/** The name and prompt's column, next to the vehicle while the screen is wider than tall */
-private val SIDE_WIDTH = 176.dp
+/**
+ * The name and prompt's column, next to the vehicle while the screen is wider than tall, until the
+ * outlines are placed. Then it reaches the leftmost one, up to [SIDE_GAP] from it.
+ */
+private val SIDE_WIDTH = 200.dp
+private val SIDE_GAP = 8.dp
+
+/** Material's small top app bar */
+private val TOP_BAR_HEIGHT = 64.dp
 
 @Suppress("ConstPropertyName")
 internal object ManageSensorsTags {
