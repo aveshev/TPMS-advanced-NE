@@ -94,7 +94,32 @@ public data class Vehicle(
         DELTA_THREE_WHEELER(
             setOf(Axle(FRONT), Wheel(REAR_LEFT), Wheel(REAR_RIGHT)),
             defaultsToSeparateFrontRearPressure = true,
-        );
+        ),
+
+        /**
+         * ```
+         * N-N
+         *  |
+         * N-N
+         *  S
+         * ```
+         */
+        CAR_WITH_SPARE(
+            setOf(
+                Wheel(FRONT_LEFT),
+                Wheel(FRONT_RIGHT),
+                Wheel(REAR_LEFT),
+                Wheel(REAR_RIGHT),
+                Location.Spare,
+            )
+        ),
+
+        /**
+         * ```
+         *  N
+         * ```
+         */
+        MONOWHEEL(setOf(Location.Single));
 
         /**
          * `true` when this [Kind]'s [locations] distinguish a front axle from a rear one, i.e.
@@ -128,6 +153,18 @@ public data class Vehicle(
             @JvmInline
             @Parcelize
             public value class Side(public val side: SensorLocation.Side) : Location {
+                override fun toAxleOrNull(): Axle? = null
+            }
+
+            /** A car's spare wheel, kept at the rear's pressure like a full-size spare */
+            @Parcelize
+            public data object Spare : Location {
+                override fun toAxleOrNull(): Axle = Axle(SensorLocation.Axle.REAR)
+            }
+
+            /** The only wheel of a mono-wheel */
+            @Parcelize
+            public data object Single : Location {
                 override fun toAxleOrNull(): Axle? = null
             }
         }

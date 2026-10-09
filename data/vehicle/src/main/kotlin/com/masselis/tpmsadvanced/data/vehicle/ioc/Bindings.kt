@@ -119,6 +119,8 @@ public interface Bindings {
                 is Location.Axle -> 0L + value.axle.ordinal.toLong()
                 is Location.Side -> 10L + value.side.ordinal
                 is Location.Wheel -> 20L + value.location.ordinal
+                Location.Spare -> SPARE
+                Location.Single -> SINGLE
             }
 
             override fun decode(databaseValue: Long): Location {
@@ -135,6 +137,9 @@ public interface Bindings {
                     in 20..29 -> Location.Wheel(
                         SensorLocation.entries.first { it.ordinal == ordinal }
                     )
+
+                    SPARE -> Location.Spare
+                    SINGLE -> Location.Single
 
                     else -> error("Unable to parse this input $databaseValue")
                 }
@@ -207,3 +212,7 @@ public interface Bindings {
 }
 
 private const val UUID_BYTES = 16
+
+// Locations without an axle, side or wheel, see the location adapter
+private const val SPARE = 30L
+private const val SINGLE = 40L

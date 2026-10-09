@@ -8,7 +8,10 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR_WITH_SPARE
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.DELTA_THREE_WHEELER
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MONOWHEEL
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MOTORCYCLE
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.SINGLE_AXLE_TRAILER
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.TADPOLE_THREE_WHEELER
@@ -29,11 +32,16 @@ internal interface BoundSensorMapUseCase {
             val currentUuid = currentVehicleUseCase.value.vehicle.uuid
             val kind = currentVehicleUseCase.value.vehicle.kind
             qrCodeSensors
+                // A mono-wheel takes the code's first sensor, it has a single wheel for it
+                .let { if (kind == MONOWHEEL) it.take(1) else it.toList() }
                 .map {
                     Sensor(
                         it.id,
                         when (kind) {
-                            CAR -> it.wheel
+                            // The spare isn't in the kits' codes
+                            CAR, CAR_WITH_SPARE -> it.wheel
+
+                            MONOWHEEL -> Location.Single
 
                             SINGLE_AXLE_TRAILER -> it.wheel.toSide()
 

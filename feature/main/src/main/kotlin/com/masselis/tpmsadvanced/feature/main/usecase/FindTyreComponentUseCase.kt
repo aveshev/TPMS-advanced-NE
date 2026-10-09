@@ -22,6 +22,8 @@ internal class FindTyreComponentUseCase(
     private val rear: Lazy<TyreComponent>,
     private val left: Lazy<TyreComponent>,
     private val right: Lazy<TyreComponent>,
+    private val spare: Lazy<TyreComponent>,
+    private val single: Lazy<TyreComponent>,
 ) : (Vehicle.Kind.Location) -> TyreComponent {
     override fun invoke(location: Vehicle.Kind.Location): TyreComponent {
         assert(vehicle.kind.locations.contains(location)) {
@@ -39,6 +41,9 @@ internal class FindTyreComponentUseCase(
                 FRONT -> front
                 REAR -> rear
             }
+
+            Vehicle.Kind.Location.Spare -> spare
+            Vehicle.Kind.Location.Single -> single
 
             is Vehicle.Kind.Location.Side -> when (location.side) {
                 LEFT -> left

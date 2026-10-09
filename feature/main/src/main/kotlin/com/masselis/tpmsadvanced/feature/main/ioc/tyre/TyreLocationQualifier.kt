@@ -11,3 +11,9 @@ internal annotation class AxleQualifier(val axle: SensorLocation.Axle)
 
 @Qualifier
 internal annotation class SideQualifier(val side: SensorLocation.Side)
+
+@Qualifier
+internal annotation class SpareQualifier
+
+@Qualifier
+internal annotation class SingleQualifier

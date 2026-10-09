@@ -144,6 +144,7 @@ public fun ManageSensors(
                         moving = MoveChain.from(location)
                 },
                 onTyrePositioned = { location, center -> tyreCenters[location] = center },
+                canMove = all.size > 1,
             ),
             modifier = Modifier.fillMaxSize(),
         )
@@ -295,6 +296,9 @@ private val Location.position: Pair<Int, Int>
         is Location.Wheel -> location.side.x to location.axle.y
         is Location.Axle -> 0 to axle.y
         is Location.Side -> side.x to 0
+        // Behind the rear wheels
+        Location.Spare -> 0 to 2
+        Location.Single -> 0 to 0
     }
 
 private val SensorLocation.Side.x get() = if (this == SensorLocation.Side.LEFT) -1 else 1

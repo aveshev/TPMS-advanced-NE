@@ -105,17 +105,10 @@ private fun TyreStat(
     val alignment = remember(isBasic) {
         // Centered inside its outline on the sensors' page, against the tyre otherwise
         if (isBasic) Alignment.CenterHorizontally
-        else when (location) {
-            is Location.Axle -> Alignment.Start
-            is Location.Wheel -> when (location.location.side) {
-                LEFT -> Alignment.End
-                RIGHT -> Alignment.Start
-            }
-
-            is Location.Side -> when (location.side) {
-                LEFT -> Alignment.End
-                RIGHT -> Alignment.Start
-            }
+        // Against the tyre, on whichever side of it the readout is
+        else when (location.readoutSide) {
+            LEFT -> Alignment.End
+            RIGHT -> Alignment.Start
         }
     }
     Column(modifier = modifier) {

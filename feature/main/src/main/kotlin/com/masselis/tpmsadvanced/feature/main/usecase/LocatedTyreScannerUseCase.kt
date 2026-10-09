@@ -63,6 +63,10 @@ internal class LocatedTyreScannerUseCase(
                             is Location.Axle -> currentLocation.axle == sensorInput.location.axle
                             is Location.Side -> currentLocation.side == sensorInput.location.side
                             is Location.Wheel -> currentLocation.location == sensorInput.location
+                            // Sysgration sensors only advertise the four wheels of a car
+                            Location.Spare -> false
+                            // Whichever wheel it was made for, it's the only one
+                            Location.Single -> true
                         }
                     }
                     ?.takeIf { sensorBindingUseCase.isBound(it.sensorId).not() }

@@ -61,6 +61,7 @@ internal fun TyreTapArea(
     scanBluetooth: () -> Unit,
     move: TyreMove?,
     startMove: (Location) -> Unit,
+    canMove: Boolean,
     modifier: Modifier = Modifier,
     vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
     viewModel: TyreActionsViewModel = vehicleComponent
@@ -101,6 +102,7 @@ internal fun TyreTapArea(
                 location = location,
                 sensor = assigned.sensor,
                 move = { isOpen = false; startMove(location) },
+                canMove = canMove,
                 delete = { isOpen = false; confirmDelete = true },
                 onDismissRequest = { isOpen = false },
             )
@@ -166,6 +168,7 @@ private fun ManageSensorDialog(
     location: Location,
     sensor: Sensor,
     move: () -> Unit,
+    canMove: Boolean,
     delete: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -189,6 +192,7 @@ private fun ManageSensorDialog(
                     title = "Move/swap",
                     subtitle = "Assign this sensor to another wheel",
                     onClick = move,
+                    isEnabled = canMove,
                     modifier = Modifier.testTag(TyreTapAreaTags.move),
                 )
                 // Coming next
@@ -225,7 +229,14 @@ private fun ManageSensorDialog(
 @Preview
 @Composable
 internal fun ManageSensorDialogPreview() {
-    ManageSensorDialog(Location.Wheel(FRONT_RIGHT), Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM), {}, {}, {})
+    ManageSensorDialog(
+        Location.Wheel(FRONT_RIGHT),
+        Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM),
+        move = {},
+        canMove = true,
+        delete = {},
+        onDismissRequest = {},
+    )
 }
 
 @Suppress("ConstPropertyName")

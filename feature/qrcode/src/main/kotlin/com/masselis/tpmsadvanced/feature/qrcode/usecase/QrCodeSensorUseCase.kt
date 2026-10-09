@@ -6,8 +6,10 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR_WITH_SPARE
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.DELTA_THREE_WHEELER
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MONOWHEEL
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MOTORCYCLE
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.SINGLE_AXLE_TRAILER
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.TADPOLE_THREE_WHEELER
@@ -102,7 +104,10 @@ internal class QrCodeSensorUseCase(
                     .locations
                     .subtract(
                         when (vehicleKind) {
-                            CAR -> qrCodeSensors.map { it.wheel }
+                            CAR, CAR_WITH_SPARE -> qrCodeSensors.map { it.wheel }
+
+                            // Its first sensor, see BoundSensorMapUseCase
+                            MONOWHEEL -> listOf(Location.Single)
 
                             SINGLE_AXLE_TRAILER -> qrCodeSensors.map { it.wheel.toSide() }
 

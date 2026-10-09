@@ -40,6 +40,14 @@ public fun StringBuilder.appendLoc(
         )
         appendIf(withType, " side")
     }
+
+    Vehicle.Kind.Location.Spare -> {
+        append("spare".capitalizeIf(capitalized))
+        appendIf(withType, " wheel")
+    }
+
+    // Named after what it is, there's nothing to tell it apart from
+    Vehicle.Kind.Location.Single -> append("wheel".capitalizeIf(capitalized))
 }
 
 private fun StringBuilder.appendIf(condition: Boolean, string: String) =

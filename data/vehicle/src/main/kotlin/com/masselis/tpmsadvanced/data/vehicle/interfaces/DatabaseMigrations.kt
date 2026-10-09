@@ -17,7 +17,9 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.CAR_WITH_SPARE
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.DELTA_THREE_WHEELER
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MONOWHEEL
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.MOTORCYCLE
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.SINGLE_AXLE_TRAILER
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.TADPOLE_THREE_WHEELER
@@ -59,8 +61,11 @@ internal fun Database.Companion.afterVersion3(
                 .value
                 .let { kind ->
                     when (kind) {
-                        CAR ->
+                        // Neither existed then, mapped as they would be now
+                        CAR, CAR_WITH_SPARE ->
                             Vehicle.Kind.Location.Wheel(sensorLocation)
+
+                        MONOWHEEL -> Vehicle.Kind.Location.Single
 
                         SINGLE_AXLE_TRAILER -> when (sensorLocation) {
                             FRONT_LEFT, REAR_LEFT -> Vehicle.Kind.Location.Side(LEFT)

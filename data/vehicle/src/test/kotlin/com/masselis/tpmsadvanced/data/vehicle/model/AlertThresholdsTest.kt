@@ -108,4 +108,11 @@ internal class AlertThresholdsTest {
             ),
         )
     }
+
+    @Test
+    fun `without critical alerts, a crimson level is red`() {
+        val spare = AlertThresholds(200f.kpa, 300f.kpa, 60f.celsius, 2.6f.volts, allowsCritical = false)
+        assertEquals(RED, spare.pressureLevel(100f.kpa))
+        assertEquals(RED, spare.temperatureLevel(100f.celsius))
+    }
 }
