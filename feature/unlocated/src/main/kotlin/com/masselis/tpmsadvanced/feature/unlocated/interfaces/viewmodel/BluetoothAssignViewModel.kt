@@ -45,6 +45,7 @@ import kotlin.time.Duration.Companion.seconds
  * Sensors already bound to this vehicle are ignored, and only [allowedIds] are listened to when
  * given: those of a QR code.
  */
+@Suppress("LongParameterList")
 @OptIn(ExperimentalCoroutinesApi::class)
 @AssistedInject
 internal class BluetoothAssignViewModel(

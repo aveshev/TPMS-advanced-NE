@@ -48,7 +48,8 @@ import com.masselis.tpmsadvanced.feature.qrcode.ioc.Bindings.Companion.QrCodeVie
 @Composable
 public fun QrCodeScan(
     snackbarHostState: SnackbarHostState,
-    openUnlocatedSensorBinding: () -> Unit,
+    scanBluetooth: () -> Unit,
+    assignViaBluetooth: (sensorIds: Set<Int>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val permissionState = rememberMultiplePermissionsState(listOf(CAMERA))
@@ -63,7 +64,8 @@ public fun QrCodeScan(
 
         else -> Preview(
             snackbarHostState = snackbarHostState,
-            openUnlocatedSensorBinding = openUnlocatedSensorBinding,
+            scanBluetooth = scanBluetooth,
+            assignViaBluetooth = assignViaBluetooth,
             modifier = modifier,
         )
     }
@@ -73,7 +75,8 @@ public fun QrCodeScan(
 @Composable
 private fun Preview(
     snackbarHostState: SnackbarHostState,
-    openUnlocatedSensorBinding: () -> Unit,
+    scanBluetooth: () -> Unit,
+    assignViaBluetooth: (sensorIds: Set<Int>) -> Unit,
     modifier: Modifier = Modifier,
     cameraSelector: CameraSelector = DEFAULT_BACK_CAMERA,
 ) {
@@ -109,13 +112,20 @@ private fun Preview(
         is State.AskForBinding -> BindingAlert(
             state = state,
             onDismissRequest = viewModel::scanAgain,
-            onBind = viewModel::bindSensors
+            onBind = viewModel::bindSensors,
+            assignViaBluetooth = { assignViaBluetooth(state.qrCodeSensors.map { it.id }.toSet()) },
         )
 
         is State.Error -> ErrorAlert(
             state = state,
             onDismissRequest = viewModel::scanAgain,
-            openUnlocatedSensorBinding = openUnlocatedSensorBinding,
+            scanBluetooth = scanBluetooth,
+        )
+
+        State.Assigned -> AlertDialog(
+            onDismissRequest = viewModel::leave,
+            text = { Text("Sensors assigned") },
+            confirmButton = { TextButton(onClick = viewModel::leave) { Text(text = "OK") } },
         )
     }
 
@@ -139,11 +149,14 @@ private fun BindingAlert(
     state: State.AskForBinding,
     onDismissRequest: () -> Unit,
     onBind: () -> Unit,
+    assignViaBluetooth: () -> Unit,
 ) {
     AlertDialog(
         text = {
             Text(
-                text = StringBuilder("Would you add theses sensors as your favourite sensors ?")
+                text = StringBuilder(
+                    "Sysgration sensors can be assigned to all wheels automatically at once, do you want to do it now?"
+                )
                     .apply {
                         when (state) {
 
@@ -171,12 +184,13 @@ private fun BindingAlert(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(onClick = onBind) {
-                Text(text = "Yes")
+                Text(text = "Assign automatically")
             }
         },
+        // Listening to the code's sensors only, the neighbours' are left out
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = "Cancel")
+            TextButton(onClick = assignViaBluetooth) {
+                Text(text = "Assign via Bluetooth")
             }
         }
     )
@@ -187,7 +201,7 @@ private fun BindingAlert(
 private fun ErrorAlert(
     state: State.Error,
     onDismissRequest: () -> Unit,
-    openUnlocatedSensorBinding: () -> Unit,
+    scanBluetooth: () -> Unit,
 ) {
     AlertDialog(
         text = {
@@ -211,7 +225,7 @@ private fun ErrorAlert(
                             }
 
                             State.Error.UnsupportedWircarlinkQrCode -> {
-                                append("\n\n⚠️ QR Codes manufactured by Wicarlink are not handled by this app\nYou have to bind manually each of them")
+                                append("\n\n⚠️ QR codes made by Wicarlink aren't supported yet\nAssign each sensor with Scan via Bluetooth instead")
                             }
                         }
                     }
@@ -222,8 +236,8 @@ private fun ErrorAlert(
         dismissButton =
             if (state is State.Error.UnsupportedWircarlinkQrCode) {
                 {
-                    TextButton(onClick = openUnlocatedSensorBinding) {
-                        Text(text = "Bind manually")
+                    TextButton(onClick = scanBluetooth) {
+                        Text(text = "Scan via Bluetooth")
                     }
                 }
             } else null,

@@ -127,41 +127,29 @@ internal class MainFeatureTest {
             assertVehicleDoesNotExists("My car")
             select("Car")
         }
+        // The demo's sensors never change pressure: the Bluetooth flow goes as far as finding them on
+        // their wheels, telling them apart is up to AssignStepTest
         wheel(Location.Wheel(FRONT_LEFT)) {
             assign {
                 scanBluetooth()
             }
         }
-        unlocatedSensorsList {
-            tapSensorUnplugged()
-            tapSensor(2) {
-                assertBindButtonIsNotEnabled()
-                tapLocation(Location.Wheel(FRONT_LEFT))
-                tapCancel()
+        bluetoothAssign {
+            inHand()
+            // Every demo sensor, the four Sysgration, the four Pecham and the spare's
+            waitOnWheelFound(9)
+            next()
+            checkAgain()
+            waitTakeOff()
+            leave()
+        }
+        // The demo's Sysgration sensors advertise their wheels, each detected there
+        listOf(FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT).forEach {
+            wheel(Location.Wheel(it)) {
+                assign {
+                    assignDetected()
+                }
             }
-            tapSensor(2) {
-                tapLocation(Location.Wheel(FRONT_LEFT))
-                tapBindButton()
-            }
-            tapSensor(4) {
-                tapLocation(Location.Wheel(FRONT_RIGHT))
-                tapBindButton()
-            }
-            tapSensor(6) {
-                tapLocation(Location.Wheel(REAR_LEFT))
-                tapBindButton()
-            }
-            tapSensor(8) {
-                tapLocation(Location.Wheel(REAR_RIGHT))
-                tapBindButton()
-            }
-            assertAllLocationBound(
-                2 to Location.Wheel(FRONT_LEFT),
-                4 to Location.Wheel(FRONT_RIGHT),
-                6 to Location.Wheel(REAR_LEFT),
-                8 to Location.Wheel(REAR_RIGHT),
-            )
-            tapGoBack()
         }
         listOf(FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT).forEach {
             wheel(Location.Wheel(it)) { waitUntilAssigned() }

@@ -133,7 +133,7 @@ internal sealed interface Path {
                 BeaconScan,
             )
 
-        @Suppress("NAME_SHADOWING")
+        @Suppress("CyclomaticComplexMethod", "MagicNumber")
         fun from(route: String): Path = when (val page = appPages.firstOrNull { "$it" == route }) {
             null -> route
                 .split('/')

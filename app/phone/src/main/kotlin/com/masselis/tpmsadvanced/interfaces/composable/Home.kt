@@ -160,7 +160,9 @@ internal fun VehicleHome(
                             snackbarHostState = snackbarHostState,
                             modifier = modifier,
                             center = { SilenceAlertsButton(it) },
-                            scanQrCode = { navController.navigate("${Path.QrCode(vehicleUuid, locations.indexOf(it))}") },
+                            scanQrCode = {
+                                navController.navigate("${Path.QrCode(vehicleUuid, locations.indexOf(it))}")
+                            },
                             scanBluetooth = {
                                 navController.navigate("${Path.BluetoothAssign(vehicleUuid, locations.indexOf(it))}")
                             },
@@ -189,7 +191,9 @@ internal fun VehicleHome(
                     composable("${Path.ManageSensors(vehicleComponent.vehicle.uuid)}") {
                         ManageSensors(
                             snackbarHostState = snackbarHostState,
-                            scanQrCode = { navController.navigate("${Path.QrCode(vehicleUuid, locations.indexOf(it))}") },
+                            scanQrCode = {
+                                navController.navigate("${Path.QrCode(vehicleUuid, locations.indexOf(it))}")
+                            },
                             scanBluetooth = {
                                 navController.navigate("${Path.BluetoothAssign(vehicleUuid, locations.indexOf(it))}")
                             },
@@ -325,8 +329,11 @@ internal fun VehicleHome(
                         val location = entry.arguments!!.getInt("location")
                         QrCodeScan(
                             snackbarHostState = snackbarHostState,
-                            openUnlocatedSensorBinding = {
+                            scanBluetooth = {
                                 navController.navigate("${Path.BluetoothAssign(vehicleUuid, location)}")
+                            },
+                            assignViaBluetooth = { ids ->
+                                navController.navigate("${Path.BluetoothAssign(vehicleUuid, location, ids)}")
                             },
                             modifier = modifier
                         )

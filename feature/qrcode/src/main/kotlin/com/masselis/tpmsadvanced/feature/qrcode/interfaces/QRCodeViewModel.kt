@@ -62,6 +62,9 @@ internal class QRCodeViewModel(
 
             data object UnsupportedWircarlinkQrCode : Error
         }
+
+        /** Every sensor of the code was assigned to its wheel */
+        data object Assigned : State
     }
 
     sealed class Event {
@@ -79,7 +82,7 @@ internal class QRCodeViewModel(
         stateFlow
             .flatMapLatest { state ->
                 when (state) {
-                    is State.AskForBinding, is State.Error -> emptyFlow()
+                    is State.AskForBinding, is State.Error, State.Assigned -> emptyFlow()
 
                     State.Scanning -> qrCodeSensorUseCase
                         .analyse(controller)
@@ -123,8 +126,10 @@ internal class QRCodeViewModel(
         if (state !is State.AskForBinding)
             return@launch
         boundSensorMapUseCase.bind(state.qrCodeSensors)
-        channel.send(Event.Leave)
+        mutableStateFlow.value = State.Assigned
     }
+
+    fun leave() = viewModelScope.launch { channel.send(Event.Leave) }
 
     fun scanAgain() {
         mutableStateFlow.value = State.Scanning
