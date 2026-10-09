@@ -47,9 +47,6 @@ internal class QrCodeResultViewModel(
         /** The code can't be assigned as it is */
         @JvmInline
         value class Unusable(val result: QrCodeResult) : State
-
-        /** Every sensor of the code was assigned to its wheel */
-        data object Assigned : State
     }
 
     private val mutableStateFlow = MutableStateFlow<State>(State.Loading)
@@ -81,9 +78,9 @@ internal class QrCodeResultViewModel(
         }
     }
 
+    /** Kept by the activity, it outlives the dialog closing as soon as it's answered */
     fun bind() = viewModelScope.launch {
         val state = mutableStateFlow.value as? State.Ask ?: return@launch
         boundSensorMapUseCase.bind(state.vehicle.uuid, state.sensors)
-        mutableStateFlow.value = State.Assigned
     }
 }

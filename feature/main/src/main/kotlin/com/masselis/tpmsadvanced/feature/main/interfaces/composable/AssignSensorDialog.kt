@@ -54,7 +54,7 @@ internal fun AssignSensorDialog(
                         subtitle = buildString {
                             append("Sysgration, ")
                             appendLoc(location, withType = false)
-                            append(", ")
+                            append(", ID: ")
                             append(sensor.id.asSensorId())
                         },
                         onClick = { assignDetected(sensor) },

@@ -49,7 +49,10 @@ public fun QrCodeResultDialog(
                     }
                 )
             },
-            confirmButton = { TextButton(onClick = viewModel::bind) { Text(text = "Yes") } },
+            // Answering yes is confirmation enough, the assigned sensors show on the vehicle
+            confirmButton = {
+                TextButton(onClick = { viewModel.bind(); onDismiss() }) { Text(text = "Yes") }
+            },
             dismissButton = { TextButton(onClick = onDismiss) { Text(text = "Cancel") } },
         )
 
@@ -69,12 +72,6 @@ public fun QrCodeResultDialog(
         )
 
         is State.Unusable -> UnusableAlert(state.result, scanBluetooth, onDismiss)
-
-        State.Assigned -> AlertDialog(
-            onDismissRequest = onDismiss,
-            text = { Text("Sensors assigned") },
-            confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } },
-        )
     }
 }
 
