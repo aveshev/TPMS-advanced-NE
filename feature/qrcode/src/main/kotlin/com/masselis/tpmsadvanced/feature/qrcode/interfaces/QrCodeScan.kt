@@ -280,5 +280,5 @@ private fun QrCodeOverlay(
 private const val WINDOW_FRACTION = .7f
 private const val BRACKET_FRACTION = .15f
 private const val DIM_ALPHA = .55f
-private val CORNER_RADIUS = 16.dp
+private val CORNER_RADIUS = 4.dp
 private val BRACKET_WIDTH = 4.dp
