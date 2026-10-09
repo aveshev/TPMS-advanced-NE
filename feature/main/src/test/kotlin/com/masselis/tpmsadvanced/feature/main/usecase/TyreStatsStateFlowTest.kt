@@ -78,6 +78,7 @@ internal class TyreStatsStateFlowTest {
         TyreAlertsUseCase(tyreAtmosphereUseCase, vehicleRangesUseCase, pressureLoss, Wheel(FRONT_LEFT)),
         vehicleCalibrationUseCase,
         unitPreferences,
+        SensorBindingUseCase.NoOp,
         scope.backgroundScope,
     )
 

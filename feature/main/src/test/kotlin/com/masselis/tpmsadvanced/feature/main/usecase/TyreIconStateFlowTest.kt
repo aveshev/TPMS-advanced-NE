@@ -65,6 +65,7 @@ internal class TyreIconStateFlowTest {
         TyreAlertsUseCase(tyreAtmosphereUseCase, vehicleRangesUseCase, flowOf(null), Wheel(FRONT_LEFT)),
         vehicleRangesUseCase,
         Wheel(FRONT_LEFT),
+        SensorBindingUseCase.NoOp,
         scope.backgroundScope,
     )
 

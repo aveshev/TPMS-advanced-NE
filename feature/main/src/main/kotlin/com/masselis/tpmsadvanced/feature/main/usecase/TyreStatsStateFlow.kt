@@ -12,25 +12,32 @@ import com.masselis.tpmsadvanced.data.vehicle.model.TyreAtmosphere
 import com.masselis.tpmsadvanced.data.vehicle.model.Voltage
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreStatsStateFlow.State
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.parcelize.Parcelize
 
 @Suppress("OPT_IN_TO_INHERITANCE", "LongParameterList")
+@OptIn(ExperimentalCoroutinesApi::class)
 public class TyreStatsStateFlow internal constructor(
     alertsUseCase: TyreAlertsUseCase,
     calibrationUseCase: VehicleCalibrationUseCase,
     unitPreferences: UnitPreferences,
+    sensorBindingUseCase: SensorBindingUseCase,
     scope: CoroutineScope,
-    stateFlow: StateFlow<State> = combine(
-        alertsUseCase.listen(),
-        unitPreferences.pressure,
-        unitPreferences.temperature,
-        calibrationUseCase.isEnabled,
-    ) { alerts, pressureUnit, temperatureUnit, isCalibrated ->
+    // Starts over with the sensor bound, moved or swapped here: its own latest reading, if any
+    stateFlow: StateFlow<State> = sensorBindingUseCase.boundSensor().boundIds().flatMapLatest {
+        combine(
+            alertsUseCase.listen(),
+            unitPreferences.pressure,
+            unitPreferences.temperature,
+            calibrationUseCase.isEnabled,
+        ) { alerts, pressureUnit, temperatureUnit, isCalibrated ->
         requireNotNull(alerts.latest).let<TyreAtmosphere, State> { atmosphere ->
             State.Detected(
                 atmosphere.timestamp,
@@ -46,6 +53,7 @@ public class TyreStatsStateFlow internal constructor(
                 atmosphere.batteryPercent,
             )
         }
+        }.onStart { emit(State.NotDetected) }
     }
         .catch { emit(State.NotDetected) }
         .stateIn(scope, WhileSubscribed(), State.NotDetected),
