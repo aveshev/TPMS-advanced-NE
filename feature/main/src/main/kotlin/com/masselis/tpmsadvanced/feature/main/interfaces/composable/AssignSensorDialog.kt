@@ -91,7 +91,7 @@ internal fun AssignSensorDialog(
                 )
                 ListItem(
                     headlineContent = { Text("Scan via Bluetooth") },
-                    supportingContent = { Text("Use pressure changes to detect the right sensor") },
+                    supportingContent = { Text("Use pressure changes to detect the correct sensor") },
                     leadingContent = { Icon(ImageVector.vectorResource(R.drawable.bluetooth_24px), null) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier
