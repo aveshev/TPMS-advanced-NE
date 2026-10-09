@@ -3,12 +3,15 @@ package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.annotation.DrawableRes
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -87,79 +90,107 @@ public fun ManageSensors(
         confirming = null
     }
     BackHandler(enabled = moving != null, onBack = ::stop)
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.testTag(ManageSensorsTags.root),
-    ) {
+    val name: @Composable () -> Unit = {
         Text(
             text = vehicle.name,
             style = MaterialTheme.typography.titleLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                // As tall as the Cancel button shown while moving, with its touch target, so
-                // nothing shifts when it shows
-                .height(PROMPT_HEIGHT),
-        ) {
-            Text(
-                text = if (moving != null) "Tap the wheel to move to"
-                else "Tap the wheel/sensor to manage",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .padding(vertical = 4.dp),
-            )
-            if (moving != null) TextButton(
-                onClick = ::stop,
-                modifier = Modifier.testTag(ManageSensorsTags.cancelMove),
-            ) { Text("Cancel") }
-        }
-        Box(Modifier.weight(1f)) {
-        Vehicle(
-            component = component,
-            snackbarHostState = snackbarHostState,
-            taps = TyreTaps(
-                isManaging = true,
-                scanQrCode = scanQrCode,
-                scanBluetooth = scanBluetooth,
-                move = moving?.let { chain ->
-                    TyreMove(chain, all) { target ->
-                        when (val step = chain.tap(target, occupied, all)) {
-                            is Step.Done -> confirming = step.chain
-                            is Step.AskSwapOrChain -> asking = step.chain
-                            is Step.Continue -> moving = step.chain
+    }
+    val prompt: @Composable (Modifier) -> Unit = { modifier ->
+        Text(
+            text = if (moving != null) "Tap the wheel to move to"
+            else "Tap the wheel/sensor to manage",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = modifier.padding(vertical = 4.dp),
+        )
+    }
+    val cancel: @Composable () -> Unit = {
+        TextButton(
+            onClick = ::stop,
+            modifier = Modifier.testTag(ManageSensorsTags.cancelMove),
+        ) { Text("Cancel") }
+    }
+    val vehicleWithArrows: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier) {
+            Vehicle(
+                component = component,
+                snackbarHostState = snackbarHostState,
+                taps = TyreTaps(
+                    isManaging = true,
+                    scanQrCode = scanQrCode,
+                    scanBluetooth = scanBluetooth,
+                    move = moving?.let { chain ->
+                        TyreMove(chain, all) { target ->
+                            when (val step = chain.tap(target, occupied, all)) {
+                                is Step.Done -> confirming = step.chain
+                                is Step.AskSwapOrChain -> asking = step.chain
+                                is Step.Continue -> moving = step.chain
+                            }
                         }
-                    }
-                },
-                startMove = { location ->
-                    if (all.size <= 2)
-                    // Nowhere to pick, straight to the confirmation
-                        all.first { it != location }.let { confirming = MoveChain.from(location).plus(it) }
-                    else
-                        moving = MoveChain.from(location)
-                },
-                onTyrePositioned = { location, center -> tyreCenters[location] = center },
-                onOutlinePositioned = { location, outline -> outlines[location] = outline },
-                canMove = all.size > 1,
-            ),
+                    },
+                    startMove = { location ->
+                        if (all.size <= 2)
+                        // Nowhere to pick, straight to the confirmation
+                            all.first { it != location }.let { confirming = MoveChain.from(location).plus(it) }
+                        else
+                            moving = MoveChain.from(location)
+                    },
+                    onTyrePositioned = { location, center -> tyreCenters[location] = center },
+                    onOutlinePositioned = { location, outline -> outlines[location] = outline },
+                    canMove = all.size > 1,
+                ),
+                modifier = Modifier.fillMaxSize(),
+            )
+            MoveArrows(
+                // Each move picked so far, all of them once the chain is complete
+                moves = confirming?.moves(occupied)
+                    ?: (asking ?: moving)?.locations?.zipWithNext()
+                    ?: emptyList(),
+                tyreCenters = tyreCenters,
+                outlines = outlines,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+    BoxWithConstraints(modifier.testTag(ManageSensorsTags.root)) {
+        // Wider than tall, the vehicle needs all the height: the name and the prompt go to its side
+        if (maxWidth > maxHeight) Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxSize(),
-        )
-        MoveArrows(
-            // Each move picked so far, all of them once the chain is complete
-            moves = confirming?.moves(occupied)
-                ?: (asking ?: moving)?.locations?.zipWithNext()
-                ?: emptyList(),
-            tyreCenters = tyreCenters,
-            outlines = outlines,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .width(SIDE_WIDTH)
+                    .padding(start = 16.dp),
+            ) {
+                name()
+                prompt(Modifier)
+                // Its room kept while hidden, so nothing shifts when it shows
+                Box(Modifier.height(PROMPT_HEIGHT)) { if (moving != null) cancel() }
+            }
+            vehicleWithArrows(Modifier.weight(1f).fillMaxHeight())
+        } else Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize(),
-        )
+        ) {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { name() }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    // As tall as the Cancel button shown while moving, with its touch target, so
+                    // nothing shifts when it shows
+                    .height(PROMPT_HEIGHT),
+            ) {
+                prompt(Modifier.weight(1f, fill = false))
+                if (moving != null) cancel()
+            }
+            vehicleWithArrows(Modifier.weight(1f))
         }
     }
     asking?.also { chain ->
@@ -402,6 +433,9 @@ internal fun MoveConfirmationPreview() {
 }
 
 private val PROMPT_HEIGHT = 48.dp
+
+/** The name and prompt's column, next to the vehicle while the screen is wider than tall */
+private val SIDE_WIDTH = 176.dp
 
 @Suppress("ConstPropertyName")
 internal object ManageSensorsTags {
