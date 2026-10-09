@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.annotation.DrawableRes
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -18,17 +20,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.masselis.tpmsadvanced.core.ui.viewModel
+import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.REAR_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
+import com.masselis.tpmsadvanced.feature.main.R
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.ManageSensorsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.ManageSensorsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
@@ -124,30 +130,19 @@ public fun ManageSensors(
         )
     }
     asking?.also { chain ->
-        AlertDialog(
-            onDismissRequest = { asking = null },
-            text = { Text("This wheel already has a sensor assigned to it") },
-            confirmButton = {
-                Column(horizontalAlignment = Alignment.End) {
-                    TextButton(
-                        onClick = { asking = null; confirming = chain },
-                        modifier = Modifier.testTag(ManageSensorsTags.justSwap),
-                    ) { Text("Just swap them") }
-                    TextButton(
-                        onClick = {
-                            asking = null
-                            when (val step = chain.continuing(all)) {
-                                is Step.Done -> confirming = step.chain
-                                is Step.Continue -> moving = step.chain
-                                is Step.AskSwapOrChain -> error("Continuing never asks")
-                            }
-                        },
-                        modifier = Modifier.testTag(ManageSensorsTags.multiWheel),
-                    ) { Text("Multi-wheel change") }
-                    TextButton(onClick = { asking = null }) { Text("Cancel") }
+        SwapOrChainDialog(
+            from = chain.start,
+            to = chain.last,
+            swap = { asking = null; confirming = chain },
+            chain = {
+                asking = null
+                when (val step = chain.continuing(all)) {
+                    is Step.Done -> confirming = step.chain
+                    is Step.Continue -> moving = step.chain
+                    is Step.AskSwapOrChain -> error("Continuing never asks")
                 }
             },
-            modifier = Modifier.testTag(ManageSensorsTags.askDialog),
+            onDismissRequest = { asking = null },
         )
     }
     confirming?.also { chain ->
@@ -160,6 +155,77 @@ public fun ManageSensors(
         )
     }
 }
+
+/** Sending [from]'s sensor to [to], which has one: just swap them, or move more sensors around */
+@Composable
+private fun SwapOrChainDialog(
+    from: Location,
+    to: Location,
+    swap: () -> Unit,
+    chain: () -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(buildString { appendLoc(to, withType = false, capitalized = true); append(" already has a sensor") })
+        },
+        text = {
+            Column {
+                DialogOption(
+                    icon = { Icon(ImageVector.vectorResource(swapIcon(from, to)), null) },
+                    title = "Just swap them",
+                    subtitle = buildString {
+                        appendLoc(from, withType = false, capitalized = true)
+                        append(" ⇄ ")
+                        appendLoc(to, withType = false, capitalized = true)
+                    },
+                    onClick = swap,
+                    modifier = Modifier.testTag(ManageSensorsTags.justSwap),
+                )
+                DialogOption(
+                    icon = { Icon(ImageVector.vectorResource(R.drawable.rotate_wheels_24px), null) },
+                    title = "Multi-wheel change",
+                    subtitle = "Move more sensors around, like a tyre rotation",
+                    onClick = chain,
+                    modifier = Modifier.testTag(ManageSensorsTags.multiWheel),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+        },
+        modifier = modifier.testTag(ManageSensorsTags.askDialog),
+    )
+}
+
+/**
+ * The arrows between two locations seen from above, the front at the top: left-right on the same
+ * axle, up-down on the same side, the matching diagonal otherwise
+ */
+@DrawableRes
+private fun swapIcon(from: Location, to: Location): Int {
+    val (fromX, fromY) = from.position
+    val (toX, toY) = to.position
+    return when {
+        fromY == toY -> R.drawable.swap_horizontal_24px
+        fromX == toX -> R.drawable.swap_vertical_24px
+        (toX - fromX) * (toY - fromY) > 0 -> R.drawable.swap_diagonal_down_24px
+        else -> R.drawable.swap_diagonal_up_24px
+    }
+}
+
+/** Where a location sits seen from above: left -1 to right 1, front -1 to rear 1 */
+private val Location.position: Pair<Int, Int>
+    get() = when (this) {
+        is Location.Wheel -> location.side.x to location.axle.y
+        is Location.Axle -> 0 to axle.y
+        is Location.Side -> side.x to 0
+    }
+
+private val SensorLocation.Side.x get() = if (this == SensorLocation.Side.LEFT) -1 else 1
+private val SensorLocation.Axle.y get() = if (this == SensorLocation.Axle.FRONT) -1 else 1
 
 /**
  * Asks to apply [chain]: a vehicle with two locations only says whether it's a swap or a move,
