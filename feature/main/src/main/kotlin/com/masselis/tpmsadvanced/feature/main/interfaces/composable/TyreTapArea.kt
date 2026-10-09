@@ -188,7 +188,7 @@ private fun ManageSensorDialog(
             Column {
                 Text(buildString { appendLoc(location, withType = false, capitalized = true) })
                 Text(
-                    "Sensor ${sensor.id.asSensorId()}",
+                    "Sensor ID ${sensor.id.asSensorId()}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
