@@ -192,7 +192,7 @@ private fun SwapOrChainDialog(
                 DialogOption(
                     icon = { Icon(ImageVector.vectorResource(R.drawable.rotate_wheels_24px), null) },
                     title = "Multi-wheel change",
-                    subtitle = "Move more sensors around, like a tyre rotation",
+                    subtitle = "Tyre rotation, etc",
                     onClick = chain,
                     modifier = Modifier.testTag(ManageSensorsTags.multiWheel),
                 )
