@@ -4,21 +4,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
@@ -57,47 +61,33 @@ internal fun AssignSensorDialog(
             Column {
                 detected?.also { sensor ->
                     // The recommended way, under a light tint of the primary color
-                    ListItem(
-                        headlineContent = { Text("Assign detected sensor") },
-                        supportingContent = {
-                            Text(
-                                buildString {
-                                    append("Sysgration, ")
-                                    appendLoc(location, withType = false)
-                                    append(", ")
-                                    append(sensor.id.asSensorId())
-                                }
-                            )
+                    AssignOption(
+                        icon = { SysgrationBadge() },
+                        title = "Assign detected sensor",
+                        subtitle = buildString {
+                            append("Sysgration, ")
+                            appendLoc(location, withType = false)
+                            append(", ")
+                            append(sensor.id.asSensorId())
                         },
-                        leadingContent = { SysgrationBadge() },
-                        colors = ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = HIGHLIGHT_ALPHA)
-                        ),
-                        modifier = Modifier
-                            .clip(ITEM_SHAPE)
-                            .clickable { assignDetected(sensor) }
-                            .testTag(AssignSensorDialogTags.detected),
+                        onClick = { assignDetected(sensor) },
+                        isHighlighted = true,
+                        modifier = Modifier.testTag(AssignSensorDialogTags.detected),
                     )
                 }
-                ListItem(
-                    headlineContent = { Text("Scan QR code") },
-                    supportingContent = { Text("Printed on the sensors' box, card or cap") },
-                    leadingContent = { Icon(ImageVector.vectorResource(R.drawable.qr_code_24px), null) },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier
-                        .clip(ITEM_SHAPE)
-                        .clickable(onClick = scanQrCode)
-                        .testTag(AssignSensorDialogTags.qrCode),
+                AssignOption(
+                    icon = { Icon(ImageVector.vectorResource(R.drawable.qr_code_24px), null) },
+                    title = "Scan QR code",
+                    subtitle = "Printed on the sensors' box, card or cap",
+                    onClick = scanQrCode,
+                    modifier = Modifier.testTag(AssignSensorDialogTags.qrCode),
                 )
-                ListItem(
-                    headlineContent = { Text("Scan via Bluetooth") },
-                    supportingContent = { Text("Use pressure changes to detect the correct sensor") },
-                    leadingContent = { Icon(ImageVector.vectorResource(R.drawable.bluetooth_24px), null) },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier
-                        .clip(ITEM_SHAPE)
-                        .clickable(onClick = scanBluetooth)
-                        .testTag(AssignSensorDialogTags.bluetooth),
+                AssignOption(
+                    icon = { Icon(ImageVector.vectorResource(R.drawable.bluetooth_24px), null) },
+                    title = "Scan via Bluetooth",
+                    subtitle = "Use pressure changes to detect the correct sensor",
+                    onClick = scanBluetooth,
+                    modifier = Modifier.testTag(AssignSensorDialogTags.bluetooth),
                 )
             }
         },
@@ -106,6 +96,44 @@ internal fun AssignSensorDialog(
         },
         modifier = modifier.testTag(AssignSensorDialogTags.root),
     )
+}
+
+/**
+ * A list item, but with its icon centered on the text: Material top-aligns it once the text takes
+ * three lines, which looks off when two of them are a thin subtitle
+ */
+@Composable
+private fun AssignOption(
+    icon: @Composable () -> Unit,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isHighlighted: Boolean = false,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(ITEM_SHAPE)
+            .run {
+                if (isHighlighted) background(MaterialTheme.colorScheme.primary.copy(alpha = HIGHLIGHT_ALPHA))
+                else this
+            }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) { icon() }
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 /** Stands for Sysgration, the only brand advertising its location, without being its logo */
