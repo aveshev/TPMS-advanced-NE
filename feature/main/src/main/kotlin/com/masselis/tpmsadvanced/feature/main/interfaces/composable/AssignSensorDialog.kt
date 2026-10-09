@@ -1,50 +1,42 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MaterialTheme.colorScheme
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorBrand.SYSGRATION
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.R
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.AssignMethod.BLUETOOTH
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.AssignMethod.DETECTED
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.AssignMethod.QR_CODE
+
+private val ITEM_SHAPE = RoundedCornerShape(12.dp)
 
 /**
- * Asks how to assign a sensor to [location]: by its QR code, by scanning the sensors around, or
- * directly the [detected] sensor when one advertises this location
+ * The ways to assign a sensor to [location], each acting when tapped: the [detected] sensor first
+ * when one advertises this location, then by its QR code or by scanning the sensors around
  */
 @Suppress("LongMethod")
 @Composable
@@ -57,140 +49,79 @@ internal fun AssignSensorDialog(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var method by rememberSaveable { mutableStateOf(null as AssignMethod?) }
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(buildString { append("Assign a sensor to the "); appendLoc(location) }) },
         text = {
             Column {
-                Row {
-                    MethodCard(QR_CODE, method == QR_CODE, { method = QR_CODE }, Modifier.weight(1f))
-                    Spacer(Modifier.width(8.dp))
-                    MethodCard(BLUETOOTH, method == BLUETOOTH, { method = BLUETOOTH }, Modifier.weight(1f))
-                }
                 detected?.also { sensor ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .selectable(
-                                selected = method == DETECTED,
-                                onClick = { method = DETECTED },
-                                role = Role.RadioButton,
+                    // The recommended way, highlighted
+                    ListItem(
+                        headlineContent = { Text("Assign the detected sensor") },
+                        supportingContent = {
+                            Text(
+                                buildString {
+                                    append("Sysgration, ")
+                                    appendLoc(location, withType = false)
+                                    append(", ")
+                                    append(sensor.id.asSensorId())
+                                }
                             )
+                        },
+                        leadingContent = { SysgrationBadge() },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        modifier = Modifier
+                            .clip(ITEM_SHAPE)
+                            .clickable { assignDetected(sensor) }
                             .testTag(AssignSensorDialogTags.detected),
-                    ) {
-                        RadioButton(selected = method == DETECTED, onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            buildString {
-                                append("Assign the detected ")
-                                appendLoc(location, withType = false)
-                                append(" Sysgration sensor here (")
-                                append(sensor.id.asSensorId())
-                                append(")")
-                            }
-                        )
-                    }
+                    )
                 }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) { Text("Cancel") }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    when (method) {
-                        QR_CODE -> scanQrCode()
-                        BLUETOOTH -> scanBluetooth()
-                        DETECTED -> detected?.also(assignDetected)
-                        null -> {}
-                    }
-                },
-                enabled = method != null,
-                modifier = Modifier.testTag(AssignSensorDialogTags.next),
-            ) {
-                Text(
-                    when (method) {
-                        QR_CODE -> "Scan QR Code"
-                        BLUETOOTH -> "Bind sensor one by one"
-                        DETECTED -> "Assign"
-                        null -> "Next"
-                    }
+                ListItem(
+                    headlineContent = { Text("Scan QR code") },
+                    supportingContent = { Text("Printed on the sensors' box or card") },
+                    leadingContent = { Icon(ImageVector.vectorResource(R.drawable.qr_code_24px), null) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier
+                        .clip(ITEM_SHAPE)
+                        .clickable(onClick = scanQrCode)
+                        .testTag(AssignSensorDialogTags.qrCode),
+                )
+                ListItem(
+                    headlineContent = { Text("Scan via Bluetooth") },
+                    supportingContent = { Text("Pick the sensor among those around") },
+                    leadingContent = { Icon(ImageVector.vectorResource(R.drawable.bluetooth_24px), null) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier
+                        .clip(ITEM_SHAPE)
+                        .clickable(onClick = scanBluetooth)
+                        .testTag(AssignSensorDialogTags.bluetooth),
                 )
             }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
         },
         modifier = modifier.testTag(AssignSensorDialogTags.root),
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Stands for Sysgration, the only brand advertising its location, without being its logo */
 @Composable
-private fun MethodCard(
-    method: AssignMethod,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val borderColor by animateColorAsState(
-        targetValue = if (isSelected) colorScheme.primary else colorScheme.onSurfaceVariant,
-        animationSpec = tween(durationMillis = 100),
-        label = "color_animation_$method"
-    )
-    OutlinedCard(
-        shape = RoundedCornerShape(percent = 20),
-        border = BorderStroke(2.dp, borderColor),
-        onClick = onClick,
-        modifier = modifier.testTag(
-            if (method == QR_CODE) AssignSensorDialogTags.qrCode else AssignSensorDialogTags.bluetooth
-        ),
+private fun SysgrationBadge(modifier: Modifier = Modifier) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(24.dp)
+            .background(MaterialTheme.colorScheme.primary, CircleShape),
     ) {
         Text(
-            text = when (method) {
-                QR_CODE -> "Scan QR Code"
-                BLUETOOTH, DETECTED -> "Bind manually"
-            },
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 12.dp, start = 4.dp, end = 4.dp),
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Image(
-            painter = painterResource(
-                id = when (method) {
-                    QR_CODE -> R.drawable.sysgration_sensor
-                    BLUETOOTH, DETECTED -> R.drawable.pecham_sensor
-                }
-            ),
-            contentDescription = when (method) {
-                QR_CODE -> "Sysgration sensors"
-                BLUETOOTH, DETECTED -> "Pecham sensors"
-            },
-            contentScale = ContentScale.FillHeight,
-            modifier = Modifier
-                .height(72.dp)
-                .align(Alignment.CenterHorizontally),
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = when (method) {
-                QR_CODE -> "Sysgration sensors"
-                BLUETOOTH, DETECTED -> "Other sensors"
-            },
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        )
-        RadioButton(
-            selected = isSelected,
-            onClick = onClick,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            text = "S",
+            color = MaterialTheme.colorScheme.onPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Black,
         )
     }
 }
-
-private enum class AssignMethod { QR_CODE, BLUETOOTH, DETECTED }
 
 @Preview
 @Composable
@@ -212,7 +143,6 @@ internal fun AssignSensorDialogDetectedPreview() {
 internal object AssignSensorDialogTags {
     const val root = "AssignSensorDialogTags_root"
     const val detected = "AssignSensorDialogTags_detected"
-    const val next = "AssignSensorDialogTags_next"
     const val qrCode = "AssignSensorDialogTags_qrCode"
     const val bluetooth = "AssignSensorDialogTags_bluetooth"
 }
