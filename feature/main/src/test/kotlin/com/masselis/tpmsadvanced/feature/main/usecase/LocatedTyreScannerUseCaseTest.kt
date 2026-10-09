@@ -10,6 +10,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_RIGHT
 import com.masselis.tpmsadvanced.data.vehicle.model.Temperature.CREATOR.celsius
 import com.masselis.tpmsadvanced.data.vehicle.model.Tyre
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import io.mockk.every
 import io.mockk.mockk
@@ -42,6 +43,9 @@ internal class LocatedTyreScannerUseCaseTest {
             every { boundSensor() } returns this@LocatedTyreScannerUseCaseTest.boundSensor
             every { isBound(any()) } answers {
                 firstArg<Int>().let { it == boundSensor.value?.id || it in boundElsewhere }
+            }
+            every { boundVehicle(any()) } answers {
+                flowOf(mockk<Vehicle>().takeIf { firstArg<Sensor>().id in boundElsewhere })
             }
         }
     }
@@ -83,6 +87,13 @@ internal class LocatedTyreScannerUseCaseTest {
     fun `the demo shows a sensor advertising a free location, without detecting it`() = runTest {
         showsUnbound = true
         assertEquals(listOf(Tyre.Located(sysgration(3), location)) to null, detects(sysgration(3)))
+    }
+
+    @Test
+    fun `a detected sensor bound elsewhere afterwards is no longer detected`() = runTest {
+        every { source.normalScan() } returns flowOf(sysgration(3))
+        test().also { it.normalScan().toList() }.also { boundElsewhere = setOf(3) }
+            .let { assertEquals(null, it.detectedSensor().first()) }
     }
 
     @Test

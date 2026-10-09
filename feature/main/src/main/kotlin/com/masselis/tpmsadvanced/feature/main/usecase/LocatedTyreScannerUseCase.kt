@@ -8,6 +8,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transformLatest
 import kotlin.time.Duration.Companion.minutes
@@ -29,15 +32,22 @@ internal class LocatedTyreScannerUseCase(
 
     /**
      * An unbound sensor advertising this location (Sysgration) while none is bound here, heard
-     * by the scans above in the last [DETECTION_TIMEOUT], ready to be bound here
+     * by the scans above in the last [DETECTION_TIMEOUT], ready to be bound here. It's no longer
+     * detected once bound, here or anywhere else.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun detectedSensor(): Flow<Sensor?> = detected.transformLatest { detection ->
-        emit(detection?.sensor)
-        detection
-            ?.also { delay(DETECTION_TIMEOUT - it.heardAt.elapsedNow()) }
-            ?.also { emit(null) }
-    }
+    fun detectedSensor(): Flow<Sensor?> = detected
+        .transformLatest { detection ->
+            emit(detection?.sensor)
+            detection
+                ?.also { delay(DETECTION_TIMEOUT - it.heardAt.elapsedNow()) }
+                ?.also { emit(null) }
+        }
+        .flatMapLatest { sensor ->
+            sensor
+                ?.let { sensorBindingUseCase.boundVehicle(it).map { vehicle -> sensor.takeIf { vehicle == null } } }
+                ?: flowOf(null)
+        }
 
     // Filtered here, before ListenTyreWithDatabaseUseCase stores the records: a record of another
     // sensor stored for this location would be replayed at the next start, then dropped by
