@@ -18,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -42,17 +43,24 @@ import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 internal val OUTLINE_OUTSET = 6.dp
 private val SHAPE = RoundedCornerShape(12.dp)
 
+/** A location a moving sensor went through, greyed out */
+private const val PASSED_ALPHA = .38f
+
 /**
  * Covers a location's tyre and readout. Tapping it assigns a sensor while there's none, and
- * manages the assigned one while [isManaging]. It's outlined whenever it can be tapped.
+ * manages the assigned one while [isManaging]. It's outlined whenever it can be tapped. While a
+ * sensor is moving ([move]), tapping it sends that sensor here: the location the sensor waits at
+ * blinks, those it went through are greyed out.
  */
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 internal fun TyreTapArea(
     location: Location,
     isManaging: Boolean,
     scanQrCode: () -> Unit,
     scanBluetooth: () -> Unit,
+    move: TyreMove?,
+    startMove: (Location) -> Unit,
     modifier: Modifier = Modifier,
     vehicleComponent: VehicleComponent = LocalVehicleComponent.current,
     viewModel: TyreActionsViewModel = vehicleComponent
@@ -64,17 +72,26 @@ internal fun TyreTapArea(
     var isOpen by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val isUnassigned = state is State.Unassigned
-    val isTappable = when (state) {
-        State.Demo -> false
-        is State.Unassigned -> true
-        is State.Assigned -> isManaging
+    val isInChain = move?.chain?.locations?.contains(location) == true
+    val isWaiting = move?.chain?.last == location
+    val onTap: (() -> Unit)? = when {
+        // A sensor can't go back to where it, or another one of the chain, was
+        move != null -> if (isInChain) null else ({ move.onTap(location) })
+        state is State.Unassigned || (state is State.Assigned && isManaging) -> ({ isOpen = true })
+        else -> null
+    }
+    val outline = when {
+        isWaiting -> MaterialTheme.colorScheme.primary.takeIf { isFirstBlinkPhase(BLINK) } ?: Color.Transparent
+        isInChain -> MaterialTheme.colorScheme.onSurface.copy(alpha = PASSED_ALPHA)
+        isManaging || isUnassigned -> MaterialTheme.colorScheme.primary
+        else -> null
     }
     Box(
         modifier
             .outset(OUTLINE_OUTSET)
-            .run { if (isManaging || isUnassigned) border(2.dp, MaterialTheme.colorScheme.primary, SHAPE) else this }
+            .run { outline?.let { border(2.dp, it, SHAPE) } ?: this }
             .clip(SHAPE)
-            .run { if (isTappable) clickable { isOpen = true } else this }
+            .run { onTap?.let { clickable(onClick = it) } ?: this }
             .testTag(TyreTapAreaTags.root(location))
     )
     (state as? State.Assigned)
@@ -83,6 +100,7 @@ internal fun TyreTapArea(
             ManageSensorDialog(
                 location = location,
                 sensor = assigned.sensor,
+                move = { isOpen = false; startMove(location) },
                 delete = { isOpen = false; confirmDelete = true },
                 onDismissRequest = { isOpen = false },
             )
@@ -147,6 +165,7 @@ private fun Modifier.outset(outset: Dp) = layout { measurable, constraints ->
 private fun ManageSensorDialog(
     location: Location,
     sensor: Sensor,
+    move: () -> Unit,
     delete: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -165,14 +184,14 @@ private fun ManageSensorDialog(
         },
         text = {
             Column {
-                // Coming next
                 DialogOption(
                     icon = { Icon(ImageVector.vectorResource(R.drawable.swap_horizontal_24px), null) },
                     title = "Move/swap",
                     subtitle = "Assign this sensor to another wheel",
-                    onClick = {},
-                    isEnabled = false,
+                    onClick = move,
+                    modifier = Modifier.testTag(TyreTapAreaTags.move),
                 )
+                // Coming next
                 DialogOption(
                     icon = { Icon(ImageVector.vectorResource(R.drawable.tune_24px), null) },
                     title = "Calibrate",
@@ -206,13 +225,14 @@ private fun ManageSensorDialog(
 @Preview
 @Composable
 internal fun ManageSensorDialogPreview() {
-    ManageSensorDialog(Location.Wheel(FRONT_RIGHT), Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM), {}, {})
+    ManageSensorDialog(Location.Wheel(FRONT_RIGHT), Sensor(0x0A0B0C, Location.Wheel(FRONT_RIGHT), PECHAM), {}, {}, {})
 }
 
 @Suppress("ConstPropertyName")
 internal object TyreTapAreaTags {
     fun root(location: Location) = "TyreTapAreaTags_root_$location"
     const val manageDialog = "TyreTapAreaTags_manageDialog"
+    const val move = "TyreTapAreaTags_move"
     const val delete = "TyreTapAreaTags_delete"
     const val manageCancel = "TyreTapAreaTags_manageCancel"
     const val deleteDialog = "TyreTapAreaTags_deleteDialog"

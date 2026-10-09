@@ -46,6 +46,26 @@ public class SensorDatabase internal constructor(
         queries.deleteByVehicle(vehicleId)
     }
 
+    /**
+     * Moves the vehicle's sensors at once, each from the first location of a pair to the second,
+     * along with their readings. Every location moved from must have a sensor, a location moved
+     * to without being moved from must not, so no sensor is lost.
+     */
+    public suspend fun move(vehicleId: UUID, moves: List<Pair<Location, Location>>): Unit = withContext(IO) {
+        database.transaction {
+            moves
+                .map { (from, to) ->
+                    queries.selectByVehicleAndLocation(vehicleId, from, mapper).executeAsOne() to to
+                }
+                // All freed first, a sensor can take a location another one is leaving
+                .onEach { (sensor, _) -> queries.deleteByVehicleAndLocation(vehicleId, sensor.location) }
+                .forEach { (sensor, to) ->
+                    queries.upsert(sensor.id, to, vehicleId, sensor.brand)
+                    database.readingQueries.moveSensor(to, vehicleId, sensor.location, sensor.id)
+                }
+        }
+    }
+
     /** Unbinds the sensor at [location] of the vehicle, if any */
     public suspend fun deleteFromVehicle(vehicleId: UUID, location: Location): Unit = withContext(IO) {
         queries.deleteByVehicleAndLocation(vehicleId, location)

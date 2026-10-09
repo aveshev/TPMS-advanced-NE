@@ -60,6 +60,7 @@ import com.masselis.tpmsadvanced.feature.main.R
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleBindings.Companion.VehicleSettingsViewModel
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent.Factory.Companion.key
+import com.masselis.tpmsadvanced.feature.main.model.MoveChain
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -183,12 +184,18 @@ public fun Vehicle(
 /**
  * What tapping the vehicle's locations does. While [isManaging], see [ManageSensors], every
  * location is outlined and its readout keeps to its pressure, temperature and time since update.
+ * [startMove] starts moving a location's sensor, then [move] picks where it goes.
  */
-public class TyreTaps(
+public class TyreTaps internal constructor(
     internal val isManaging: Boolean = false,
     internal val scanQrCode: () -> Unit = {},
     internal val scanBluetooth: () -> Unit = {},
+    internal val move: TyreMove? = null,
+    internal val startMove: (Location) -> Unit = {},
 )
+
+/** A sensor moving along [chain], [onTap] picking the next location */
+internal class TyreMove(val chain: MoveChain, val onTap: (Location) -> Unit)
 
 /**
  * Spans [tyre] and its [readout], whichever side of the tyre the readout of [location] is on, and
@@ -416,6 +423,8 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -447,6 +456,8 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -478,6 +489,8 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -509,6 +522,8 @@ private fun Car(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -583,6 +598,8 @@ private fun SingleAxleTrailer(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(leftTap) { around(tyreLeft, leftStats, this@with) }
                     .outlineCenteredOn(axleY, basicReadoutHeight),
@@ -614,6 +631,8 @@ private fun SingleAxleTrailer(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rightTap) { around(tyreRight, rightStats, this@with) }
                     .outlineCenteredOn(axleY, basicReadoutHeight),
@@ -689,6 +708,8 @@ private fun Motorcycle(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -720,6 +741,8 @@ private fun Motorcycle(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -802,6 +825,8 @@ private fun TadpoleThreadWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -833,6 +858,8 @@ private fun TadpoleThreadWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -864,6 +891,8 @@ private fun TadpoleThreadWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -946,6 +975,8 @@ private fun DeltaThreeWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
                     .outlineCenteredOn(frontY, basicReadoutHeight),
@@ -977,6 +1008,8 @@ private fun DeltaThreeWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
@@ -1008,6 +1041,8 @@ private fun DeltaThreeWheeler(
                 isManaging = taps.isManaging,
                 scanQrCode = taps.scanQrCode,
                 scanBluetooth = taps.scanBluetooth,
+                move = taps.move,
+                startMove = taps.startMove,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
                     .outlineCenteredOn(rearY, basicReadoutHeight),
