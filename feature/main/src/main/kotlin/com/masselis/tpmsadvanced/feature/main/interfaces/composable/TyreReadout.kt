@@ -15,7 +15,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.masselis.tpmsadvanced.core.ui.viewModel
 import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.FRONT_LEFT
-import com.masselis.tpmsadvanced.data.vehicle.model.SensorLocation.Side.LEFT
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreActionsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreActionsViewModel.State
@@ -49,10 +48,9 @@ private fun TapToAssign(
     isDetected: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    // Lined up against the tyre, like the readout
-    val isLeft = location.readoutSide == LEFT
+    // Centered in the readout's slot, inside the outline
     Column(
-        horizontalAlignment = if (isLeft) Alignment.End else Alignment.Start,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.testTag(TyreReadoutTags.tapToAssign(location)),
     ) {
         Text(
@@ -60,7 +58,7 @@ private fun TapToAssign(
             color = MaterialTheme.colorScheme.primary,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
-            textAlign = if (isLeft) TextAlign.End else TextAlign.Start,
+            textAlign = TextAlign.Center,
         )
         if (isDetected) Text(
             text = "(detected)",

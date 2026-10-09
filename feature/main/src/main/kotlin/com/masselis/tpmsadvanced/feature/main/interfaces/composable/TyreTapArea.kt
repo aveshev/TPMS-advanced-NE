@@ -43,7 +43,7 @@ private val SHAPE = RoundedCornerShape(12.dp)
 
 /**
  * Covers a location's tyre and readout. Tapping it assigns a sensor while there's none, and opens
- * a menu managing the assigned one while [isManaging], when it's outlined to show it can be tapped.
+ * a menu managing the assigned one while [isManaging]. It's outlined whenever it can be tapped.
  */
 @Suppress("LongMethod")
 @Composable
@@ -62,6 +62,7 @@ internal fun TyreTapArea(
     // A dialog to assign a sensor, a menu to manage the assigned one
     var isOpen by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    val isUnassigned = state is State.Unassigned
     val isTappable = when (state) {
         State.Demo -> false
         is State.Unassigned -> true
@@ -70,7 +71,7 @@ internal fun TyreTapArea(
     Box(
         modifier
             .outset(OUTSET)
-            .run { if (isManaging) border(2.dp, MaterialTheme.colorScheme.primary, SHAPE) else this }
+            .run { if (isManaging || isUnassigned) border(2.dp, MaterialTheme.colorScheme.primary, SHAPE) else this }
             .clip(SHAPE)
             .run { if (isTappable) clickable { isOpen = true } else this }
             .testTag(TyreTapAreaTags.root(location))

@@ -127,6 +127,7 @@ public fun CurrentVehicle(
     )
 }
 
+@Suppress("MaxLineLength")
 @Composable
 public fun Vehicle(
     component: VehicleComponent,
@@ -141,7 +142,9 @@ public fun Vehicle(
         .viewModel(component.key()) { it.VehicleSettingsViewModel() }
         .pressureUnit
         .collectAsState()
-    val readoutWidth = rememberWidestReadoutWidth(pressureUnit) + READOUT_GAP
+    // Every readout as wide, so the outlines around them are too
+    val readoutSlotWidth = rememberWidestReadoutWidth(pressureUnit)
+    val readoutWidth = readoutSlotWidth + READOUT_GAP
     val basicReadoutHeight = rememberBasicReadoutHeight()
     val readoutSides = component.vehicle.kind.locations.map { it.readoutSide }.toSet()
     BoxWithConstraints(modifier) {
@@ -163,15 +166,15 @@ public fun Vehicle(
             )
         when (component.vehicle.kind) {
             Kind.CAR -> 
-                Car(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+                Car(imageHeight, snackbarHostState, center, taps, readoutSlotWidth, basicReadoutHeight, fill)
             Kind.SINGLE_AXLE_TRAILER -> 
-                SingleAxleTrailer(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+                SingleAxleTrailer(imageHeight, snackbarHostState, center, taps, readoutSlotWidth, basicReadoutHeight, fill)
             Kind.MOTORCYCLE -> 
-                Motorcycle(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+                Motorcycle(imageHeight, snackbarHostState, center, taps, readoutSlotWidth, basicReadoutHeight, fill)
             Kind.TADPOLE_THREE_WHEELER -> 
-                TadpoleThreadWheeler(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+                TadpoleThreadWheeler(imageHeight, snackbarHostState, center, taps, readoutSlotWidth, basicReadoutHeight, fill)
             Kind.DELTA_THREE_WHEELER -> 
-                DeltaThreeWheeler(imageHeight, snackbarHostState, center, taps, basicReadoutHeight, fill)
+                DeltaThreeWheeler(imageHeight, snackbarHostState, center, taps, readoutSlotWidth, basicReadoutHeight, fill)
         }
     }
 }
@@ -186,14 +189,17 @@ public class TyreTaps(
     internal val scanBluetooth: () -> Unit = {},
 )
 
-/** Spans [tyre] and its [readout], whichever side of the tyre the readout of [location] is on */
+/**
+ * Spans [tyre] and its [readout], whichever side of the tyre the readout of [location] is on, and
+ * the readout's height: the whole image, see [outlineCenteredOn]
+ */
 private fun ConstrainScope.around(
     tyre: ConstrainedLayoutReference,
     readout: ConstrainedLayoutReference,
     location: Location,
 ) {
-    top.linkTo(tyre.top)
-    bottom.linkTo(tyre.bottom)
+    top.linkTo(readout.top)
+    bottom.linkTo(readout.bottom)
     when (location.readoutSide) {
         LEFT -> {
             start.linkTo(readout.start)
@@ -209,12 +215,24 @@ private fun ConstrainScope.around(
     height = Dimension.fillToConstraints
 }
 
-/** At least [minHeight] tall, growing evenly above and below, to hold a basic readout */
-private fun Modifier.centeredMinHeight(minHeight: Dp) = layout { measurable, constraints ->
-    val height = constraints.maxHeight.coerceAtLeast(minHeight.roundToPx())
+/**
+ * Given the image's height, as tall as a tyre or [minHeight] for a basic readout, and placed like
+ * [verticallyCenteredOn] places the readout: centered on [y], pushed back inside the image when it
+ * would overflow, so it stays around the readout wherever it's moved
+ */
+private fun Modifier.outlineCenteredOn(y: Float, minHeight: Dp) = layout { measurable, constraints ->
+    val height = (constraints.maxHeight * TYRE_HEIGHT)
+        .roundToInt()
+        .coerceAtLeast(minHeight.roundToPx())
+        .coerceAtMost(constraints.maxHeight)
     val placeable = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
     layout(placeable.width, constraints.maxHeight) {
-        placeable.place(0, (constraints.maxHeight - height) / 2)
+        placeable.place(
+            x = 0,
+            y = (constraints.maxHeight * y - height / 2f)
+                .roundToInt()
+                .coerceIn(0, constraints.maxHeight - height)
+        )
     }
 }
 
@@ -239,7 +257,7 @@ private fun rememberBasicReadoutHeight(): Dp {
     }
 }
 
-/** Width of the widest line a [TyreStat] can show, with the current font and font scale */
+/** Width of the widest line a [TyreReadout] can show, with the current font and font scale */
 @Composable
 private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit): Dp {
     val measurer = rememberTextMeasurer()
@@ -248,6 +266,9 @@ private fun rememberWidestReadoutWidth(pressureUnit: PressureUnit): Dp {
     return remember(measurer, pressureStyle, density, pressureUnit) {
         listOf(measurer.measure(pressureUnit.widestReadout, pressureStyle))
             .plus(WIDEST_DETAILS.map { measurer.measure(it, pressureStyle.copy(fontSize = 16.sp)) })
+            // What a location without a sensor shows instead, see TyreReadout
+            .plus(measurer.measure("Tap to", pressureStyle.copy(fontSize = 20.sp)))
+            .plus(measurer.measure("(detected)", pressureStyle.copy(fontSize = 16.sp, fontWeight = FontWeight.Normal)))
             .maxOf { it.size.width }
             .let { with(density) { it.toDp() } }
     }
@@ -341,6 +362,7 @@ private fun Car(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    readoutSlotWidth: Dp,
     basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -384,9 +406,8 @@ private fun Car(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     end.linkTo(frontLeft.start, 8.dp)
-                    // If not, the word "bar" for "1,50 bar" is not displayed 🤷
-                    width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(frontY)
             )
             TyreTapArea(
@@ -396,7 +417,7 @@ private fun Car(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(frontY, basicReadoutHeight),
             )
         }
         with(Location.Wheel(FRONT_RIGHT)) {
@@ -416,6 +437,7 @@ private fun Car(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(frontRight.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
@@ -426,7 +448,7 @@ private fun Car(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(frontY, basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_LEFT)) {
@@ -446,8 +468,8 @@ private fun Car(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     end.linkTo(rearLeft.start, 8.dp)
-                    width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(rearY)
             )
             TyreTapArea(
@@ -457,7 +479,7 @@ private fun Car(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -477,6 +499,7 @@ private fun Car(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(rearRight.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
@@ -487,7 +510,7 @@ private fun Car(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -509,6 +532,7 @@ private fun SingleAxleTrailer(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    readoutSlotWidth: Dp,
     basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -549,8 +573,8 @@ private fun SingleAxleTrailer(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     end.linkTo(tyreLeft.start, 8.dp)
-                    width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(axleY)
             )
             TyreTapArea(
@@ -560,7 +584,7 @@ private fun SingleAxleTrailer(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(leftTap) { around(tyreLeft, leftStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(axleY, basicReadoutHeight),
             )
         }
         with(Location.Side(RIGHT)) {
@@ -580,6 +604,7 @@ private fun SingleAxleTrailer(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(tyreRight.end, 8.dp)
                 }.verticallyCenteredOn(axleY)
             )
@@ -590,7 +615,7 @@ private fun SingleAxleTrailer(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rightTap) { around(tyreRight, rightStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(axleY, basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -613,6 +638,7 @@ private fun Motorcycle(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    readoutSlotWidth: Dp,
     basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -653,6 +679,7 @@ private fun Motorcycle(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
@@ -663,7 +690,7 @@ private fun Motorcycle(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(frontY, basicReadoutHeight),
             )
         }
         with(Location.Axle(REAR)) {
@@ -683,6 +710,7 @@ private fun Motorcycle(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
@@ -693,7 +721,7 @@ private fun Motorcycle(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -715,6 +743,7 @@ private fun TadpoleThreadWheeler(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    readoutSlotWidth: Dp,
     basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -763,9 +792,8 @@ private fun TadpoleThreadWheeler(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     end.linkTo(frontLeft.start, 8.dp)
-                    // If not, the word "bar" for "1,50 bar" is not displayed 🤷
-                    width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(frontY)
             )
             TyreTapArea(
@@ -775,7 +803,7 @@ private fun TadpoleThreadWheeler(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(frontLeftTap) { around(frontLeft, frontLeftStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(frontY, basicReadoutHeight),
             )
         }
         with(Location.Wheel(FRONT_RIGHT)) {
@@ -795,6 +823,7 @@ private fun TadpoleThreadWheeler(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(frontRight.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
@@ -805,7 +834,7 @@ private fun TadpoleThreadWheeler(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(frontRightTap) { around(frontRight, frontRightStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(frontY, basicReadoutHeight),
             )
         }
         with(Location.Axle(REAR)) {
@@ -825,6 +854,7 @@ private fun TadpoleThreadWheeler(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(rearOutline.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
@@ -835,7 +865,7 @@ private fun TadpoleThreadWheeler(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rearTap) { around(tyreRear, rearStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight),
             )
         }
         // Last, over everything else
@@ -857,6 +887,7 @@ private fun DeltaThreeWheeler(
     snackbarHostState: SnackbarHostState,
     center: @Composable (Modifier) -> Unit,
     taps: TyreTaps,
+    readoutSlotWidth: Dp,
     basicReadoutHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -905,6 +936,7 @@ private fun DeltaThreeWheeler(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(frontOutline.end, 8.dp)
                 }.verticallyCenteredOn(frontY)
             )
@@ -915,7 +947,7 @@ private fun DeltaThreeWheeler(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(frontTap) { around(tyreFront, frontStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(frontY, basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_LEFT)) {
@@ -935,8 +967,8 @@ private fun DeltaThreeWheeler(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     end.linkTo(vehicleImage.start, 8.dp)
-                    width = Dimension.value(100.dp)
                 }.verticallyCenteredOn(rearY)
             )
             TyreTapArea(
@@ -946,7 +978,7 @@ private fun DeltaThreeWheeler(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rearLeftTap) { around(rearLeft, rearLeftStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight),
             )
         }
         with(Location.Wheel(REAR_RIGHT)) {
@@ -966,6 +998,7 @@ private fun DeltaThreeWheeler(
                     top.linkTo(vehicleImage.top)
                     bottom.linkTo(vehicleImage.bottom)
                     height = Dimension.fillToConstraints
+                    width = Dimension.value(readoutSlotWidth)
                     start.linkTo(vehicleImage.end, 8.dp)
                 }.verticallyCenteredOn(rearY)
             )
@@ -976,7 +1009,7 @@ private fun DeltaThreeWheeler(
                 scanBluetooth = taps.scanBluetooth,
                 modifier = Modifier
                     .constrainAs(rearRightTap) { around(rearRight, rearRightStats, this@with) }
-                    .centeredMinHeight(basicReadoutHeight),
+                    .outlineCenteredOn(rearY, basicReadoutHeight),
             )
         }
         // Last, over everything else

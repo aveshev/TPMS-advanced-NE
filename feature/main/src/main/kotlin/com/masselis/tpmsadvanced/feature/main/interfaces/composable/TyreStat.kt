@@ -102,8 +102,10 @@ private fun TyreStat(
     val levels = detected?.levels.orEmpty()
     val sensorId = detected?.sensorId
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val alignment = remember {
-        when (location) {
+    val alignment = remember(isBasic) {
+        // Centered inside its outline on the sensors' page, against the tyre otherwise
+        if (isBasic) Alignment.CenterHorizontally
+        else when (location) {
             is Location.Axle -> Alignment.Start
             is Location.Wheel -> when (location.location.side) {
                 LEFT -> Alignment.End
