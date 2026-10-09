@@ -19,10 +19,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -192,7 +194,14 @@ public class TyreTaps internal constructor(
     internal val scanBluetooth: () -> Unit = {},
     internal val move: TyreMove? = null,
     internal val startMove: (Location) -> Unit = {},
+    /** Where each location's tyre is centered in the window, to draw over the vehicle */
+    internal val onTyrePositioned: ((Location, Offset) -> Unit)? = null,
 )
+
+private fun Modifier.reportCenter(location: Location, taps: TyreTaps) = taps
+    .onTyrePositioned
+    ?.let { report -> onGloballyPositioned { report(location, it.boundsInWindow().center) } }
+    ?: this
 
 /** A sensor moving along [chain] on a vehicle with [all] these locations, [onTap] picking the next one */
 internal class TyreMove(val chain: MoveChain, private val all: Collection<Location>, val onTap: (Location) -> Unit) {
@@ -408,7 +417,7 @@ private fun Car(
                     centerAround(track.start)
                     centerAround(frontAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -442,7 +451,7 @@ private fun Car(
                     centerAround(track.end)
                     centerAround(frontAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -476,7 +485,7 @@ private fun Car(
                     centerAround(track.start)
                     centerAround(rearAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -510,7 +519,7 @@ private fun Car(
                     centerAround(track.end)
                     centerAround(rearAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -587,7 +596,7 @@ private fun SingleAxleTrailer(
                     centerAround(track.start)
                     centerAround(axle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -621,7 +630,7 @@ private fun SingleAxleTrailer(
                     centerAround(track.end)
                     centerAround(axle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -699,7 +708,7 @@ private fun Motorcycle(
                     centerHorizontallyTo(vehicleImage)
                     centerAround(frontAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -733,7 +742,7 @@ private fun Motorcycle(
                     centerHorizontallyTo(vehicleImage)
                     centerAround(rearAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -818,7 +827,7 @@ private fun TadpoleThreadWheeler(
                     centerAround(frontTrack.start)
                     centerAround(frontAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -852,7 +861,7 @@ private fun TadpoleThreadWheeler(
                     centerAround(frontTrack.end)
                     centerAround(frontAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -886,7 +895,7 @@ private fun TadpoleThreadWheeler(
                     centerHorizontallyTo(vehicleImage)
                     centerAround(rearAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -971,7 +980,7 @@ private fun DeltaThreeWheeler(
                     centerHorizontallyTo(vehicleImage)
                     centerAround(frontAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -1005,7 +1014,7 @@ private fun DeltaThreeWheeler(
                     centerAround(rearTrack.start)
                     centerAround(rearAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,
@@ -1039,7 +1048,7 @@ private fun DeltaThreeWheeler(
                     centerAround(rearTrack.end)
                     centerAround(rearAxle)
                     tyreSize(imageHeight)
-                }
+                }.reportCenter(this, taps)
             )
             TyreReadout(
                 location = this,

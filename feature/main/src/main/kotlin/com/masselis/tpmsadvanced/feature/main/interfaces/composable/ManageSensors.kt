@@ -1,14 +1,16 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.annotation.DrawableRes
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -17,12 +19,19 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
@@ -68,6 +77,8 @@ public fun ManageSensors(
     var asking by rememberSaveable { mutableStateOf<MoveChain?>(null) }
     // Ready, waiting for the user to confirm it
     var confirming by rememberSaveable { mutableStateOf<MoveChain?>(null) }
+    // Where each tyre is in the window, for the arrows of the moves
+    val tyreCenters = remember { mutableStateMapOf<Location, Offset>() }
     fun stop() {
         moving = null
         asking = null
@@ -89,8 +100,9 @@ public fun ManageSensors(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .padding(horizontal = 16.dp)
-                // As tall as the Cancel button shown while moving, so nothing shifts when it shows
-                .heightIn(min = ButtonDefaults.MinHeight),
+                // As tall as the Cancel button shown while moving, with its touch target, so
+                // nothing shifts when it shows
+                .height(PROMPT_HEIGHT),
         ) {
             Text(
                 text = if (moving != null) "Tap the wheel to move to"
@@ -107,6 +119,7 @@ public fun ManageSensors(
                 modifier = Modifier.testTag(ManageSensorsTags.cancelMove),
             ) { Text("Cancel") }
         }
+        Box(Modifier.weight(1f)) {
         Vehicle(
             component = component,
             snackbarHostState = snackbarHostState,
@@ -130,9 +143,19 @@ public fun ManageSensors(
                     else
                         moving = MoveChain.from(location)
                 },
+                onTyrePositioned = { location, center -> tyreCenters[location] = center },
             ),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
         )
+        MoveArrows(
+            // Each move picked so far, all of them once the chain is complete
+            moves = confirming?.moves(occupied)
+                ?: (asking ?: moving)?.locations?.zipWithNext()
+                ?: emptyList(),
+            tyreCenters = tyreCenters,
+            modifier = Modifier.fillMaxSize(),
+        )
+        }
     }
     asking?.also { chain ->
         SwapOrChainDialog(
@@ -160,6 +183,51 @@ public fun ManageSensors(
         )
     }
 }
+
+/**
+ * An arrow from each move's location to the next over the vehicle, [tyreCenters] being in the
+ * window. A swap's two arrows are drawn side by side.
+ */
+@Composable
+private fun MoveArrows(
+    moves: List<Pair<Location, Location>>,
+    tyreCenters: Map<Location, Offset>,
+    modifier: Modifier = Modifier,
+) {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val color = MaterialTheme.colorScheme.primary
+    Canvas(modifier.onGloballyPositioned { origin = it.positionInWindow() }) {
+        moves.forEach { (from, to) ->
+            val start = tyreCenters[from]?.minus(origin) ?: return@forEach
+            val end = tyreCenters[to]?.minus(origin) ?: return@forEach
+            val length = (end - start).getDistance().takeIf { it > 0f } ?: return@forEach
+            val direction = (end - start) / length
+            val normal = Offset(-direction.y, direction.x)
+            // Side by side with the swap's other arrow, rather than over it
+            val shift = if ((to to from) in moves) normal * ARROW_SPACING.toPx() else Offset.Zero
+            // Off the tyres at both ends
+            val inset = direction * ARROW_INSET.toPx().coerceAtMost(length / 3)
+            val tail = start + inset + shift
+            val tip = end - inset + shift
+            val head = ARROW_HEAD.toPx()
+            drawLine(color, tail, tip - direction * (head / 2f), ARROW_WIDTH.toPx(), StrokeCap.Round)
+            drawPath(
+                Path().apply {
+                    moveTo(tip.x, tip.y)
+                    (tip - direction * head + normal * (head / 2f)).also { lineTo(it.x, it.y) }
+                    (tip - direction * head - normal * (head / 2f)).also { lineTo(it.x, it.y) }
+                    close()
+                },
+                color,
+            )
+        }
+    }
+}
+
+private val ARROW_WIDTH = 3.dp
+private val ARROW_HEAD = 14.dp
+private val ARROW_INSET = 28.dp
+private val ARROW_SPACING = 6.dp
 
 /** Sending [from]'s sensor to [to], which has one: just swap them, or move more sensors around */
 @Composable
@@ -257,18 +325,24 @@ private fun MoveConfirmation(
                 }
             )
         },
-        text = if (isTwoLocations) null else {
-            {
-                Column {
-                    moves.forEach { (from, to) ->
-                        Text(
-                            buildString {
-                                appendLoc(from, withType = false, capitalized = true)
-                                append(" → ")
-                                appendLoc(to, withType = false, capitalized = true)
-                            }
-                        )
+        text = {
+            Column {
+                // A swap of two locations reads better as a single line
+                if (isTwoLocations && moves.size == 2) Text(
+                    buildString {
+                        appendLoc(moves.first().first, withType = false, capitalized = true)
+                        append(" ⇄ ")
+                        appendLoc(moves.first().second, withType = false, capitalized = true)
                     }
+                )
+                else moves.forEach { (from, to) ->
+                    Text(
+                        buildString {
+                            appendLoc(from, withType = false, capitalized = true)
+                            append(" → ")
+                            appendLoc(to, withType = false, capitalized = true)
+                        }
+                    )
                 }
             }
         },
@@ -291,6 +365,8 @@ internal fun MoveConfirmationPreview() {
     val car = listOf(FRONT_LEFT, FRONT_RIGHT, REAR_RIGHT, REAR_LEFT).map { Location.Wheel(it) }
     MoveConfirmation(MoveChain(car), car.toSet(), isTwoLocations = false, {}, {})
 }
+
+private val PROMPT_HEIGHT = 48.dp
 
 @Suppress("ConstPropertyName")
 internal object ManageSensorsTags {
