@@ -128,8 +128,8 @@ public fun CurrentVehicle(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     center: @Composable (Modifier) -> Unit = {},
-    scanQrCode: () -> Unit = {},
-    scanBluetooth: () -> Unit = {},
+    scanQrCode: (Location) -> Unit = {},
+    scanBluetooth: (Location) -> Unit = {},
 ) {
     Vehicle(
         component = LocalVehicleComponent.current,
@@ -216,8 +216,8 @@ public fun Vehicle(
 @Suppress("LongParameterList")
 public class TyreTaps internal constructor(
     internal val isManaging: Boolean = false,
-    internal val scanQrCode: () -> Unit = {},
-    internal val scanBluetooth: () -> Unit = {},
+    internal val scanQrCode: (Location) -> Unit = {},
+    internal val scanBluetooth: (Location) -> Unit = {},
     internal val move: TyreMove? = null,
     internal val startMove: (Location) -> Unit = {},
     /** A vehicle with a single location has nowhere to move a sensor to */

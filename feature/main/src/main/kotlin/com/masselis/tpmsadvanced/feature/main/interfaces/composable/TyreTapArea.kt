@@ -60,8 +60,8 @@ private const val PASSED_ALPHA = .38f
 internal fun TyreTapArea(
     location: Location,
     isManaging: Boolean,
-    scanQrCode: () -> Unit,
-    scanBluetooth: () -> Unit,
+    scanQrCode: (Location) -> Unit,
+    scanBluetooth: (Location) -> Unit,
     move: TyreMove?,
     startMove: (Location) -> Unit,
     canMove: Boolean,
@@ -122,8 +122,8 @@ internal fun TyreTapArea(
             AssignSensorDialog(
                 location = location,
                 detected = unassigned.detected,
-                scanQrCode = { isOpen = false; scanQrCode() },
-                scanBluetooth = { isOpen = false; scanBluetooth() },
+                scanQrCode = { isOpen = false; scanQrCode(location) },
+                scanBluetooth = { isOpen = false; scanBluetooth(location) },
                 assignDetected = { viewModel.assign(it); isOpen = false },
                 onDismissRequest = { isOpen = false },
             )

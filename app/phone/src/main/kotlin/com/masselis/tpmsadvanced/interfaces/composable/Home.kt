@@ -55,10 +55,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.masselis.tpmsadvanced.R
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.isWideWindow
@@ -76,7 +78,7 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ManageSensors
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeScan
-import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.UnlocatedSensorList
+import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.BluetoothAssign
 import com.masselis.tpmsadvanced.interfaces.composable.HomeTags.backButton
 import com.masselis.tpmsadvanced.interfaces.composable.HomeTags.carListDropdownMenu
 import com.masselis.tpmsadvanced.interfaces.viewmodel.HomeViewModel
@@ -148,6 +150,9 @@ internal fun VehicleHome(
                     val modifier = Modifier
                         .padding(paddingValues)
                         .fillMaxSize()
+                    val vehicleUuid = vehicleComponent.vehicle.uuid
+                    // A location is told in a route by its index in these
+                    val locations = vehicleComponent.vehicle.kind.locations.toList()
                     composable(route = "${Path.Home(vehicleComponent.vehicle.uuid)}") {
                         // The bell tells the status here, nothing to hear
                         QuietScanStatusAnnouncementsEffect()
@@ -155,11 +160,9 @@ internal fun VehicleHome(
                             snackbarHostState = snackbarHostState,
                             modifier = modifier,
                             center = { SilenceAlertsButton(it) },
-                            scanQrCode = {
-                                navController.navigate("${Path.QrCode(vehicleComponent.vehicle.uuid)}")
-                            },
+                            scanQrCode = { navController.navigate("${Path.QrCode(vehicleUuid, locations.indexOf(it))}") },
                             scanBluetooth = {
-                                navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
+                                navController.navigate("${Path.BluetoothAssign(vehicleUuid, locations.indexOf(it))}")
                             },
                         )
                     }
@@ -186,11 +189,9 @@ internal fun VehicleHome(
                     composable("${Path.ManageSensors(vehicleComponent.vehicle.uuid)}") {
                         ManageSensors(
                             snackbarHostState = snackbarHostState,
-                            scanQrCode = {
-                                navController.navigate("${Path.QrCode(vehicleComponent.vehicle.uuid)}")
-                            },
+                            scanQrCode = { navController.navigate("${Path.QrCode(vehicleUuid, locations.indexOf(it))}") },
                             scanBluetooth = {
-                                navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
+                                navController.navigate("${Path.BluetoothAssign(vehicleUuid, locations.indexOf(it))}")
                             },
                             modifier = modifier,
                             navigationIcon = { BackButton() },
@@ -317,22 +318,37 @@ internal fun VehicleHome(
                             modifier = modifier
                         )
                     }
-                    composable("${Path.QrCode(vehicleComponent.vehicle.uuid)}") {
+                    composable(
+                        route = Path.QrCode.route(vehicleUuid),
+                        arguments = listOf(navArgument("location") { type = NavType.IntType }),
+                    ) { entry ->
+                        val location = entry.arguments!!.getInt("location")
                         QrCodeScan(
                             snackbarHostState = snackbarHostState,
                             openUnlocatedSensorBinding = {
-                                navController.navigate("${Path.Unlocated(vehicleComponent.vehicle.uuid)}")
+                                navController.navigate("${Path.BluetoothAssign(vehicleUuid, location)}")
                             },
                             modifier = modifier
                         )
                     }
-                    composable("${Path.Unlocated(vehicleComponent.vehicle.uuid)}") {
-                        UnlocatedSensorList(
-                            vehicleUuid = vehicleComponent.vehicle.uuid,
+                    composable(
+                        route = Path.BluetoothAssign.route(vehicleUuid),
+                        arguments = listOf(
+                            navArgument("location") { type = NavType.IntType },
+                            navArgument("ids") {
+                                type = NavType.StringType
+                                nullable = true
+                            },
+                        ),
+                    ) { entry ->
+                        BluetoothAssign(
+                            vehicleUuid = vehicleUuid,
+                            location = locations[entry.arguments!!.getInt("location")],
+                            allowedIds = entry.arguments!!.getString("ids")?.split(',')?.map { it.toInt() }?.toSet(),
                             // Back to the screen the assignment started from, home or the sensors
-                            bindingFinished = {
-                                navController.popBackStack("${Path.Unlocated(vehicleComponent.vehicle.uuid)}", true)
-                                navController.popBackStack("${Path.QrCode(vehicleComponent.vehicle.uuid)}", true)
+                            onLeave = {
+                                navController.popBackStack(Path.BluetoothAssign.route(vehicleUuid), true)
+                                navController.popBackStack(Path.QrCode.route(vehicleUuid), true)
                             },
                             modifier = modifier
                         )
@@ -433,7 +449,7 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices -> Text(text = "Bluetooth devices")
                 is Path.Beacons -> Text(text = "Bluetooth beacons")
                 is Path.BeaconScan -> Text(text = "Add a beacon")
-                is Path.Unlocated -> Text(text = "Binding")
+                is Path.BluetoothAssign -> Text(text = "Assign by Bluetooth")
                 is Path.QrCode, null -> {}
             }
         },
@@ -459,7 +475,7 @@ private fun TopAppBar(
                 is Path.Beacons,
                 is Path.BeaconScan,
                 is Path.QrCode,
-                is Path.Unlocated -> BackButton()
+                is Path.BluetoothAssign -> BackButton()
 
                 // What the phone detects it is doing, when asked for in the debug settings
                 is Path.Home -> DetectedActivitiesIndicator()
@@ -538,7 +554,7 @@ private fun TopAppBar(
                 is Path.Beacons,
                 is Path.BeaconScan,
                 is Path.QrCode,
-                is Path.Unlocated,
+                is Path.BluetoothAssign,
                 null -> {}
             }
         },

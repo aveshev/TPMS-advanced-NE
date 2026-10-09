@@ -6,6 +6,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.ReadingDatabase
 import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
 import com.masselis.tpmsadvanced.feature.unlocated.interfaces.viewmodel.BindDialogViewModelImpl
+import com.masselis.tpmsadvanced.feature.unlocated.interfaces.viewmodel.BluetoothAssignViewModel
 import com.masselis.tpmsadvanced.feature.unlocated.interfaces.viewmodel.ListSensorViewModelImpl
 import com.masselis.tpmsadvanced.feature.unlocated.usecase.BindSensorToVehicleUseCase
 import com.masselis.tpmsadvanced.feature.unlocated.usecase.VehicleBindingStatusUseCase
@@ -37,11 +38,13 @@ public interface Bindings {
     @Inject
     public class Internal internal constructor(
         internal val listSensorViewModel: ListSensorViewModelImpl.Factory,
-        internal val bindDialogViewModel: BindDialogViewModelImpl.Factory
+        internal val bindDialogViewModel: BindDialogViewModelImpl.Factory,
+        internal val bluetoothAssignViewModel: BluetoothAssignViewModel.Factory,
     )
 
     public companion object : Bindings by appGraph as Bindings {
         internal val ListSensorViewModel = featureUnlocatedInternal.listSensorViewModel
         internal val BindDialogViewModel = featureUnlocatedInternal.bindDialogViewModel
+        internal val BluetoothAssignViewModel = featureUnlocatedInternal.bluetoothAssignViewModel
     }
 }

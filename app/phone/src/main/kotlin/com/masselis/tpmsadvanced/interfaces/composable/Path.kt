@@ -92,14 +92,26 @@ internal sealed interface Path {
         override fun toString(): String = "app_settings/activate_scan_conditions/beacons/scan"
     }
 
-    @JvmInline
-    value class QrCode(val vehicleUUID: UUID) : Path {
-        override fun toString(): String = "vehicle/$vehicleUUID/qrcode"
+    /** Scans a QR code for the location at [location] in the vehicle kind's locations */
+    data class QrCode(val vehicleUUID: UUID, val location: Int) : Path {
+        override fun toString(): String = "vehicle/$vehicleUUID/qrcode/$location"
+
+        companion object {
+            fun route(vehicleUUID: UUID) = "vehicle/$vehicleUUID/qrcode/{location}"
+        }
     }
 
-    @JvmInline
-    value class Unlocated(val vehicleUUID: UUID) : Path {
-        override fun toString(): String = "vehicle/$vehicleUUID/unlocated"
+    /**
+     * Assigns the location at [location] in the vehicle kind's locations a sensor by Bluetooth,
+     * listening only to [ids] when given: those of a QR code
+     */
+    data class BluetoothAssign(val vehicleUUID: UUID, val location: Int, val ids: Collection<Int>? = null) : Path {
+        override fun toString(): String =
+            "vehicle/$vehicleUUID/bluetooth_assign/$location" + (ids?.joinToString(",", prefix = "?ids=") ?: "")
+
+        companion object {
+            fun route(vehicleUUID: UUID) = "vehicle/$vehicleUUID/bluetooth_assign/{location}?ids={ids}"
+        }
     }
 
     companion object {
@@ -125,9 +137,12 @@ internal sealed interface Path {
         fun from(route: String): Path = when (val page = appPages.firstOrNull { "$it" == route }) {
             null -> route
                 .split('/')
-                .let { (host, uuid, screen) ->
+                .let { segments ->
+                    val (host, uuidString, screen) = segments
                     assert(host == "vehicle")
-                    val uuid = UUID.fromString(uuid)
+                    val uuid = UUID.fromString(uuidString)
+                    // A route's pattern, as a destination has it, has no location
+                    val location = segments.getOrNull(3)?.substringBefore('?')?.toIntOrNull() ?: 0
                     when (screen) {
                         "home" -> Home(uuid)
                         "settings" -> Settings(uuid)
@@ -136,8 +151,8 @@ internal sealed interface Path {
                         "settings_temperature" -> TemperatureSettings(uuid)
                         "settings_calibration" -> CalibrationSettings(uuid)
                         "settings_battery" -> BatterySettings(uuid)
-                        "qrcode" -> QrCode(uuid)
-                        "unlocated" -> Unlocated(uuid)
+                        "qrcode" -> QrCode(uuid, location)
+                        "bluetooth_assign" -> BluetoothAssign(uuid, location)
                         else -> error("Unrecognized route: \"$route\"")
                     }
                 }

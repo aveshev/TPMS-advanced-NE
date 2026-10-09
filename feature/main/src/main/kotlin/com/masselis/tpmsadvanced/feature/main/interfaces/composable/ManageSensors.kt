@@ -71,8 +71,8 @@ import com.masselis.tpmsadvanced.feature.main.model.MoveChain.Step
 @Composable
 public fun ManageSensors(
     snackbarHostState: SnackbarHostState,
-    scanQrCode: () -> Unit,
-    scanBluetooth: () -> Unit,
+    scanQrCode: (Location) -> Unit,
+    scanBluetooth: (Location) -> Unit,
     modifier: Modifier = Modifier,
     /** In a wide window, see [isWideWindow], the top bar makes way: the page shows its own */
     navigationIcon: @Composable () -> Unit = {},
