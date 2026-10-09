@@ -472,7 +472,7 @@ private fun TopAppBar(
                 is Path.Beacons -> Text(text = "Bluetooth beacons")
                 is Path.BeaconScan -> Text(text = "Add a beacon")
                 is Path.Licenses -> Text(text = "Open-source licenses")
-                is Path.BluetoothAssign -> Text(text = "Assign by Bluetooth")
+                is Path.BluetoothAssign -> Text(text = "Assign via Bluetooth")
                 is Path.QrCode, null -> {}
             }
         },

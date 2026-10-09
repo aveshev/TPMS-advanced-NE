@@ -1,5 +1,11 @@
 package com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui
 
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.asSensorId
+import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
 import com.masselis.tpmsadvanced.feature.main.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.vectorResource
@@ -63,7 +69,7 @@ public fun BluetoothAssign(
     // Bluetooth on and its permissions granted, like the main screen
     // Its modifier only goes to what it shows in place of the steps
     Preconditions(modifier) { Steps(location, state, viewModel, modifier) }
-    Dialogs(location, state.dialog, viewModel)
+    Dialogs(state.vehicle, state.dialog, viewModel)
 }
 
 @Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -92,14 +98,23 @@ private fun Steps(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(72.dp),
             )
-            Text(
-                text = buildString { append("Assign a sensor to the "); appendLoc(location) },
+            // Once assigned, the page tells it in full
+            if (state.isAssigned.not()) Text(
+                text = buildAnnotatedString {
+                    append("Assigning to ")
+                    appendWheelOn(location, state.vehicle)
+                },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
             val dialog = state.dialog
-            if (state.isAssigned) Instruction(buildString { append("Sensor assigned to the "); appendLoc(location) })
+            if (state.isAssigned) Instruction(
+                buildAnnotatedString {
+                    (step as? AssignStep.Found)?.also { append("Sensor ${it.sensorId.asSensorId()} assigned to ") }
+                    appendWheelOn(location, state.vehicle)
+                }
+            )
             else if (dialog == Dialog.OneFound) Instruction(
                 "One sensor found",
                 buildString {
@@ -113,7 +128,7 @@ private fun Steps(
                 "Let's figure out which one to assign",
             )
             else when (step) {
-                AssignStep.Ask -> Instruction("Is the sensor on the wheel right now?")
+                AssignStep.Ask -> Instruction("Is the sensor you want to assign on the wheel right now?")
 
                 is AssignStep.PutOn -> {
                     Instruction("Put the sensor on the wheel", FORCES_UPDATE)
@@ -165,11 +180,11 @@ private fun Steps(
                     OutlinedButton(
                         onClick = { viewModel.answer(isOnWheel = false) },
                         modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.inHand),
-                    ) { Text("No, the sensor is in my hand") }
+                    ) { Text("No, not yet") }
                     Button(
                         onClick = { viewModel.answer(isOnWheel = true) },
                         modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.onWheel),
-                    ) { Text("Yes, the sensor is on the wheel") }
+                    ) { Text("Yes, it's on the wheel") }
                 }
 
                 is AssignStep.PutOn -> {
@@ -201,7 +216,7 @@ private const val FORCES_UPDATE = "This will force it to send an update"
 
 @Suppress("LongMethod")
 @Composable
-private fun Dialogs(location: Location, dialog: Dialog?, viewModel: BluetoothAssignViewModel) {
+private fun Dialogs(vehicle: Vehicle?, dialog: Dialog?, viewModel: BluetoothAssignViewModel) {
     when (dialog) {
         null -> {}
 
@@ -211,19 +226,19 @@ private fun Dialogs(location: Location, dialog: Dialog?, viewModel: BluetoothAss
         is Dialog.BoundElsewhere -> AlertDialog(
             onDismissRequest = viewModel::dismissDialog,
             text = {
-                Text(buildString {
-                    append("This sensor is assigned to ")
-                    append(dialog.vehicle.name)
-                    append(". It will be removed from it and assigned to the ")
-                    appendLoc(location)
-                    append(".")
+                Text(buildAnnotatedString {
+                    append("This sensor is already assigned to ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(dialog.vehicle.name) }
+                    append(". Reassign it to ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(vehicle?.name.orEmpty()) }
+                    append("?")
                 })
             },
             confirmButton = {
                 TextButton(
                     onClick = viewModel::confirmBoundElsewhere,
                     modifier = Modifier.testTag(BluetoothAssignTags.assign),
-                ) { Text("Assign") }
+                ) { Text("Reassign") }
             },
             dismissButton = { TextButton(onClick = viewModel::dismissDialog) { Text("Cancel") } },
         )
@@ -231,7 +246,10 @@ private fun Dialogs(location: Location, dialog: Dialog?, viewModel: BluetoothAss
 }
 
 @Composable
-private fun Instruction(text: String, detail: String? = null) {
+private fun Instruction(text: String, detail: String? = null) = Instruction(AnnotatedString(text), detail)
+
+@Composable
+private fun Instruction(text: AnnotatedString, detail: String? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = text,
@@ -247,6 +265,25 @@ private fun Instruction(text: String, detail: String? = null) {
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+/**
+ * "the **front left** wheel on **My car**", the location and the vehicle in bold. A mono-wheel's only
+ * wheel is just "the wheel".
+ */
+private fun AnnotatedString.Builder.appendWheelOn(location: Location, vehicle: Vehicle?) {
+    append("the ")
+    if (location == Location.Single) append("wheel")
+    else {
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(buildString { appendLoc(location, withType = false) })
+        }
+        append(" wheel")
+    }
+    vehicle?.also {
+        append(" on ")
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(it.name) }
     }
 }
 

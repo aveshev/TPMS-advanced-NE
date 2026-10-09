@@ -61,6 +61,8 @@ internal class BluetoothAssignViewModel(
     }
 
     data class State(
+        /** The vehicle assigned a sensor, null until read */
+        val vehicle: Vehicle? = null,
         val step: AssignStep = AssignStep.Ask,
         val dialog: Dialog? = null,
         /** Nothing was found on a wheel for a while: maybe the tyre is nearly flat */
@@ -104,6 +106,10 @@ internal class BluetoothAssignViewModel(
         .stateIn(viewModelScope, Eagerly, emptySet())
 
     init {
+        viewModelScope.launch {
+            val vehicle = withContext(IO) { vehicleDatabase.selectByUuid(vehicleUuid).execute() }
+            mutableStateFlow.update { it.copy(vehicle = vehicle) }
+        }
         // Listens while a step waits for sensors
         mutableStateFlow
             .map { it.step.isListening() }
