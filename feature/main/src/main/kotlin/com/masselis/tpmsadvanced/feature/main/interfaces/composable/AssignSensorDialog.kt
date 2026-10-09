@@ -58,7 +58,7 @@ internal fun AssignSensorDialog(
                 detected?.also { sensor ->
                     // The recommended way, under a light tint of the primary color
                     ListItem(
-                        headlineContent = { Text("Assign the detected sensor") },
+                        headlineContent = { Text("Assign detected sensor") },
                         supportingContent = {
                             Text(
                                 buildString {
