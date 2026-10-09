@@ -33,6 +33,7 @@ import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.feature.main.R
 
 private val ITEM_SHAPE = RoundedCornerShape(12.dp)
+private const val HIGHLIGHT_ALPHA = .12f
 
 /**
  * The ways to assign a sensor to [location], each acting when tapped: the [detected] sensor first
@@ -55,7 +56,7 @@ internal fun AssignSensorDialog(
         text = {
             Column {
                 detected?.also { sensor ->
-                    // The recommended way, highlighted
+                    // The recommended way, under a light tint of the primary color
                     ListItem(
                         headlineContent = { Text("Assign the detected sensor") },
                         supportingContent = {
@@ -69,7 +70,9 @@ internal fun AssignSensorDialog(
                             )
                         },
                         leadingContent = { SysgrationBadge() },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        colors = ListItemDefaults.colors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = HIGHLIGHT_ALPHA)
+                        ),
                         modifier = Modifier
                             .clip(ITEM_SHAPE)
                             .clickable { assignDetected(sensor) }
@@ -88,7 +91,7 @@ internal fun AssignSensorDialog(
                 )
                 ListItem(
                     headlineContent = { Text("Scan via Bluetooth") },
-                    supportingContent = { Text("Pick the sensor among those around") },
+                    supportingContent = { Text("Use pressure changes to detect the right sensor") },
                     leadingContent = { Icon(ImageVector.vectorResource(R.drawable.bluetooth_24px), null) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier
