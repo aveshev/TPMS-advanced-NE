@@ -85,10 +85,10 @@ android {
             name = when {
                 name.startsWith("light_main") -> "1.png"
                 name.startsWith("light_settings") -> "2.png"
-                name.startsWith("light_binding_method") -> "3.png"
+                name.startsWith("light_manage_sensors") -> "3.png"
                 name.startsWith("dark_main") -> "4.png"
                 name.startsWith("dark_settings") -> "5.png"
-                name.startsWith("dark_binding_method") -> "6.png"
+                name.startsWith("dark_manage_sensors") -> "6.png"
                 else -> throw GradleException("File with name $name not recognized")
             }
         }

@@ -111,13 +111,13 @@ internal class ListenTyreWithDatabaseUseCaseTest {
     }
 
     @Test
-    fun `No tyre emit but a cache exists`() = runTest {
+    fun `without a bound sensor, a stored record isn't replayed`() = runTest {
         val savedTyre =
             Tyre.Located(now(), -20, 1, 1f.bar, 1f.celsius, PECHAM, false, Location.Wheel(FRONT_LEFT), raw = "0a")
         every { readingDatabase.latestByLocation(location, any()) } returns
                 mockkQueryOneOrNull(savedTyre)
         test().listen().test {
-            assertEquals(savedTyre, awaitItem())
+            expectNoEvents()
         }
         coVerify(exactly = 0) { readingDatabase.insert(any(), any()) }
         coroutineContext.cancelChildren()

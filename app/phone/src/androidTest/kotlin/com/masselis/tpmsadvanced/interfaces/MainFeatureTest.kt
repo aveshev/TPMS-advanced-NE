@@ -46,18 +46,12 @@ internal class MainFeatureTest {
                 add()
             }
         }
-        vehicleSettings {
-            leave()
-        }
         dropdownMenu {
             addVehicle {
                 setVehicleName("Motorcycle")
                 setKind(MOTORCYCLE)
                 add()
             }
-        }
-        vehicleSettings {
-            leave()
         }
         dropdownMenu {
             assertVehicleExists("Car")
@@ -67,23 +61,54 @@ internal class MainFeatureTest {
         dropdownMenu {
             select("Car")
         }
-        bindSensorButton(Location.Wheel(FRONT_LEFT)) {
-            assertIsDisplayed()
-            tap {
+        // The demo scanner's Sysgration sensor advertising the front left is detected there
+        wheel(Location.Wheel(FRONT_LEFT)) {
+            waitUntilUnassigned()
+            assign {
+                assertDetectedIsOffered()
                 cancel()
             }
-            tap {
-                addToFavorites()
+            assign {
+                assignDetected()
             }
-            assertIsNotDisplayed()
+            waitUntilAssigned()
         }
         actionOverflow {
             settings {
-                waitClearFavouritesEnabled()
-                clearFavourites()
-                waitClearFavouritesDisabled()
+                manageSensors {
+                    wheel(Location.Wheel(FRONT_LEFT)) {
+                        manage {
+                            delete(confirm = false)
+                        }
+                        waitUntilAssigned()
+                        manage {
+                            delete()
+                        }
+                        waitUntilUnassigned()
+                    }
+                    leave()
+                }
                 leave()
             }
+        }
+        wheel(Location.Wheel(FRONT_LEFT)) {
+            assign {
+                assignDetected()
+            }
+            waitUntilAssigned()
+        }
+        actionOverflow {
+            settings {
+                waitDeleteAllSensorsEnabled()
+                deleteAllSensors(confirm = false)
+                waitDeleteAllSensorsEnabled()
+                deleteAllSensors()
+                waitDeleteAllSensorsDisabled()
+                leave()
+            }
+        }
+        wheel(Location.Wheel(FRONT_LEFT)) {
+            waitUntilUnassigned()
         }
         dropdownMenu {
             select("My car")
@@ -102,52 +127,44 @@ internal class MainFeatureTest {
             assertVehicleDoesNotExists("My car")
             select("Car")
         }
-        actionOverflow {
-            bindingMethod {
-                goBack()
+        wheel(Location.Wheel(FRONT_LEFT)) {
+            assign {
+                scanBluetooth()
             }
         }
-        actionOverflow {
-            bindingMethod {
-                assertNextButtonHidden()
-                tapQrCode()
-                tapBindManually()
-                tapGoToNextButton {
-                    tapSensorUnplugged()
-                    tapSensor(2) {
-                        assertBindButtonIsNotEnabled()
-                        tapLocation(Location.Wheel(FRONT_LEFT))
-                        tapCancel()
-                    }
-                    tapSensor(2) {
-                        tapLocation(Location.Wheel(FRONT_LEFT))
-                        tapBindButton()
-                    }
-                    tapSensor(4) {
-                        tapLocation(Location.Wheel(FRONT_RIGHT))
-                        tapBindButton()
-                    }
-                    tapSensor(6) {
-                        tapLocation(Location.Wheel(REAR_LEFT))
-                        tapBindButton()
-                    }
-                    tapSensor(8) {
-                        tapLocation(Location.Wheel(REAR_RIGHT))
-                        tapBindButton()
-                    }
-                    assertAllLocationBound(
-                        2 to Location.Wheel(FRONT_LEFT),
-                        4 to Location.Wheel(FRONT_RIGHT),
-                        6 to Location.Wheel(REAR_LEFT),
-                        8 to Location.Wheel(REAR_RIGHT),
-                    )
-                    tapGoBack()
-                }
+        unlocatedSensorsList {
+            tapSensorUnplugged()
+            tapSensor(2) {
+                assertBindButtonIsNotEnabled()
+                tapLocation(Location.Wheel(FRONT_LEFT))
+                tapCancel()
             }
+            tapSensor(2) {
+                tapLocation(Location.Wheel(FRONT_LEFT))
+                tapBindButton()
+            }
+            tapSensor(4) {
+                tapLocation(Location.Wheel(FRONT_RIGHT))
+                tapBindButton()
+            }
+            tapSensor(6) {
+                tapLocation(Location.Wheel(REAR_LEFT))
+                tapBindButton()
+            }
+            tapSensor(8) {
+                tapLocation(Location.Wheel(REAR_RIGHT))
+                tapBindButton()
+            }
+            assertAllLocationBound(
+                2 to Location.Wheel(FRONT_LEFT),
+                4 to Location.Wheel(FRONT_RIGHT),
+                6 to Location.Wheel(REAR_LEFT),
+                8 to Location.Wheel(REAR_RIGHT),
+            )
+            tapGoBack()
         }
-        bindSensorButton(Location.Wheel(FRONT_LEFT)) { assertIsNotDisplayed() }
-        bindSensorButton(Location.Wheel(FRONT_RIGHT)) { assertIsNotDisplayed() }
-        bindSensorButton(Location.Wheel(REAR_LEFT)) { assertIsNotDisplayed() }
-        bindSensorButton(Location.Wheel(REAR_RIGHT)) { assertIsNotDisplayed() }
+        listOf(FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT).forEach {
+            wheel(Location.Wheel(it)) { waitUntilAssigned() }
+        }
     }
 }

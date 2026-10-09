@@ -40,8 +40,8 @@ import kotlinx.coroutines.delay
 
 /**
  * The vehicle's settings, the alerts being summarised here and edited on their own pages opened by
- * [openPressure], [openTemperature] and [openBattery]. [openBindingMethod] opens the sensor binding
- * and [openCalibration] the pressure calibration.
+ * [openPressure], [openTemperature] and [openBattery]. [openManageSensors] manages the
+ * sensors on the main screen and [openCalibration] opens the pressure calibration.
  */
 @Suppress("LongMethod", "MaxLineLength", "CyclomaticComplexMethod")
 @Composable
@@ -49,7 +49,7 @@ public fun VehicleSettings(
     openPressure: () -> Unit,
     openTemperature: () -> Unit,
     openBattery: () -> Unit,
-    openBindingMethod: () -> Unit,
+    openManageSensors: () -> Unit,
     openCalibration: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundSettings: @Composable (VehicleComponent) -> Unit = backgroundSettingsPlaceholder,
@@ -126,10 +126,9 @@ public fun VehicleSettings(
         SettingsSectionHeader("Sensors")
         SettingsGroup {
             TextSettingsItem(
-                headline = "Bind sensors",
-                onClick = openBindingMethod,
-                opensPage = true,
-                modifier = Modifier.testTag(VehicleSettingsTags.bindSensors),
+                headline = "Manage sensors",
+                onClick = openManageSensors,
+                modifier = Modifier.testTag(VehicleSettingsTags.manageSensors),
             )
             SwitchNavigationSettingsItem(
                 headline = "Pressure calibration",
@@ -222,7 +221,7 @@ internal fun RenameVehicleDialogPreview() {
 
 @Suppress("ConstPropertyName")
 internal object VehicleSettingsTags {
-    const val bindSensors = "VehicleSettingsTags_bindSensors"
+    const val manageSensors = "VehicleSettingsTags_manageSensors"
     const val battery = "VehicleSettingsTags_battery"
     const val calibration = "VehicleSettingsTags_calibration"
 }

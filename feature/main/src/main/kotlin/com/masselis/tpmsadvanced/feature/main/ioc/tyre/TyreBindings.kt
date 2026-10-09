@@ -9,9 +9,9 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.VehicleDatabase
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
+import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreActionsViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreIconViewModel
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.TyreStatsViewModel
-import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.BindSensorButtonViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.TyreIconViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.interfaces.viewmodel.impl.TyreStatsViewModelImpl
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleLifecycle
@@ -20,7 +20,6 @@ import com.masselis.tpmsadvanced.feature.main.usecase.ListenTyreSmartDutyUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.ListenTyreUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.ListenTyreWithDatabaseUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.LocatedTyreScannerUseCase
-import com.masselis.tpmsadvanced.feature.main.usecase.SearchSensorToBindUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.SensorBindingUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreAlertsUseCase
 import com.masselis.tpmsadvanced.feature.main.usecase.TyreAtmosphereUseCase
@@ -103,23 +102,23 @@ public interface TyreBindings {
     ): TyreAtmosphereUseCase = TyreAtmosphereUseCase(listenTyreUseCase, calibrationUseCase)
 
     @Provides
-    private fun searchSensorToBindUseCase(
-        listenTyreUseCase: ListenTyreUseCase,
-        sensorBindingUseCase: SensorBindingUseCase,
-    ): SearchSensorToBindUseCase =
-        SearchSensorToBindUseCase(listenTyreUseCase, sensorBindingUseCase)
-
-    @Provides
     private fun listenTyreSmartDutyUseCase(scanner: LocatedTyreScannerUseCase): ListenTyreSmartDutyUseCase =
         ListenTyreSmartDutyUseCase(scanner)
 
+    // Single, it keeps the sensor it detects for TyreActionsViewModel
+    @SingleIn(TyreComponent.Scope::class)
     @Provides
     private fun locatedTyreScannerUseCase(
         source: BluetoothLeScanner,
         currentLocation: Location,
         sensorBindingUseCase: SensorBindingUseCase,
-    ): LocatedTyreScannerUseCase =
-        LocatedTyreScannerUseCase(source, currentLocation, sensorBindingUseCase)
+        demoOrBleScannerUseCase: DemoOrBleScannerUseCase,
+    ): LocatedTyreScannerUseCase = LocatedTyreScannerUseCase(
+        source,
+        currentLocation,
+        sensorBindingUseCase,
+        demoOrBleScannerUseCase.isDemo.value,
+    )
 
     @SingleIn(TyreComponent.Scope::class)
     @Provides
@@ -193,13 +192,21 @@ public interface TyreBindings {
     @Provides
     private fun tyreIconViewModel(vm: TyreIconViewModelImpl): TyreIconViewModel = vm
 
+    @Provides
+    private fun tyreActionsViewModel(
+        sensorBindingUseCase: SensorBindingUseCase,
+        scannerUseCase: LocatedTyreScannerUseCase,
+        demoOrBleScannerUseCase: DemoOrBleScannerUseCase,
+    ): TyreActionsViewModel =
+        TyreActionsViewModel(sensorBindingUseCase, scannerUseCase, demoOrBleScannerUseCase)
+
     public val internal: Internal
 
     @Inject
     public class Internal internal constructor(
         internal val tyreIconViewModel: () -> TyreIconViewModelImpl,
         internal val tyreStatsViewModel: () -> TyreStatsViewModelImpl,
-        internal val bindSensorButtonViewModel: BindSensorButtonViewModelImpl.Factory,
+        internal val tyreActionsViewModel: () -> TyreActionsViewModel,
     )
 
     @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
@@ -209,6 +216,6 @@ public interface TyreBindings {
 
         internal fun TyreComponent.TyreIconViewModel() = internal.tyreIconViewModel()
         internal fun TyreComponent.TyreStatsViewModel() = internal.tyreStatsViewModel()
-        internal val TyreComponent.BindSensorButtonViewModel get() = internal.bindSensorButtonViewModel
+        internal fun TyreComponent.TyreActionsViewModel() = internal.tyreActionsViewModel()
     }
 }

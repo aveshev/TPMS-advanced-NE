@@ -12,11 +12,10 @@ import com.masselis.tpmsadvanced.core.androidtest.EnterExitComposable.Instructio
 import com.masselis.tpmsadvanced.core.androidtest.onEnter
 import com.masselis.tpmsadvanced.core.androidtest.process
 import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.BindSensorButton
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.DropdownMenu
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.Settings
+import com.masselis.tpmsadvanced.feature.main.interfaces.composable.TyreTapArea
+import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.UnlocatedSensorsList
 import com.masselis.tpmsadvanced.interfaces.composable.HomeTags
-import com.masselis.tpmsadvanced.interfaces.composable.SettingsTag
 
 
 @OptIn(ExperimentalTestApi::class)
@@ -32,7 +31,7 @@ internal class Home private constructor(
 
     private val dropdownMenuTest = DropdownMenu(HomeTags.carListDropdownMenu)
     private val overflowMenuTest = OverflowMenu()
-    private val settingsTest = Settings(HomeTags.backButton, SettingsTag.vehicle)
+    private val unlocatedSensorsListTest = UnlocatedSensorsList()
 
     fun dropdownMenu(instructions: Instructions<DropdownMenu>) {
         carListDropdownMenu.performClick()
@@ -40,16 +39,16 @@ internal class Home private constructor(
         waitForIdle()
     }
 
-    /** The vehicle settings opened without the overflow menu, such as right after adding a vehicle */
-    fun vehicleSettings(instructions: Instructions<Settings>) {
-        settingsTest.process(instructions)
+    fun wheel(
+        location: Vehicle.Kind.Location,
+        instructions: EnterComposable.Instructions<TyreTapArea>
+    ) {
+        TyreTapArea(location).process(instructions)
     }
 
-    fun bindSensorButton(
-        location: Vehicle.Kind.Location,
-        instructions: EnterComposable.Instructions<BindSensorButton>
-    ) {
-        BindSensorButton(location).process(instructions)
+    /** The sensors around, reached by assigning a wheel by Bluetooth */
+    fun unlocatedSensorsList(instructions: Instructions<UnlocatedSensorsList>) {
+        unlocatedSensorsListTest.process(instructions)
     }
 
     fun actionOverflow(block: Instructions<OverflowMenu>) {

@@ -5,10 +5,10 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -21,9 +21,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -31,7 +39,6 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.MissingPermission
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.appendLoc
-import com.masselis.tpmsadvanced.feature.qrcode.R
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel.Event
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel.State
 import com.masselis.tpmsadvanced.feature.qrcode.ioc.Bindings.Companion.QrCodeViewModel
@@ -234,13 +241,44 @@ private fun QrCodeOverlay(
     modifier: Modifier = Modifier
 ) {
     Box(modifier) {
-        Image(
-            painterResource(id = R.drawable.qr_core_sample),
-            null,
+        // The usual scanner look: the preview dimmed around a clear square, its corners marked
+        Canvas(
             Modifier
-                .fillMaxWidth(0.7f)
-                .alpha(.4f)
-                .align(Alignment.Center)
+                .fillMaxSize()
+                // Offscreen, so the clear square cuts through the dim rather than painting over it
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+        ) {
+            val side = size.minDimension * WINDOW_FRACTION
+            val topLeft = Offset((size.width - side) / 2, (size.height - side) / 2)
+            val radius = CornerRadius(CORNER_RADIUS.toPx())
+            drawRect(Color.Black.copy(alpha = DIM_ALPHA))
+            drawRoundRect(Color.Transparent, topLeft, Size(side, side), radius, blendMode = BlendMode.Clear)
+            val stroke = BRACKET_WIDTH.toPx()
+            val arm = side * BRACKET_FRACTION
+            // Each corner: its position, and which way its arms go
+            listOf(
+                topLeft to Offset(1f, 1f),
+                topLeft + Offset(side, 0f) to Offset(-1f, 1f),
+                topLeft + Offset(0f, side) to Offset(1f, -1f),
+                topLeft + Offset(side, side) to Offset(-1f, -1f),
+            ).forEach { (corner, direction) ->
+                drawLine(Color.White, corner, corner + Offset(arm * direction.x, 0f), stroke, StrokeCap.Round)
+                drawLine(Color.White, corner, corner + Offset(0f, arm * direction.y), stroke, StrokeCap.Round)
+            }
+        }
+        Text(
+            text = "Point the camera at the sensors' QR code",
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 32.dp, vertical = 48.dp),
         )
     }
 }
+
+private const val WINDOW_FRACTION = .7f
+private const val BRACKET_FRACTION = .15f
+private const val DIM_ALPHA = .55f
+private val CORNER_RADIUS = 4.dp
+private val BRACKET_WIDTH = 4.dp
