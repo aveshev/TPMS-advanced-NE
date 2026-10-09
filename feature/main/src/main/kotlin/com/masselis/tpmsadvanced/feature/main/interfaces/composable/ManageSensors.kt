@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -365,7 +367,8 @@ private fun SwapOrChainDialog(
             Text(buildString { appendLoc(to, withType = false, capitalized = true); append(" already has a sensor") })
         },
         text = {
-            Column {
+            // Scrolls when it doesn't fit, a phone in landscape
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 DialogOption(
                     icon = { Icon(ImageVector.vectorResource(swapIcon(from, to)), null) },
                     title = "Just swap them",
@@ -449,7 +452,8 @@ private fun MoveConfirmation(
             )
         },
         text = {
-            Column {
+            // Scrolls when it doesn't fit, a phone in landscape
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 // A swap of two locations reads better as a single line
                 if (isTwoLocations && moves.size == 2) Text(
                     buildString {

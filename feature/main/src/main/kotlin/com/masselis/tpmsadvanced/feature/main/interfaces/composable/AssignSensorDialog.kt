@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +48,8 @@ internal fun AssignSensorDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(buildString { append("Assign a sensor to the "); appendLoc(location) }) },
         text = {
-            Column {
+            // Scrolls when it doesn't fit, a phone in landscape
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 detected?.also { sensor ->
                     // The recommended way, under a light tint of the primary color
                     DialogOption(

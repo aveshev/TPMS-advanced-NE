@@ -1,5 +1,7 @@
 package com.masselis.tpmsadvanced.feature.main.interfaces.composable
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -195,7 +197,8 @@ private fun ManageSensorDialog(
             }
         },
         text = {
-            Column {
+            // Scrolls when it doesn't fit, a phone in landscape
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 DialogOption(
                     icon = { Icon(ImageVector.vectorResource(R.drawable.swap_horizontal_24px), null) },
                     title = "Move/swap",
