@@ -55,7 +55,7 @@ internal fun InternalPreconditions(
             val permissionName = if (SDK_INT >= S) "Nearby devices" else "Location"
             @Suppress("MaxLineLength")
             MissingPermission(
-                text = "TPMS Advanced needs some permission to continue.\nTheses are required by the system in order to make BLE scan",
+                text = "Persistent TPMS needs some permission to continue.\nTheses are required by the system in order to make BLE scan",
                 refusedText = "This app requires \"$permissionName\" permission in order to scan for sensors, please enable it",
                 permissionState = permissionState,
                 autoRequest = true,
@@ -91,7 +91,7 @@ private fun ChipIsOff(
     ) {
         Text(
             @Suppress("MaxLineLength")
-            "TPMS Advanced needs you to enable the bluetooth chip.\nThis is required by the system in order to make BLE scan",
+            "Persistent TPMS needs you to enable the bluetooth chip.\nThis is required by the system in order to make BLE scan",
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth(0.7f)

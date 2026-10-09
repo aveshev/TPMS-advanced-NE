@@ -15,6 +15,7 @@ plugins {
     compose
     alias(libs.plugins.metro)
     alias(libs.plugins.paparazzi)
+    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.crashlytics) apply false
 }
@@ -53,8 +54,32 @@ rootProject.file("secrets/publisher-service-account.json").takeIf { it.exists() 
 
 android {
     defaultConfig {
-        applicationId = "com.masselis.tpmsadvanced"
         namespace = "com.masselis.tpmsadvanced"
+        // Builds as Persistent TPMS by default. `-Papp.brand=tpmsadvanced` builds the same code as
+        // TPMS Advanced instead: another app ID with its own data, so a change can be tried on a
+        // phone beside the Persistent TPMS that runs there, without touching it. Only the ID, the
+        // name and the launcher icon's colours change.
+        when (val brand = providers.gradleProperty("app.brand").getOrElse("persistenttpms")) {
+            "persistenttpms" -> {
+                applicationId = "com.aveshev.persistenttpms"
+                resValue("string", "app_name", "Persistent TPMS")
+                // Near black rather than black, so the icon's edge stays visible on dark wallpapers
+                resValue("color", "ic_launcher_background", "#FF101410")
+                resValue("color", "ic_launcher_glyph", "#FF4CAF50")
+                resValue("color", "ic_launcher_dot", "#FF8BE08F")
+            }
+
+            "tpmsadvanced" -> {
+                applicationId = "com.masselis.tpmsadvanced"
+                resValue("string", "app_name", "TPMS Advanced")
+                // The stock look, black on green, and no "always on" dot
+                resValue("color", "ic_launcher_background", "#FF4CAF50")
+                resValue("color", "ic_launcher_glyph", "#FF000000")
+                resValue("color", "ic_launcher_dot", "#00000000")
+            }
+
+            else -> error("Unknown app.brand \"$brand\", expected persistenttpms or tpmsadvanced")
+        }
     }
     keys(keysFile.asFile)?.also { keys ->
         signingConfigs.create("release") {
@@ -73,6 +98,7 @@ android {
         )
     }
     buildFeatures.buildConfig = true
+    buildFeatures.resValues = true
     val pixel2api34 = testOptions.managedDevices.localDevices.getByName("pixel2api34")
     val copyScreenshot by tasks.registering(Copy::class) {
         dependsOn("${pixel2api34.name}DebugAndroidTest")
@@ -114,6 +140,8 @@ dependencies {
     implementation(project(":feature:shortcut"))
     implementation(project(":feature:unit"))
     implementation(project(":feature:android-auto"))
+
+    implementation(libs.aboutlibraries.compose.m3)
 
     testImplementation(project(":core:test"))
 }

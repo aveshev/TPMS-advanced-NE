@@ -228,6 +228,14 @@ internal fun VehicleHome(
                             openPressureLoss = {
                                 navController.navigate("${Path.PressureLoss}")
                             },
+                            openLicenses = {
+                                navController.navigate("${Path.Licenses}")
+                            },
+                            modifier = modifier
+                        )
+                    }
+                    composable("${Path.Licenses}") {
+                        Licenses(
                             modifier = modifier
                         )
                     }
@@ -425,6 +433,7 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices -> Text(text = "Bluetooth devices")
                 is Path.Beacons -> Text(text = "Bluetooth beacons")
                 is Path.BeaconScan -> Text(text = "Add a beacon")
+                is Path.Licenses -> Text(text = "Open-source licenses")
                 is Path.Unlocated -> Text(text = "Binding")
                 is Path.QrCode, null -> {}
             }
@@ -450,6 +459,7 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices,
                 is Path.Beacons,
                 is Path.BeaconScan,
+                is Path.Licenses,
                 is Path.QrCode,
                 is Path.Unlocated -> {
                     IconButton(
@@ -540,6 +550,7 @@ private fun TopAppBar(
                 is Path.SuspendBluetoothDevices,
                 is Path.Beacons,
                 is Path.BeaconScan,
+                is Path.Licenses,
                 is Path.QrCode,
                 is Path.Unlocated,
                 null -> {}
@@ -574,7 +585,7 @@ private fun WicarlinkSupportAlert(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "Sensors manufactured by \"Wicarlink\" shown within their app \"LYTPMS\" are now " +
-                            "supported by TPMS Advanced",
+                            "supported by Persistent TPMS",
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -612,7 +623,8 @@ private fun AndroidAutoSupportAlert(
 
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Android auto is now fully supported! Connect this device to your car radio and open TPMS Advanced",
+                    "Android auto is now fully supported! Connect this device to your car radio and " +
+                            "open Persistent TPMS",
                     modifier = Modifier.fillMaxWidth()
                 )
             }

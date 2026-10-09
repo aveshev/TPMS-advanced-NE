@@ -54,7 +54,7 @@ public fun QrCodeScan(
     val permissionState = rememberMultiplePermissionsState(listOf(CAMERA))
     when {
         permissionState.allPermissionsGranted.not() -> MissingPermission(
-            text = "TPMS Advanced need you to approve a permission to scan the QR Code",
+            text = "Persistent TPMS need you to approve a permission to scan the QR Code",
             refusedText = "This app requires camera permission to scan QR, please enable it in settings",
             permissionState = permissionState,
             autoRequest = true,
