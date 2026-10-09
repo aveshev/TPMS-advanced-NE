@@ -9,15 +9,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,17 +34,17 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.masselis.tpmsadvanced.core.ui.LocalHomeNavController
 import com.masselis.tpmsadvanced.core.ui.MissingPermission
-import com.masselis.tpmsadvanced.feature.main.interfaces.composable.appendLoc
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel.Event
-import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel.State
+import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeResult
 import com.masselis.tpmsadvanced.feature.qrcode.ioc.Bindings.Companion.QrCodeViewModel
 
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
+/** Scans a QR code, then [onFound] with what it holds, see [QrCodeResultDialog] */
 public fun QrCodeScan(
     snackbarHostState: SnackbarHostState,
-    scanBluetooth: () -> Unit,
+    onFound: (QrCodeResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val permissionState = rememberMultiplePermissionsState(listOf(CAMERA))
@@ -63,17 +59,16 @@ public fun QrCodeScan(
 
         else -> Preview(
             snackbarHostState = snackbarHostState,
-            scanBluetooth = scanBluetooth,
+            onFound = onFound,
             modifier = modifier,
         )
     }
 }
 
-@Suppress("NAME_SHADOWING", "LongMethod")
 @Composable
 private fun Preview(
     snackbarHostState: SnackbarHostState,
-    scanBluetooth: () -> Unit,
+    onFound: (QrCodeResult) -> Unit,
     modifier: Modifier = Modifier,
     cameraSelector: CameraSelector = DEFAULT_BACK_CAMERA,
 ) {
@@ -102,40 +97,10 @@ private fun Preview(
 
     val viewModel = remember(controller) { QrCodeViewModel(controller) }
     val navController = LocalHomeNavController.current
-    val state by viewModel.stateFlow.collectAsState()
-    when (val state = state) {
-        State.Scanning -> {}
-
-        is State.AskForBinding -> BindingAlert(
-            state = state,
-            onDismissRequest = viewModel::scanAgain,
-            onBind = viewModel::bindSensors,
-        )
-
-        // Scanning the code again would tell the same
-        is State.TooManySensors -> AlertDialog(
-            onDismissRequest = viewModel::leave,
-            text = { Text("This QR lists more sensors than ${state.vehicle.name} needs, please assign via Bluetooth") },
-            confirmButton = { TextButton(onClick = viewModel::leave) { Text(text = "OK") } },
-        )
-
-        is State.Error -> ErrorAlert(
-            state = state,
-            onDismissRequest = viewModel::scanAgain,
-            scanBluetooth = scanBluetooth,
-        )
-
-        State.Assigned -> AlertDialog(
-            onDismissRequest = viewModel::leave,
-            text = { Text("Sensors assigned") },
-            confirmButton = { TextButton(onClick = viewModel::leave) { Text(text = "OK") } },
-        )
-    }
-
     LaunchedEffect(viewModel) {
         for (event in viewModel.eventChannel) {
             when (event) {
-                Event.Leave -> navController.popBackStack()
+                is Event.Found -> onFound(event.result)
 
                 Event.LeaveBecauseCameraUnavailable -> {
                     snackbarHostState.showSnackbar("Your device should to have a camera to continue")
@@ -145,89 +110,6 @@ private fun Preview(
         }
     }
 }
-
-@Composable
-private fun BindingAlert(
-    state: State.AskForBinding,
-    onDismissRequest: () -> Unit,
-    onBind: () -> Unit,
-) {
-    AlertDialog(
-        text = {
-            Text(
-                buildString {
-                    append("Assign the ${state.sensors.size} Sysgration sensors from this QR to ${state.vehicle.name}?")
-                    if (state.overwrites) append("\n\n⚠️ Warning: this will overwrite already assigned sensors")
-                }
-            )
-        },
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(onClick = onBind) {
-                Text(text = "Yes")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = "Cancel")
-            }
-        }
-    )
-}
-
-@Suppress("MaxLineLength")
-@Composable
-private fun ErrorAlert(
-    state: State.Error,
-    onDismissRequest: () -> Unit,
-    scanBluetooth: () -> Unit,
-) {
-    AlertDialog(
-        text = {
-            Text(
-                text = StringBuilder("Detected inconsistency with the QR Code")
-                    .apply {
-                        when (state) {
-
-                            is State.Error.DuplicateWheelLocation -> {
-                                append("\n\n⚠️ Filled QR Code contains different sensors associated to the same wheel, ")
-                                if (state.wheels.size == 1) append("duplication:")
-                                else append("duplications:")
-                                state.wheels.forEach { location ->
-                                    append("\n   · ")
-                                    appendLoc(location)
-                                }
-                            }
-
-                            is State.Error.DuplicateId -> {
-                                append("\n\n⚠️ Filled QR Code contains the same sensor id multiple time")
-                            }
-
-                            State.Error.UnsupportedWircarlinkQrCode -> {
-                                append("\n\n⚠️ QR codes made by Wicarlink aren't supported yet\nAssign each sensor with Scan via Bluetooth instead")
-                            }
-                        }
-                    }
-                    .toString()
-            )
-        },
-        onDismissRequest = onDismissRequest,
-        dismissButton =
-            if (state is State.Error.UnsupportedWircarlinkQrCode) {
-                {
-                    TextButton(onClick = scanBluetooth) {
-                        Text(text = "Scan via Bluetooth")
-                    }
-                }
-            } else null,
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = "OK")
-            }
-        },
-    )
-}
-
 
 @Composable
 private fun QrCodeOverlay(

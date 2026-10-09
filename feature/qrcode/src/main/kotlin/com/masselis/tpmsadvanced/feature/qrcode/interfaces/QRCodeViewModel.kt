@@ -3,42 +3,26 @@ package com.masselis.tpmsadvanced.feature.qrcode.interfaces
 import androidx.camera.view.CameraController
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
-import com.masselis.tpmsadvanced.data.vehicle.model.Sensor
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle
-import com.masselis.tpmsadvanced.feature.main.usecase.CurrentVehicleUseCase
-import com.masselis.tpmsadvanced.data.vehicle.model.Vehicle.Kind.Location.Wheel
+import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeResult
 import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeSensors
-import com.masselis.tpmsadvanced.feature.qrcode.model.sensorsFor
-import com.masselis.tpmsadvanced.feature.qrcode.usecase.BoundSensorMapUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.QrCodeSensorUseCase
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
-import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.BUFFERED
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.take
 
-@OptIn(ExperimentalCoroutinesApi::class)
+/** Reads a QR code from the camera, until one is found: [Event.Found] */
 @AssistedInject
 internal class QRCodeViewModel(
-    private val qrCodeSensorUseCase: QrCodeSensorUseCase,
-    private val boundSensorMapUseCase: BoundSensorMapUseCase,
-    private val currentVehicleUseCase: CurrentVehicleUseCase,
-    private val sensorDatabase: SensorDatabase,
-    @Assisted private val controller: CameraController
+    qrCodeSensorUseCase: QrCodeSensorUseCase,
+    @Assisted controller: CameraController
 ) : ViewModel() {
 
     @AssistedFactory
@@ -46,111 +30,38 @@ internal class QRCodeViewModel(
         operator fun invoke(controller: CameraController): QRCodeViewModel
     }
 
-    sealed interface State {
-        data object Scanning : State
+    sealed interface Event {
+        data object LeaveBecauseCameraUnavailable : Event
 
-        /** Assign [sensors] to [vehicle]? [overwrites] when one of its wheels has another sensor */
-        data class AskForBinding(
-            val vehicle: Vehicle,
-            val sensors: List<Sensor>,
-            val overwrites: Boolean,
-        ) : State
-
-        /** [vehicle] has fewer wheels than the code has sensors */
-        data class TooManySensors(val vehicle: Vehicle) : State
-
-        sealed interface Error : State {
-            @JvmInline
-            value class DuplicateWheelLocation(val wheels: Collection<Wheel>) : Error
-
-            @JvmInline
-            value class DuplicateId(val ids: Collection<Int>) : Error
-
-            data object UnsupportedWircarlinkQrCode : Error
-        }
-
-        /** Every sensor of the code was assigned to its wheel */
-        data object Assigned : State
+        @JvmInline
+        value class Found(val result: QrCodeResult) : Event
     }
-
-    sealed class Event {
-        data object LeaveBecauseCameraUnavailable : Event()
-        data object Leave : Event()
-    }
-
-    private val mutableStateFlow = MutableStateFlow<State>(State.Scanning)
-    val stateFlow = mutableStateFlow.asStateFlow()
 
     private val channel = Channel<Event>(BUFFERED)
     val eventChannel: ReceiveChannel<Event> = channel
 
     init {
-        stateFlow
-            .flatMapLatest { state ->
-                when (state) {
-                    is State.AskForBinding, is State.TooManySensors, is State.Error, State.Assigned -> emptyFlow()
+        qrCodeSensorUseCase
+            .analyse(controller)
+            .map { QrCodeResult.Sensors(it) as QrCodeResult }
+            .catch { exc ->
+                when (exc) {
+                    is CameraAnalyser.CameraUnavailable -> channel.send(Event.LeaveBecauseCameraUnavailable)
 
-                    State.Scanning -> qrCodeSensorUseCase
-                        .analyse(controller)
-                        .map { qrCodeSensors ->
-                            val vehicle = currentVehicleUseCase.value.vehicle
-                            qrCodeSensors
-                                .sensorsFor(vehicle.kind)
-                                ?.let { sensors ->
-                                    val assigned = withContext(IO) {
-                                        sensorDatabase.selectListByVehicleId(vehicle.uuid).execute()
-                                    }
-                                    State.AskForBinding(
-                                        vehicle,
-                                        sensors,
-                                        overwrites = sensors.any { sensor ->
-                                            assigned.any { it.location == sensor.location && it.id != sensor.id }
-                                        },
-                                    )
-                                }
-                                ?: State.TooManySensors(vehicle) as State
-                        }
-                        .catch { exc ->
-                            when (exc) {
-                                is CameraAnalyser.CameraUnavailable ->
-                                    channel.send(Event.LeaveBecauseCameraUnavailable)
+                    is QrCodeSensorUseCase.UnsupportedWircarlinkQrCode -> emit(QrCodeResult.UnsupportedWicarlink)
 
-                                is QrCodeSensorUseCase.UnsupportedWircarlinkQrCode ->
-                                    emit(State.Error.UnsupportedWircarlinkQrCode)
+                    is QrCodeSensors.DuplicateWheelLocation ->
+                        emit(QrCodeResult.DuplicateWheelLocation(exc.wheels.duplicates()))
 
-                                is QrCodeSensors.DuplicateWheelLocation -> exc
-                                    .wheels
-                                    .duplicates()
-                                    .let(State.Error::DuplicateWheelLocation)
-                                    .also { emit(it) }
+                    is QrCodeSensors.DuplicateId -> emit(QrCodeResult.DuplicateId(exc.ids.duplicates()))
 
-                                is QrCodeSensors.DuplicateId -> exc
-                                    .ids
-                                    .duplicates()
-                                    .let(State.Error::DuplicateId)
-                                    .also { emit(it) }
-
-                                else -> throw exc
-                            }
-                        }
+                    else -> throw exc
                 }
             }
-            .onEach { mutableStateFlow.value = it }
+            // The first code found closes the camera
+            .take(1)
+            .onEach { channel.send(Event.Found(it)) }
             .launchIn(viewModelScope)
-    }
-
-    fun bindSensors() = viewModelScope.launch {
-        val state = mutableStateFlow.value
-        if (state !is State.AskForBinding)
-            return@launch
-        boundSensorMapUseCase.bind(state.vehicle.uuid, state.sensors)
-        mutableStateFlow.value = State.Assigned
-    }
-
-    fun leave() = viewModelScope.launch { channel.send(Event.Leave) }
-
-    fun scanAgain() {
-        mutableStateFlow.value = State.Scanning
     }
 
     private fun <T> Iterable<T>.duplicates() = groupingBy { it }

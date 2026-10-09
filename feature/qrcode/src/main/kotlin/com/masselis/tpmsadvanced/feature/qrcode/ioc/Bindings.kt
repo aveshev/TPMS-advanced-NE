@@ -5,6 +5,7 @@ import com.masselis.tpmsadvanced.data.vehicle.interfaces.SensorDatabase
 import com.masselis.tpmsadvanced.data.vehicle.usecase.DemoOrBleScannerUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.CameraAnalyser
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QRCodeViewModel
+import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeResultViewModel
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.BoundSensorMapUseCase
 import com.masselis.tpmsadvanced.feature.qrcode.usecase.QrCodeSensorUseCase
 import dev.zacsweers.metro.AppScope
@@ -36,11 +37,14 @@ public interface Bindings {
 
     @Inject
     public class Internal internal constructor(
-        internal val qrCodeViewModel: QRCodeViewModel.Factory
+        internal val qrCodeViewModel: QRCodeViewModel.Factory,
+        internal val qrCodeResultViewModel: QrCodeResultViewModel.Factory,
     )
 
     public companion object {
         internal val QrCodeViewModel
             get() = (appGraph as Bindings).featureQrCodeInternal.qrCodeViewModel
+        internal val QrCodeResultViewModel
+            get() = (appGraph as Bindings).featureQrCodeInternal.qrCodeResultViewModel
     }
 }

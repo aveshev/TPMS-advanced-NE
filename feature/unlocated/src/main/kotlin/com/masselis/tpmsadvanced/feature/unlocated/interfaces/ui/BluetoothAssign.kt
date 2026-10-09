@@ -1,5 +1,12 @@
 package com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui
 
+import com.masselis.tpmsadvanced.feature.main.R
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,7 +66,7 @@ public fun BluetoothAssign(
     Dialogs(location, state.dialog, viewModel)
 }
 
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 private fun Steps(
     location: Location,
@@ -67,68 +74,130 @@ private fun Steps(
     viewModel: BluetoothAssignViewModel,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp)
-            .testTag(BluetoothAssignTags.root),
-    ) {
-        Text(
-            text = buildString { append("Assign a sensor to the "); appendLoc(location) },
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        when (val step = state.step) {
-            AssignStep.Ask -> {
-                Instruction("Is the sensor on the wheel right now?")
-                Button(
-                    onClick = { viewModel.answer(isOnWheel = true) },
-                    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.onWheel),
-                ) { Text("Yes, the sensor is on the wheel") }
+    val step = state.step
+    // The step's instruction in the middle, its actions anchored at the bottom
+    Column(modifier = modifier.fillMaxSize()) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+        ) {
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.bluetooth_24px),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(72.dp),
+            )
+            Text(
+                text = buildString { append("Assign a sensor to the "); appendLoc(location) },
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            val dialog = state.dialog
+            if (state.isAssigned) Instruction(buildString { append("Sensor assigned to the "); appendLoc(location) })
+            else if (dialog == Dialog.OneFound) Instruction(
+                "One sensor found",
+                buildString {
+                    append("Assign it to the ")
+                    appendLoc(location)
+                    append(", or check again to make sure?")
+                },
+            )
+            else if (dialog is Dialog.ManyFound) Instruction(
+                "${dialog.count} on-wheel sensors found",
+                "Let's figure out which one to assign",
+            )
+            else when (step) {
+                AssignStep.Ask -> Instruction("Is the sensor on the wheel right now?")
+
+                is AssignStep.PutOn -> {
+                    Instruction("Put the sensor on the wheel", FORCES_UPDATE)
+                    Listening("Listening for on-wheel sensors…", step.found.size.sensors("on-wheel"))
+                }
+
+                is AssignStep.TakeOff -> {
+                    Instruction("Remove the sensor from the wheel", FORCES_UPDATE)
+                    Listening("Listening for off-wheel sensors…", step.off.size.sensors("off-wheel"))
+                }
+
+                is AssignStep.PutBack -> {
+                    Instruction("Put the sensor back on the wheel", FORCES_UPDATE)
+                    Listening("Listening for the sensor to come back on…", null)
+                }
+
+                is AssignStep.Found -> Instruction("Sensor found")
+            }
+        }
+        HorizontalDivider()
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            val dialog = state.dialog
+            if (state.isAssigned) Button(
+                onClick = viewModel::done,
+                modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.done),
+            ) { Text("Done") }
+            else if (dialog == Dialog.OneFound) {
                 OutlinedButton(
-                    onClick = { viewModel.answer(isOnWheel = false) },
-                    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.inHand),
-                ) { Text("No, the sensor is in my hand") }
-            }
-
-            is AssignStep.PutOn -> {
-                Instruction("Put the sensor on the wheel (this will force it to send an update)")
-                Listening("Listening for on-wheel sensors…", step.found.size.sensors("on-wheel"))
+                    onClick = viewModel::checkAgain,
+                    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.checkAgain),
+                ) { Text("Check again") }
                 Button(
-                    onClick = viewModel::next,
-                    enabled = step.found.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.next),
-                ) { Text("Continue") }
-                // Below 10 kPa, a sensor isn't told on a wheel from in the hand
-                if (state.offersLowPressure && step.found.isEmpty() && step.low.isNotEmpty()) TextButton(
-                    onClick = viewModel::lowPressure,
-                    modifier = Modifier.testTag(BluetoothAssignTags.lowPressure),
-                ) { Text("Low pressure tyre?") }
+                    onClick = viewModel::assignFound,
+                    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.assign),
+                ) { Text("Assign") }
             }
+            else if (dialog is Dialog.ManyFound) Button(
+                onClick = viewModel::checkAgain,
+                modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.checkAgain),
+            ) { Text("Continue") }
+            else when (step) {
+                AssignStep.Ask -> {
+                    OutlinedButton(
+                        onClick = { viewModel.answer(isOnWheel = false) },
+                        modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.inHand),
+                    ) { Text("No, the sensor is in my hand") }
+                    Button(
+                        onClick = { viewModel.answer(isOnWheel = true) },
+                        modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.onWheel),
+                    ) { Text("Yes, the sensor is on the wheel") }
+                }
 
-            is AssignStep.TakeOff -> {
-                Instruction("Remove the sensor from the wheel (this will force it to send an update)")
-                Listening("Listening for off-wheel sensors…", step.off.size.sensors("off-wheel"))
-                Button(
-                    onClick = viewModel::next,
-                    enabled = step.off.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.next),
-                ) { Text("Continue") }
+                is AssignStep.PutOn -> {
+                    // Below 10 kPa, a sensor isn't told on a wheel from in the hand
+                    if (state.offersLowPressure && step.found.isEmpty() && step.low.isNotEmpty()) TextButton(
+                        onClick = viewModel::lowPressure,
+                        modifier = Modifier.testTag(BluetoothAssignTags.lowPressure),
+                    ) { Text("Low pressure tyre?") }
+                    Continue(enabled = step.found.isNotEmpty(), onClick = viewModel::next)
+                }
+
+                is AssignStep.TakeOff -> Continue(enabled = step.off.isNotEmpty(), onClick = viewModel::next)
+
+                // Assigned by itself once back on the wheel
+                is AssignStep.PutBack, is AssignStep.Found -> Continue(enabled = false, onClick = {})
             }
-
-            is AssignStep.PutBack -> {
-                Instruction("Put the sensor back on the wheel (this will force it to send an update)")
-                Listening("Listening for the sensor to come back on…", null)
-            }
-
-            is AssignStep.Found -> Instruction("Sensor found")
         }
     }
 }
+
+@Composable
+private fun Continue(enabled: Boolean, onClick: () -> Unit) = Button(
+    onClick = onClick,
+    enabled = enabled,
+    modifier = Modifier.fillMaxWidth().testTag(BluetoothAssignTags.next),
+) { Text("Continue") }
+
+private const val FORCES_UPDATE = "This will force it to send an update"
 
 @Suppress("LongMethod")
 @Composable
@@ -136,39 +205,8 @@ private fun Dialogs(location: Location, dialog: Dialog?, viewModel: BluetoothAss
     when (dialog) {
         null -> {}
 
-        Dialog.OneFound -> AlertDialog(
-            onDismissRequest = viewModel::dismissDialog,
-            text = {
-                Text(buildString {
-                    append("One sensor found, assign it to the ")
-                    appendLoc(location)
-                    append(" or check again to make sure?")
-                })
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::assignFound,
-                    modifier = Modifier.testTag(BluetoothAssignTags.assign),
-                ) { Text("Assign") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = viewModel::checkAgain,
-                    modifier = Modifier.testTag(BluetoothAssignTags.checkAgain),
-                ) { Text("Check again") }
-            },
-        )
-
-        is Dialog.ManyFound -> AlertDialog(
-            onDismissRequest = viewModel::dismissDialog,
-            text = { Text("${dialog.count} on-wheel sensors were found, let's figure out which one to assign") },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::checkAgain,
-                    modifier = Modifier.testTag(BluetoothAssignTags.checkAgain),
-                ) { Text("OK") }
-            },
-        )
+        // Asked on the page, see Steps
+        Dialog.OneFound, is Dialog.ManyFound -> {}
 
         is Dialog.BoundElsewhere -> AlertDialog(
             onDismissRequest = viewModel::dismissDialog,
@@ -189,26 +227,28 @@ private fun Dialogs(location: Location, dialog: Dialog?, viewModel: BluetoothAss
             },
             dismissButton = { TextButton(onClick = viewModel::dismissDialog) { Text("Cancel") } },
         )
-
-        Dialog.Assigned -> AlertDialog(
-            onDismissRequest = viewModel::dismissDialog,
-            text = { Text(buildString { append("Sensor assigned to the "); appendLoc(location) }) },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::dismissDialog,
-                    modifier = Modifier.testTag(BluetoothAssignTags.assignedOk),
-                ) { Text("OK") }
-            },
-        )
     }
 }
 
 @Composable
-private fun Instruction(text: String) = Text(
-    text = text,
-    style = MaterialTheme.typography.headlineSmall,
-    textAlign = TextAlign.Center,
-)
+private fun Instruction(text: String, detail: String? = null) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        detail?.also {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
 
 /** A pulsing bar while listening, [found] under it */
 @Composable
@@ -233,5 +273,5 @@ public object BluetoothAssignTags {
     public const val lowPressure: String = "BluetoothAssignTags_lowPressure"
     public const val assign: String = "BluetoothAssignTags_assign"
     public const val checkAgain: String = "BluetoothAssignTags_checkAgain"
-    public const val assignedOk: String = "BluetoothAssignTags_assignedOk"
+    public const val done: String = "BluetoothAssignTags_done"
 }

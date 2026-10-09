@@ -33,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,6 +79,8 @@ import com.masselis.tpmsadvanced.feature.main.interfaces.composable.LocalVehicle
 import com.masselis.tpmsadvanced.feature.main.interfaces.composable.ManageSensors
 import com.masselis.tpmsadvanced.feature.main.ioc.vehicle.VehicleComponent
 import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeScan
+import com.masselis.tpmsadvanced.feature.qrcode.model.QrCodeResult
+import com.masselis.tpmsadvanced.feature.qrcode.interfaces.QrCodeResultDialog
 import com.masselis.tpmsadvanced.feature.unlocated.interfaces.ui.BluetoothAssign
 import com.masselis.tpmsadvanced.interfaces.composable.HomeTags.backButton
 import com.masselis.tpmsadvanced.interfaces.composable.HomeTags.carListDropdownMenu
@@ -103,7 +106,7 @@ internal fun Home(
     }
 }
 
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 internal fun VehicleHome(
     vehicleComponent: VehicleComponent,
@@ -119,6 +122,9 @@ internal fun VehicleHome(
         var showAndroidAutoSupportAlert by remember { mutableStateOf(false) }
         var showWicarlinkSupportAlert by remember { mutableStateOf(false) }
         val snackbarHostState = remember { SnackbarHostState() }
+        // A QR code scanned for this location, shown once its camera is closed, see QrCodeResultDialog
+        var qrCodeResult by rememberSaveable { mutableStateOf<QrCodeResult?>(null) }
+        var qrCodeLocation by rememberSaveable { mutableIntStateOf(0) }
         val currentPath = navController.currentBackStackEntryAsState()
             .value
             ?.destination
@@ -337,8 +343,10 @@ internal fun VehicleHome(
                         val location = entry.arguments!!.getInt("location")
                         QrCodeScan(
                             snackbarHostState = snackbarHostState,
-                            scanBluetooth = {
-                                navController.navigate("${Path.BluetoothAssign(vehicleUuid, location)}")
+                            onFound = {
+                                qrCodeResult = it
+                                qrCodeLocation = location
+                                navController.popBackStack()
                             },
                             modifier = modifier
                         )
@@ -362,6 +370,15 @@ internal fun VehicleHome(
             },
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
         )
+        qrCodeResult?.also { result ->
+            QrCodeResultDialog(
+                result = result,
+                scanBluetooth = {
+                    navController.navigate("${Path.BluetoothAssign(vehicleComponent.vehicle.uuid, qrCodeLocation)}")
+                },
+                onDismiss = { qrCodeResult = null },
+            )
+        }
         if (offsetToFocus != null)
             AnimatedVisibility(
                 visible = showManualMonitoringSpotlight,

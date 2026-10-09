@@ -65,8 +65,11 @@ internal class BluetoothAssignViewModel(
         val dialog: Dialog? = null,
         /** Nothing was found on a wheel for a while: maybe the tyre is nearly flat */
         val offersLowPressure: Boolean = false,
+        /** The sensor found was assigned, the flow is done */
+        val isAssigned: Boolean = false,
     )
 
+    /** Asked before going on: on the page itself, but [BoundElsewhere] in a dialog */
     sealed interface Dialog {
         /** A single sensor was found on a wheel: assign it, or make sure by taking it off and back */
         data object OneFound : Dialog
@@ -76,8 +79,6 @@ internal class BluetoothAssignViewModel(
 
         /** The sensor found belongs to [vehicle], assigning it here takes it from there */
         data class BoundElsewhere(val vehicle: Vehicle) : Dialog
-
-        data object Assigned : Dialog
     }
 
     sealed interface Event {
@@ -176,7 +177,6 @@ internal class BluetoothAssignViewModel(
         when (state.dialog) {
             // Starts listening again rather than assigning the sensor of another vehicle
             is Dialog.BoundElsewhere -> state.copy(step = AssignStep.Ask, dialog = null)
-            Dialog.Assigned -> state.also { viewModelScope.launch { channel.send(Event.Leave) } }
             else -> state.copy(dialog = null)
         }
     }
@@ -192,8 +192,10 @@ internal class BluetoothAssignViewModel(
     private suspend fun bind(sensorId: Int) {
         val tyre = heard.getValue(sensorId)
         bindSensorToVehicleUseCase.bind(vehicleUuid, Sensor(sensorId, location, tyre.brand), tyre)
-        mutableStateFlow.update { it.copy(dialog = Dialog.Assigned) }
+        mutableStateFlow.update { it.copy(dialog = null, isAssigned = true) }
     }
+
+    fun done() = viewModelScope.launch { channel.send(Event.Leave) }
 
     private fun AssignStep.isListening() =
         this is AssignStep.PutOn || this is AssignStep.TakeOff || this is AssignStep.PutBack
