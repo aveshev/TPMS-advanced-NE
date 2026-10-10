@@ -36,6 +36,11 @@ UPDATE SET
     pressureMultiplier=CASE WHEN vehicleId = excluded.vehicleId THEN pressureMultiplier ELSE 1 END,
     vehicleId=excluded.vehicleId;
 
+-- A sensor moved on its vehicle, with the calibration it had: it's the sensor's
+insertMoved:
+INSERT INTO Sensor (id, location, vehicleId, brand, pressureCalibration, pressureOffset, pressureMultiplier)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
 deleteByVehicle:
 DELETE FROM Sensor WHERE rowid IN (
     SELECT Sensor.rowid FROM Sensor
@@ -69,7 +74,7 @@ SELECT * FROM Sensor WHERE Sensor.vehicleId != ?;
 brandsByVehicleId:
 SELECT DISTINCT brand FROM Sensor WHERE vehicleId = ?;
 
--- The calibrations of a vehicle's sensors, see Vehicle.sharedCalibration
+-- The calibrations of a vehicle's sensors
 selectCalibrationsByVehicleId:
 SELECT id, pressureCalibration, pressureOffset, pressureMultiplier FROM Sensor WHERE vehicleId = ?;
 
@@ -79,6 +84,6 @@ SELECT pressureCalibration, pressureOffset, pressureMultiplier FROM Sensor WHERE
 updateCalibration:
 UPDATE Sensor SET pressureCalibration = ?, pressureOffset = ?, pressureMultiplier = ? WHERE id = ?;
 
--- Sets every sensor of a vehicle to the same calibration, when it stops being shared or starts
+-- Sets every sensor of a vehicle to the same calibration, see SensorDatabase.updateCalibrations
 updateCalibrationsByVehicleId:
 UPDATE Sensor SET pressureCalibration = ?, pressureOffset = ?, pressureMultiplier = ? WHERE vehicleId = ?;

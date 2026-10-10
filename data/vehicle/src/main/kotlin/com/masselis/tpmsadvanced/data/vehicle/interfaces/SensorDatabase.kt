@@ -58,15 +58,24 @@ public class SensorDatabase internal constructor(
     public suspend fun move(vehicleId: UUID, moves: List<Pair<Location, Location>>): Unit = withContext(IO) {
         database.transaction {
             moves
-                .map { (from, to) ->
-                    queries.selectByVehicleAndLocation(vehicleId, from, mapper).executeAsOne() to to
-                }
+                // The whole row, the sensor keeps its calibration
+                .map { (from, to) -> queries.selectByVehicleAndLocation(vehicleId, from).executeAsOne() to to }
                 // All freed first, a sensor can take a location another one is leaving
                 .onEach { (sensor, _) -> queries.deleteByVehicleAndLocation(vehicleId, sensor.location) }
                 .forEach { (sensor, to) ->
-                    queries.upsert(sensor.id, to, vehicleId, sensor.brand)
-                    database.readingQueries.moveSensor(to, vehicleId, sensor.location, sensor.id)
+                    queries.insertMoved(
+                        sensor.id,
+                        to,
+                        vehicleId,
+                        sensor.brand,
+                        sensor.pressureCalibration,
+                        sensor.pressureOffset,
+                        sensor.pressureMultiplier,
+                    )
+                    database.readingQueries.parkSensor(to, vehicleId, sensor.location, sensor.id)
                 }
+            database.readingQueries.unparkSensors(vehicleId)
+            database.readingQueries.dropParked(vehicleId)
         }
     }
 
