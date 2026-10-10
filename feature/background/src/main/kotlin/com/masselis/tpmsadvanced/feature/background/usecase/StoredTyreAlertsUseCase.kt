@@ -65,7 +65,7 @@ internal class StoredTyreAlertsUseCase(
         val component = VehicleComponent(vehicle)
         // The leak is followed with the calibration and the rule it started with, both changing
         // starts it over from the stored readings, as TyrePressureLossStateFlow does
-        var calibration = component.vehicleCalibrationUseCase.calibration.first()
+        var calibration = component.vehicleCalibrationUseCase.calibrations.first()
         var rule = component.vehiclePressureLossUseCase.rule.first()
         val stored = readingDatabase.allByLocation(location, vehicle.uuid).execute()
         // The thresholds the latest reading went through with
@@ -103,7 +103,7 @@ internal class StoredTyreAlertsUseCase(
                 .afterByLocation(location, vehicle.uuid, since)
                 .execute()
                 .forEach { record ->
-                    val newCalibration = component.vehicleCalibrationUseCase.calibration.first()
+                    val newCalibration = component.vehicleCalibrationUseCase.calibrations.first()
                     val newRule = component.vehiclePressureLossUseCase.rule.first()
                     if (newCalibration != calibration || newRule != rule) {
                         calibration = newCalibration

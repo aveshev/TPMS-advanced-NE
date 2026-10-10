@@ -73,6 +73,8 @@ public fun ManageSensors(
     snackbarHostState: SnackbarHostState,
     scanQrCode: (Location) -> Unit,
     scanBluetooth: (Location) -> Unit,
+    /** Opens the calibration of the sensor with this id */
+    calibrate: (Int) -> Unit,
     modifier: Modifier = Modifier,
     /** In a wide window, see [isWideWindow], the top bar makes way: the page shows its own */
     navigationIcon: @Composable () -> Unit = {},
@@ -129,6 +131,7 @@ public fun ManageSensors(
                     isManaging = true,
                     scanQrCode = scanQrCode,
                     scanBluetooth = scanBluetooth,
+                    calibrate = calibrate,
                     move = moving?.let { chain ->
                         TyreMove(chain, all) { target ->
                             when (val step = chain.tap(target, occupied, all)) {
