@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,15 +89,16 @@ private fun Preview(
             }
         }
 
+    val viewModel = remember(controller) { QrCodeViewModel(controller) }
+    val isUnknownCode by viewModel.isUnknownCode.collectAsState()
     Box(modifier) {
         AndroidView(
             { context -> PreviewView(context).apply { this.controller = controller } },
             Modifier.fillMaxSize()
         )
-        QrCodeOverlay(Modifier.fillMaxSize())
+        QrCodeOverlay(isUnknownCode, Modifier.fillMaxSize())
     }
 
-    val viewModel = remember(controller) { QrCodeViewModel(controller) }
     val navController = LocalHomeNavController.current
     LaunchedEffect(viewModel) {
         for (event in viewModel.eventChannel) {
@@ -113,6 +116,7 @@ private fun Preview(
 
 @Composable
 private fun QrCodeOverlay(
+    isUnknownCode: Boolean,
     modifier: Modifier = Modifier
 ) {
     Box(modifier) {
@@ -142,7 +146,7 @@ private fun QrCodeOverlay(
             }
         }
         Text(
-            text = "Point the camera at the sensors' QR code",
+            text = if (isUnknownCode) "Not a known TPMS QR code" else "Point the camera at the sensors' QR code",
             color = Color.White,
             textAlign = TextAlign.Center,
             modifier = Modifier

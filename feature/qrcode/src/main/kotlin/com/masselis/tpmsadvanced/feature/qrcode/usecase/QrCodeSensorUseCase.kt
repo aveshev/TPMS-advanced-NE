@@ -15,7 +15,6 @@ import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -25,11 +24,12 @@ internal class QrCodeSensorUseCase(
 
     @OptIn(ExperimentalStdlibApi::class)
     @Suppress("MagicNumber", "CyclomaticComplexMethod", "LongMethod", "MaxLineLength")
+    /** The sensors each QR code the camera sees holds, null for a code that isn't a TPMS one */
     fun analyse(
         controller: CameraController
-    ): Flow<QrCodeSensors> = cameraAnalyser
+    ): Flow<QrCodeSensors?> = cameraAnalyser
         .findQrCode(controller)
-        .mapNotNull {
+        .map {
             fourSensorRegex.find(it)?.groupValues?.subList(1, 5)
                 ?: twoSensorRegex.find(it)?.groupValues?.subList(1, 3)
                 ?: run {
@@ -38,6 +38,7 @@ internal class QrCodeSensorUseCase(
                 }
         }
         .map { stringHexs ->
+            stringHexs ?: return@map null
             stringHexs
                 .map { stringHex ->
                     Pair(
