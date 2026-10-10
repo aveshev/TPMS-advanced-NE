@@ -44,6 +44,12 @@ internal class QrCodeResultViewModel(
         /** [vehicle] has fewer wheels than the code's [count] sensors */
         data class TooManySensors(val vehicle: Vehicle, val count: Int) : State
 
+        /**
+         * The code's sensors fit the vehicle's wheels, but two of them land on the same one, e.g.
+         * both rear sensors of a car's kit on a tadpole's single rear wheel
+         */
+        data object Unreadable : State
+
         /** The code can't be assigned as it is */
         @JvmInline
         value class Unusable(val result: QrCodeResult) : State
@@ -61,6 +67,8 @@ internal class QrCodeResultViewModel(
                         .sensors
                         .sensorsFor(vehicle.kind)
                         ?.let { sensors ->
+                            // Assigning both would break the one sensor per wheel the database holds
+                            if (sensors.distinctBy { it.location }.size < sensors.size) return@let State.Unreadable
                             val assigned = withContext(IO) {
                                 sensorDatabase.selectListByVehicleId(vehicle.uuid).execute()
                             }

@@ -78,6 +78,15 @@ internal class QrCodeSensorUseCaseTest {
     }
 
     @Test
+    fun unknownCode() = runTest {
+        every { cameraAnalyser.findQrCode(any()) } returns MutableStateFlow("https://example.com")
+        test().analyse(mockk()).test {
+            assertNull(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun fourWheelsForACar() {
         assertEquals(
             listOf(
