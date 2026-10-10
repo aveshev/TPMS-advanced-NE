@@ -187,7 +187,7 @@ private fun SensorCalibrationSettings(
         // Under the values it follows from, greyed out with them while the calibration is off
         SettingsSectionNote(
             // "read as": the corrected pressure isn't only shown, the alerts check it too
-            text = "Example: ${example.withSymbol(unit)} reported by ${if (isExampleRead) "this" else "a"} sensor is read as ${calibration.applyTo(example).withSymbol(unit)}",
+            text = "Example: ${example.withSymbol(unit)} reported by ${if (isExampleRead) "this" else "a"} sensor is read as ${calibration.applyTo(example).withSymbol(unit)}* (asterisk added when displaying corrected values)",
             modifier = Modifier
                 .padding(top = 8.dp)
                 .alpha(if (enabled) 1f else DISABLED_ALPHA),

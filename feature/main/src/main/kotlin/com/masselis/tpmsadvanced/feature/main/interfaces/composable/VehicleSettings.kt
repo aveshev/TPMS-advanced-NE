@@ -128,7 +128,9 @@ public fun VehicleSettings(
         SettingsGroup {
             TextSettingsItem(
                 headline = "Manage sensors",
+                supporting = "Move, calibrate, delete",
                 onClick = openManageSensors,
+                opensPage = true,
                 modifier = Modifier.testTag(VehicleSettingsTags.manageSensors),
             )
             ClearBoundSensorsButton()
