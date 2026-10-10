@@ -71,6 +71,12 @@ public fun QrCodeResultDialog(
             confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } },
         )
 
+        State.Unreadable -> AlertDialog(
+            onDismissRequest = onDismiss,
+            text = { Text("Error reading QR, please assign via Bluetooth instead") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } },
+        )
+
         is State.Unusable -> UnusableAlert(state.result, scanBluetooth, onDismiss)
     }
 }
